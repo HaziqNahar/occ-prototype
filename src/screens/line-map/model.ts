@@ -148,6 +148,7 @@ export const platformData = [
 ]
 
 export const commandData = platformData.map((platform) => ({
+  code: platform.code,
   x: platform.x,
   y: platform.commandY - LOWER_COMMAND_LIFT,
 }))

@@ -42,7 +42,7 @@ import {
   lowerTrackEdgeStrips,
 } from './model'
 import type { LineMapSignalData } from './model'
-import type { AppRoute, LineMapRuntimeState, TrainCommand, TrainState } from '../../types'
+import type { AppRoute, LineMapRuntimeState, RouteControlMode, TrainCommand, TrainState } from '../../types'
 
 const BODY_TOP = 172
 const MAIN_UPPER_TRACK_Y = 215
@@ -186,9 +186,11 @@ type LineMapMonitorDomProps = {
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onToggleRouteControlMode: (panelCode: string) => void
   onToggleCycle: () => void
   onWheel: (event: ReactWheelEvent<HTMLDivElement>) => void
   panX: number
+  routeControlModes: Record<string, RouteControlMode>
   selectedTrain?: TrainState
   selectedTrainId: string
   trains: TrainState[]
@@ -466,9 +468,11 @@ export default function LineMapMonitorDom({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onToggleRouteControlMode,
   onToggleCycle,
   onWheel,
   panX,
+  routeControlModes,
   selectedTrain,
   selectedTrainId,
   trains,
@@ -569,6 +573,8 @@ export default function LineMapMonitorDom({
               onCommand={onCommand}
               onOpenSignalMenu={openSignalMenuAtPointer}
               panX={panX}
+              routeControlModes={routeControlModes}
+              onToggleRouteControlMode={onToggleRouteControlMode}
               onToggleCycle={onToggleCycle}
             />
             {trains.map((train) => (
@@ -692,12 +698,16 @@ function LineMapSchematicBase({
   onCommand,
   onOpenSignalMenu,
   panX,
+  routeControlModes,
+  onToggleRouteControlMode,
   onToggleCycle,
 }: {
   lineMap: LineMapRuntimeState
   onCommand: (command: TrainCommand) => void
   onOpenSignalMenu: (event: ReactMouseEvent<HTMLElement>, signal: LineMapSignalData) => void
   panX: number
+  routeControlModes: Record<string, RouteControlMode>
+  onToggleRouteControlMode: (panelCode: string) => void
   onToggleCycle: () => void
 }) {
   return (
@@ -759,7 +769,15 @@ function LineMapSchematicBase({
       ))}
       {platformData.map((platform) => <PlatformPanel key={platform.code} platform={platform} />)}
       {commandData.map((command) => (
-        <CommandPanel key={`command-${command.x}`} onCommand={onCommand} x={command.x} y={command.y} />
+        <CommandPanel
+          key={`command-${command.code}`}
+          onCommand={onCommand}
+          onToggleRouteControlMode={onToggleRouteControlMode}
+          panelCode={command.code}
+          routeMode={routeControlModes[command.code] ?? 'OCCA'}
+          x={command.x}
+          y={command.y}
+        />
       ))}
       <button
         className="line-map-gh-button"
@@ -1991,10 +2009,16 @@ function PlatformPanel({ platform }: { platform: (typeof platformData)[number] }
 
 function CommandPanel({
   onCommand,
+  onToggleRouteControlMode,
+  panelCode,
+  routeMode,
   x,
   y,
 }: {
   onCommand: (command: TrainCommand) => void
+  onToggleRouteControlMode: (panelCode: string) => void
+  panelCode: string
+  routeMode: RouteControlMode
   x: number
   y: number
 }) {
@@ -2005,19 +2029,30 @@ function CommandPanel({
   ]
 
   return (
-    <div className="line-map-command-panel" style={{ left: x - 38, top: y }}>
+    <div
+      className="line-map-command-panel"
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{ left: x - 38, top: y }}
+    >
       {commands.map((item) => (
         <button
           data-testid={`line-map-command-${item.command}-${Math.round(x)}`}
+          className={item.command === 'ROUTE' && routeMode === 'OCCM' ? 'is-route-manual' : undefined}
           key={`${x}-${item.command}`}
           onClick={(event) => {
             event.stopPropagation()
+            if (item.command === 'ROUTE') {
+              onToggleRouteControlMode(panelCode)
+              return
+            }
             onCommand(item.command)
           }}
+          onPointerDown={(event) => event.stopPropagation()}
           type="button"
         >
           <span>{item.label}</span>
-          <strong>{item.command === 'HOLD' ? 'ISCS' : 'OCCA'}</strong>
+          <strong>{item.command === 'HOLD' ? 'ISCS' : item.command === 'ROUTE' ? routeMode : 'OCCA'}</strong>
         </button>
       ))}
     </div>

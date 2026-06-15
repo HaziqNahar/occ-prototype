@@ -21,6 +21,7 @@ export type ScreenRole = {
 }
 
 export type CycleMode = 'NONE' | 'AUTO'
+export type RouteControlMode = 'OCCA' | 'OCCM'
 export type ScenarioMode = 'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETE'
 export type ScenarioNoticeTone = 'info' | 'success' | 'warning'
 export type ScenarioTaskId = 'selectTrain' | 'ackAlarm' | 'setRoute' | 'dispatchTrain' | 'completeScenario'

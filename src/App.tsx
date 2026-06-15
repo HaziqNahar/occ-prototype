@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ChangeEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent, ReactNode, SetStateAction } from 'react'
 import './App.css'
 import controlTabIcon from './assets/control-tab-icon.png'
 import footerAdminIcon from './assets/toolbar-icons/admin.png'
@@ -27,7 +27,22 @@ import { submitOccSessionAction } from './backendClient'
 import type { OccSessionAction } from './backendClient'
 import LiveScadaClock from './components/LiveScadaClock'
 import MonitorWorkspace from './components/MonitorWorkspace'
+import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
 import ScadaFooter from './components/ScadaFooter'
+import ChangeEndsDialog from './components/train-control/ChangeEndsDialog'
+import { SignalContextMenu, TrainAuxiliaryPanel, TrainContextMenu } from './components/train-control/LineMapContextMenus'
+import ScadaCommandDialog from './components/train-control/ScadaCommandDialog'
+import { InspectorInfoRow, ScadaDropdown, TrainInspectorScrollbar } from './components/train-control/TrainInspectorControls'
+import TrainTimeDialog from './components/train-control/TrainTimeDialog'
+import {
+  getTrainServiceDirectionLabel,
+  hasTrainMovementDestination,
+  isRt2DepotArrivalDestination,
+} from './components/train-control/trainTimeOptions'
+import type { TrainTimeSelection } from './components/train-control/trainTimeOptions'
+import type { InspectorPage, TrainAuxiliaryView } from './components/train-control/trainControlTypes'
+import usePopupDrag from './components/train-control/usePopupDrag'
+import Win98HtmlButton from './components/train-control/Win98HtmlButton'
 import {
   DEFAULT_LINE_MAP_PAN,
   LINE_SECTION_OFFSETS,
@@ -72,6 +87,7 @@ import type {
   OccAssessmentMetrics,
   OccSessionMeta,
   OccSessionState,
+  RouteControlMode,
   ScenarioNotice,
   ScenarioNoticeTone,
   SessionLifecycle,
@@ -86,136 +102,6 @@ import type {
   TrainState,
   TrainStatus,
 } from './types'
-
-type PopupDragStyle = CSSProperties & {
-  '--popup-drag-x': string
-  '--popup-drag-y': string
-}
-
-function usePopupDrag() {
-  const [position, setPosition] = useState({ x: 0, y: 0 })
-  const dragRef = useRef<{
-    mode: 'mouse' | 'pointer'
-    originX: number
-    originY: number
-    pointerId?: number
-    startX: number
-    startY: number
-  } | null>(null)
-  const style: PopupDragStyle = {
-    '--popup-drag-x': `${position.x}px`,
-    '--popup-drag-y': `${position.y}px`,
-  }
-
-  const updateDragPosition = (clientX: number, clientY: number) => {
-    const drag = dragRef.current
-
-    if (!drag) {
-      return
-    }
-
-    setPosition({
-      x: drag.originX + clientX - drag.startX,
-      y: drag.originY + clientY - drag.startY,
-    })
-  }
-
-  const shouldStartDrag = (event: ReactMouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>) => {
-    if (event.button !== 0 || dragRef.current) {
-      return false
-    }
-
-    const target = event.target as HTMLElement
-
-    return !target.closest('button, input, select, textarea')
-  }
-
-  const startDrag = (clientX: number, clientY: number, mode: 'mouse' | 'pointer', pointerId?: number) => {
-    dragRef.current = {
-      mode,
-      originX: position.x,
-      originY: position.y,
-      pointerId,
-      startX: clientX,
-      startY: clientY,
-    }
-  }
-
-  const stopPointerDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    const drag = dragRef.current
-
-    if (!drag || drag.mode !== 'pointer' || drag.pointerId !== event.pointerId) {
-      return
-    }
-
-    dragRef.current = null
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }
-
-  useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!dragRef.current) {
-        return
-      }
-
-      event.preventDefault()
-      updateDragPosition(event.clientX, event.clientY)
-    }
-
-    const handleMouseUp = () => {
-      dragRef.current = null
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [])
-
-  return {
-    style,
-    titleBarProps: {
-      onMouseDown: (event: ReactMouseEvent<HTMLElement>) => {
-        if (!shouldStartDrag(event)) {
-          return
-        }
-
-        event.preventDefault()
-        event.stopPropagation()
-        startDrag(event.clientX, event.clientY, 'mouse')
-      },
-      onPointerCancel: stopPointerDrag,
-      onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
-        if (!shouldStartDrag(event)) {
-          return
-        }
-
-        event.preventDefault()
-        event.stopPropagation()
-        startDrag(event.clientX, event.clientY, 'pointer', event.pointerId)
-        event.currentTarget.setPointerCapture(event.pointerId)
-      },
-      onPointerMove: (event: ReactPointerEvent<HTMLElement>) => {
-        const drag = dragRef.current
-
-        if (!drag || drag.mode !== 'pointer' || drag.pointerId !== event.pointerId) {
-          return
-        }
-
-        event.preventDefault()
-        event.stopPropagation()
-        updateDragPosition(event.clientX, event.clientY)
-      },
-      onPointerUp: stopPointerDrag,
-    },
-  }
-}
 
 const LINE_MAP_LAYOUT_VERSION = 10
 const STALE_LINE_MAP_TRAIN_DELTAS = new Set([MONITOR_WIDTH - 1064, MONITOR_WIDTH * 2 - 2084, MONITOR_WIDTH * 3 - 3066, -164, -16, -2, 2, 3, 10])
@@ -1089,14 +975,13 @@ function rejectScenarioAction(
   }
 }
 
-type InspectorPage = 'information' | 'control' | 'tag'
-type TrainAuxiliaryView = 'alarms' | 'cctv' | 'details' | 'pec-reset' | 'pis' | 'regulation'
 type TrainDoorCommand =
   | 'cycle-door'
   | 'confirm-closed-locked'
   | 'authorize-door-isolation'
   | 'authorize-move'
   | 'withdraw-service'
+type TrainItamaDisplayStatus = ReturnType<typeof getTrainItamaStatusValue>
 
 function completeScenarioTask(
   current: OccSessionState,
@@ -4550,926 +4435,6 @@ function ItamaStatusPanel({
   )
 }
 
-function ScadaCommandDialog({
-  command,
-  onApply,
-  onClose,
-  train,
-}: {
-  command: TrainCommand
-  onApply: () => void
-  onClose: () => void
-  train?: TrainState
-}) {
-  const popupDrag = usePopupDrag()
-  const trainRef = train ? `EMU/${train.id}/TRN/XXXXXXXX` : 'EMU/---/TRN/XXXXXXXX'
-  const meta = {
-    DISPATCH: {
-      commandCode: 'DISPATCH',
-      label: 'Dispatch Train',
-      message: 'Dispatch command will be sent to selected train.',
-      next: 'Train movement authority requested',
-    },
-    HOLD: {
-      commandCode: 'HII',
-      label: 'Train Hold',
-      message: 'Hold train command will be issued to controller workstation.',
-      next: 'Train readiness mode request',
-    },
-    ROUTE: {
-      commandCode: 'ROUTE',
-      label: 'Route Command',
-      message: 'Route command must be confirmed before dispatch.',
-      next: 'Command not confirmed',
-    },
-  }[command]
-
-  return (
-    <div
-      className="line-map-popup-window line-map-popup-window--command"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={{ left: 458, top: 620, width: 430, ...popupDrag.style }}
-    >
-      <div className="line-map-popup-titlebar" {...popupDrag.titleBarProps}>
-        <span>SIG Command Request : {trainRef}</span>
-      </div>
-      <div className="line-map-command-body">
-        <div className="line-map-popup-fieldset">
-          <dl>
-            <dt>Command</dt>
-            <dd>{meta.commandCode}</dd>
-            <dt>Request</dt>
-            <dd>{meta.label}</dd>
-          </dl>
-          <small>{meta.message}</small>
-        </div>
-        <label className="line-map-popup-status">
-          <span>Status</span>
-          <output>{meta.next}</output>
-        </label>
-        <div className="line-map-popup-actions line-map-popup-actions--right">
-          <button type="button" onClick={onApply}>Apply</button>
-          <button type="button" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SignalContextMenu({
-  onClose,
-  onDefineRoute,
-  onOpenDetails,
-  onOpenInspector,
-  signal,
-  x,
-  y,
-}: {
-  onClose: () => void
-  onDefineRoute: () => void
-  onOpenDetails: () => void
-  onOpenInspector: () => void
-  signal: LineMapSignalData
-  x: number
-  y: number
-}) {
-  return (
-    <div
-      className="line-map-signal-menu"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={{ left: x, top: y }}
-    >
-      <div className="line-map-signal-menu-title">{getSignalEquipmentLabel(signal)}</div>
-      <button type="button" onClick={onOpenInspector}>
-        <span>Open inspector...</span>
-        <span>&gt;</span>
-      </button>
-      <button type="button" onClick={onOpenDetails}>
-        <span>Open details...</span>
-        <span>&gt;</span>
-      </button>
-      <button className="has-divider" type="button" onClick={onDefineRoute}>Define Route</button>
-      <button type="button" onClick={onClose}>Define Beginning of Route</button>
-      <button className="has-divider" type="button" onClick={onClose}>Work request</button>
-    </div>
-  )
-}
-
-function SignalRouteDefinitionWindow({
-  onClose,
-  onSet,
-  onUnset,
-  routeSetLabels,
-  signal,
-  statusText,
-}: {
-  onClose: () => void
-  onSet: (routeLabel: string) => void
-  onUnset: (routeLabel: string) => void
-  routeSetLabels: readonly string[]
-  signal: LineMapSignalData
-  statusText: string
-}) {
-  const popupDrag = usePopupDrag()
-  const confirmationDrag = usePopupDrag()
-  const ROUTE_SCROLL_TRACK_HEIGHT = 140
-  const ROUTE_SCROLL_THUMB_HEIGHT = 52
-  const routeTableRef = useRef<HTMLDivElement>(null)
-  const setRouteActionRef = useRef(false)
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
-  const [optimisticRouteSetLabels, setOptimisticRouteSetLabels] = useState<readonly string[]>(routeSetLabels)
-  const [routeScroll, setRouteScroll] = useState({ max: 1, top: 0 })
-  const [routeScrollDrag, setRouteScrollDrag] = useState<{ startScrollTop: number; startY: number } | null>(null)
-  const [routeSetConfirmationOpen, setRouteSetConfirmationOpen] = useState(false)
-  const routeLabels = getSignalRouteLabels(signal)
-  const selectedRouteLabel = routeLabels[selectedRouteIndex] ?? routeLabels[0] ?? getSignalRouteLabel(signal)
-  const selectedRouteSet = optimisticRouteSetLabels.includes(selectedRouteLabel)
-  const canSetRoute = !selectedRouteSet && !routeSetConfirmationOpen
-  const canUnsetRoute = selectedRouteSet
-  const showRouteSetConfirmation = routeSetConfirmationOpen || (setRouteActionRef.current && selectedRouteSet)
-
-  const updateRouteScroll = () => {
-    const table = routeTableRef.current
-
-    if (!table) {
-      return
-    }
-
-    setRouteScroll({
-      max: Math.max(1, table.scrollHeight - table.clientHeight),
-      top: table.scrollTop,
-    })
-  }
-
-  useEffect(() => {
-    updateRouteScroll()
-  }, [routeSetLabels, signal.label])
-
-  useEffect(() => {
-    setSelectedRouteIndex(0)
-    setOptimisticRouteSetLabels(routeSetLabels)
-    setRouteSetConfirmationOpen(false)
-    setRouteActionRef.current = false
-  }, [signal.label])
-
-  useEffect(() => {
-    setOptimisticRouteSetLabels(routeSetLabels)
-
-    if (routeSetLabels.length) {
-      if (setRouteActionRef.current) {
-        setRouteSetConfirmationOpen(true)
-      }
-    }
-
-    if (!routeSetLabels.length) {
-      setRouteActionRef.current = false
-    }
-  }, [routeSetLabels])
-
-  const applyRouteSet = () => {
-    if (selectedRouteSet || setRouteActionRef.current) {
-      return
-    }
-
-    setRouteActionRef.current = true
-    setRouteSetConfirmationOpen(true)
-  }
-
-  const applyRouteUnset = () => {
-    if (!canUnsetRoute) {
-      return
-    }
-
-    setOptimisticRouteSetLabels((current) => current.filter((routeLabel) => routeLabel !== selectedRouteLabel))
-    setRouteActionRef.current = false
-    onUnset(selectedRouteLabel)
-  }
-
-  const setRouteScrollTop = (top: number) => {
-    const table = routeTableRef.current
-
-    if (!table) {
-      return
-    }
-
-    table.scrollTop = Math.max(0, Math.min(top, table.scrollHeight - table.clientHeight))
-    updateRouteScroll()
-  }
-
-  const scrollRouteTable = (direction: -1 | 1) => {
-    const table = routeTableRef.current
-
-    if (!table) {
-      return
-    }
-
-    setRouteScrollTop(table.scrollTop + direction * 54)
-  }
-  const routeThumbTop = (routeScroll.top / routeScroll.max) * (ROUTE_SCROLL_TRACK_HEIGHT - ROUTE_SCROLL_THUMB_HEIGHT)
-
-  return (
-    <div
-      className="sig-route-window"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={popupDrag.style}
-    >
-      <div className="sig-route-titlebar" {...popupDrag.titleBarProps}>SIG Define Route</div>
-      <div className="sig-route-body">
-        <h3>{getSignalEquipmentLabel(signal)} (Signal {signal.label})</h3>
-        <fieldset className="sig-route-fieldset">
-          <legend>Available Routes</legend>
-          <div className="sig-route-column-headings" role="row">
-            <span>Route ID</span>
-            <span>Set status</span>
-            <span>Fleet status</span>
-          </div>
-          <div className="sig-route-table-frame">
-            <div className="sig-route-table" ref={routeTableRef} role="table" aria-label="Available routes" onScroll={updateRouteScroll}>
-              {routeLabels.map((routeLabel, index) => (
-                <button
-                  className={`sig-route-row ${selectedRouteIndex === index ? 'is-selected' : ''}`}
-                  key={routeLabel}
-                  onClick={() => setSelectedRouteIndex(index)}
-                  role="row"
-                  type="button"
-                >
-                  <span>{routeLabel}</span>
-                  <span>{optimisticRouteSetLabels.includes(routeLabel) ? 'Set' : 'Not Set'}<i /></span>
-                  <span>Not Fleet<i /></span>
-                </button>
-              ))}
-              {Array.from({ length: Math.max(0, 9 - routeLabels.length) }, (_, index) => (
-                <div className="sig-route-row" key={`blank-${index}`} role="row">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              ))}
-            </div>
-            <div className="sig-route-scrollbar">
-              <button aria-label="Scroll available routes up" onClick={() => scrollRouteTable(-1)} type="button">
-                <span />
-              </button>
-              <div
-                onPointerDown={(event) => {
-                  if (event.target !== event.currentTarget) {
-                    return
-                  }
-
-                  const bounds = event.currentTarget.getBoundingClientRect()
-                  scrollRouteTable(event.clientY - bounds.top < routeThumbTop ? -1 : 1)
-                }}
-              >
-                <span
-                  onPointerDown={(event) => {
-                    event.stopPropagation()
-                    event.currentTarget.setPointerCapture(event.pointerId)
-                    setRouteScrollDrag({
-                      startScrollTop: routeTableRef.current?.scrollTop ?? 0,
-                      startY: event.clientY,
-                    })
-                  }}
-                  onPointerMove={(event) => {
-                    if (!routeScrollDrag) {
-                      return
-                    }
-
-                    event.stopPropagation()
-                    const trackTravel = ROUTE_SCROLL_TRACK_HEIGHT - ROUTE_SCROLL_THUMB_HEIGHT
-                    const scrollDelta = ((event.clientY - routeScrollDrag.startY) / trackTravel) * routeScroll.max
-                    setRouteScrollTop(routeScrollDrag.startScrollTop + scrollDelta)
-                  }}
-                  onPointerUp={(event) => {
-                    event.stopPropagation()
-                    setRouteScrollDrag(null)
-                  }}
-                  style={{ top: routeThumbTop }}
-                />
-              </div>
-              <button aria-label="Scroll available routes down" onClick={() => scrollRouteTable(1)} type="button">
-                <span />
-              </button>
-            </div>
-          </div>
-        </fieldset>
-        <div className="sig-route-actions">
-          <button disabled={!canUnsetRoute} onClick={applyRouteUnset} type="button">Unset</button>
-          <button
-            disabled={!canSetRoute}
-            onMouseDown={(event) => {
-              event.preventDefault()
-              applyRouteSet()
-            }}
-            onPointerDown={(event) => {
-              event.preventDefault()
-              applyRouteSet()
-            }}
-            onClick={applyRouteSet}
-            type="button"
-          >
-            Set
-          </button>
-          <button disabled type="button">Unfleet</button>
-          <button disabled type="button">Fleet</button>
-        </div>
-        <label className="sig-route-status">
-          <span>Status</span>
-          <output>{selectedRouteSet ? 'Route set successful' : statusText}</output>
-        </label>
-        <div className="sig-route-footer">
-          <button type="button">Help</button>
-          <button type="button" onClick={onClose}>Close</button>
-        </div>
-      </div>
-      {showRouteSetConfirmation ? (
-        <div
-          className="train-command-confirmation sig-route-command-confirmation"
-          onPointerDown={(event) => event.stopPropagation()}
-          style={confirmationDrag.style}
-        >
-          <div className="train-command-confirmation__title" {...confirmationDrag.titleBarProps}>Command confirmation</div>
-          <fieldset>
-            <legend>Please confirm command...</legend>
-            <div className="train-command-confirmation__grid">
-              <label>Equipment</label>
-              <div>{getSignalEquipmentLabel(signal)} (Signal {signal.label})</div>
-              <label>Attribute</label>
-              <div>{selectedRouteLabel}</div>
-              <label>Command</label>
-              <div>SET</div>
-              <label>No wait</label>
-              <input type="checkbox" />
-            </div>
-          </fieldset>
-          <div className="train-command-confirmation__actions">
-            <Win98HtmlButton>Help</Win98HtmlButton>
-            <span />
-            <Win98HtmlButton
-              onClick={() => {
-                setRouteActionRef.current = false
-                setOptimisticRouteSetLabels((current) => (
-                  current.includes(selectedRouteLabel) ? current : [...current, selectedRouteLabel]
-                ))
-                setRouteSetConfirmationOpen(false)
-                onSet(selectedRouteLabel)
-              }}
-            >
-              Confirm
-            </Win98HtmlButton>
-            <Win98HtmlButton
-              onClick={() => {
-                setRouteActionRef.current = false
-                setRouteSetConfirmationOpen(false)
-              }}
-            >
-              Cancel
-            </Win98HtmlButton>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function TrainAuxiliaryPanel({
-  onClose,
-  train,
-  view,
-}: {
-  onClose: () => void
-  train: TrainState
-  view: TrainAuxiliaryView
-}) {
-  const popupDrag = usePopupDrag()
-  const trainRef = `EMU/${train.id}/TRN/XXXXXXXX`
-  const nearestPlatform = platformData.reduce((closest, platform) => (
-    Math.abs(platform.x - train.x) < Math.abs(closest.x - train.x) ? platform : closest
-  ))
-  const viewMeta: Record<TrainAuxiliaryView, {
-    title: string
-    heading: string
-    status: string
-    rows: Array<[string, string]>
-  }> = {
-    alarms: {
-      title: `Alarms: ${trainRef}`,
-      heading: `Train ${train.id} active alarms`,
-      status: train.status === 'HOLD' ? 'Action needed (from operator for recovery)' : 'No active train alarm selected',
-      rows: [
-        ['SIG', `Train ${train.id}: Train ITAMA Status`],
-        ['TRN', train.status === 'HOLD' ? 'Train readiness mode request' : 'Train status normal'],
-        ['OCC', 'Alarm list opened from line map command menu'],
-      ],
-    },
-    cctv: {
-      title: `Restricted CCTV: ${trainRef}`,
-      heading: 'Restricted CCTV',
-      status: 'Restricted CCTV request logged for trainer review',
-      rows: [
-        ['Station', nearestPlatform.code],
-        ['Platform', `${nearestPlatform.code}${train.service}`],
-        ['Access', 'Restricted operator function'],
-      ],
-    },
-    details: {
-      title: `Details: ${trainRef}`,
-      heading: `Train ${train.id} details`,
-      status: 'Details page opened',
-      rows: [
-        ['Train number', train.id.padStart(3, '0')],
-        ['Current station', nearestPlatform.code],
-        ['Service', train.service],
-        ['State', train.status],
-      ],
-    },
-    'pec-reset': {
-      title: `PEC Reset: ${trainRef}`,
-      heading: 'PEC Reset All',
-      status: 'PEC reset request prepared. No reset applied in prototype.',
-      rows: [
-        ['Equipment', trainRef],
-        ['Command', 'PEC RESET ALL'],
-        ['Result', 'Request only'],
-      ],
-    },
-    pis: {
-      title: `Restricted PIS: ${trainRef}`,
-      heading: 'Restricted PIS',
-      status: 'Restricted PIS request logged for trainer review',
-      rows: [
-        ['Station', nearestPlatform.code],
-        ['Platform', `${nearestPlatform.code}${train.service}`],
-        ['Access', 'Restricted passenger information function'],
-      ],
-    },
-    regulation: {
-      title: `Regulation parameters: ${trainRef}`,
-      heading: 'Regulation parameters',
-      status: 'Regulation parameters opened',
-      rows: [
-        ['Threshold', train.status === 'HOLD' ? '0' : '50'],
-        ['Peak mode', train.id === '317' ? 'Peak' : 'Not Peak'],
-        ['Readiness', getTrainReadinessDisplayValue(train)],
-      ],
-    },
-  }
-  const meta = viewMeta[view]
-
-  return (
-    <div
-      className="line-map-popup-window line-map-popup-window--aux"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={{ left: 386, top: 548, width: 620, ...popupDrag.style }}
-    >
-      <div className="line-map-popup-titlebar" {...popupDrag.titleBarProps}>
-        <span>{meta.title}</span>
-        <button type="button" onClick={onClose}>x</button>
-      </div>
-      <div className="line-map-popup-body line-map-popup-body--stack">
-        <h3>{meta.heading}</h3>
-        <div className="line-map-popup-fieldset">
-          <dl>
-            {meta.rows.map(([label, value]) => (
-              <div className="line-map-popup-row" key={label}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-        <label className="line-map-popup-status">
-          <span>Status</span>
-          <output>{meta.status}</output>
-        </label>
-        <div className="line-map-popup-actions">
-          <button type="button">Help</button>
-          <button type="button">{view === 'pec-reset' ? 'Request' : 'OK'}</button>
-          <button type="button" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TrainContextMenu({
-  onClose,
-  onOpenAuxiliary,
-  onOpenInspector,
-  train,
-  x,
-  y,
-}: {
-  onClose: () => void
-  onOpenAuxiliary: (view: TrainAuxiliaryView) => void
-  onOpenInspector: (page: InspectorPage) => void
-  train: TrainState
-  x: number
-  y: number
-}) {
-  const [stage, setStage] = useState<'root' | 'main' | 'inspector' | 'details' | 'alarms'>('main')
-  const objectLabel = `C${Number(train.id) || train.id}/T0`
-  const mainRows: Array<{
-    disabled?: boolean
-    dividerBefore?: boolean
-    label: string
-    action?: () => void
-    submenu?: 'inspector' | 'details' | 'alarms'
-  }> = [
-    { label: 'Open inspector...', submenu: 'inspector' },
-    { label: 'Open details...', submenu: 'details' },
-    { label: 'Open alarms...', submenu: 'alarms' },
-    { label: 'Restricted CCTV', action: () => onOpenAuxiliary('cctv'), dividerBefore: true },
-    { label: 'Restricted PIS', action: () => onOpenAuxiliary('pis') },
-    { label: 'Maintenance', disabled: true, dividerBefore: true },
-    { label: 'Regulation parameters', action: () => onOpenAuxiliary('regulation') },
-    { label: 'PEC Reset All', action: () => onOpenAuxiliary('pec-reset') },
-  ]
-  const inspectorRows: Array<{ label: string; page: InspectorPage }> = [
-    { label: 'Information page', page: 'information' },
-    { label: 'Control page', page: 'control' },
-    { label: 'Tag page', page: 'tag' },
-  ]
-  const detailsRows: Array<{ label: string; view: TrainAuxiliaryView }> = [
-    { label: 'Details page', view: 'details' },
-    { label: 'Regulation parameters', view: 'regulation' },
-    { label: 'PEC Reset All', view: 'pec-reset' },
-  ]
-  const alarmRows: Array<{ label: string; view: TrainAuxiliaryView }> = [
-    { label: 'Active alarms', view: 'alarms' },
-    { label: 'Restricted CCTV', view: 'cctv' },
-    { label: 'Restricted PIS', view: 'pis' },
-  ]
-
-  return (
-    <div
-      className="line-map-cascade"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={{ left: x, top: y }}
-    >
-      <button
-        className={`line-map-cascade-root ${stage !== 'root' ? 'is-active' : ''}`}
-        onClick={(event) => {
-          event.stopPropagation()
-          setStage('main')
-        }}
-        type="button"
-      >
-        <span>{objectLabel}</span>
-        <span>&gt;</span>
-      </button>
-
-      {stage !== 'root' ? (
-        <div className="line-map-cascade-menu line-map-cascade-menu--main">
-          {mainRows.map((item) => (
-            <button
-              className={`${item.dividerBefore ? 'has-divider' : ''} ${item.submenu === stage ? 'is-active' : ''}`}
-              disabled={item.disabled}
-              key={item.label}
-              onClick={(event) => {
-                event.stopPropagation()
-
-                if (item.submenu) {
-                  setStage(item.submenu)
-                  return
-                }
-
-                if (item.action) {
-                  item.action()
-                  onClose()
-                }
-              }}
-              type="button"
-            >
-              <span>{item.label}</span>
-              {item.submenu ? <span>&gt;</span> : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {stage === 'inspector' ? (
-        <div className="line-map-cascade-menu line-map-cascade-menu--sub line-map-cascade-menu--inspector">
-          {inspectorRows.map((item) => (
-            <button
-              key={item.label}
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenInspector(item.page)
-                onClose()
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {stage === 'details' ? (
-        <div className="line-map-cascade-menu line-map-cascade-menu--sub line-map-cascade-menu--details">
-          {detailsRows.map((item) => (
-            <button
-              key={item.label}
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenAuxiliary(item.view)
-                onClose()
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {stage === 'alarms' ? (
-        <div className="line-map-cascade-menu line-map-cascade-menu--sub line-map-cascade-menu--alarms">
-          {alarmRows.map((item) => (
-            <button
-              key={item.label}
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenAuxiliary(item.view)
-                onClose()
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function InspectorInfoRow({
-  label,
-  tone = 'green',
-  value,
-}: {
-  label: string
-  tone?: 'green' | 'red'
-  value: string
-}) {
-  return (
-    <div className="train-inspector-info-row">
-      <span className="train-inspector-info-label">{label}</span>
-      <span className="train-inspector-info-field">
-        <span>{value}</span>
-        <i className={tone === 'red' ? 'is-red' : undefined} />
-      </span>
-    </div>
-  )
-}
-
-function TrainInspectorScrollbar({
-  axis,
-  contentSize,
-  onChange,
-  value,
-  viewportSize,
-}: {
-  axis: 'vertical' | 'horizontal'
-  contentSize: number
-  onChange: (nextValue: number) => void
-  value: number
-  viewportSize: number
-}) {
-  const isVertical = axis === 'vertical'
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [trackLength, setTrackLength] = useState(1)
-  const [drag, setDrag] = useState<{ startPointer: number; startValue: number } | null>(null)
-  const max = Math.max(0, contentSize - viewportSize)
-  const thumbLength = max > 0 ? Math.min(52, trackLength) : Math.max(18, trackLength)
-  const thumbTravel = Math.max(1, trackLength - thumbLength)
-  const thumbOffset = max > 0 ? (value / max) * thumbTravel : 0
-  const stepSize = Math.max(54, viewportSize * 0.78)
-  const setScrollValue = (nextValue: number) => onChange(Math.max(0, Math.min(max, nextValue)))
-
-  useEffect(() => {
-    const track = trackRef.current
-
-    if (!track) {
-      return undefined
-    }
-
-    const updateTrackLength = () => {
-      setTrackLength(Math.max(1, isVertical ? track.clientHeight : track.clientWidth))
-    }
-
-    updateTrackLength()
-
-    if (typeof ResizeObserver === 'undefined') {
-      return undefined
-    }
-
-    const observer = new ResizeObserver(updateTrackLength)
-    observer.observe(track)
-
-    return () => observer.disconnect()
-  }, [isVertical])
-
-  const handleTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return
-    }
-
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const pointer = isVertical ? event.clientY - bounds.top : event.clientX - bounds.left
-
-    setScrollValue(value + (pointer < thumbOffset ? -stepSize : stepSize))
-  }
-
-  const handleThumbPointerMove = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!drag) {
-      return
-    }
-
-    event.stopPropagation()
-
-    const pointer = isVertical ? event.clientY : event.clientX
-    const pointerDelta = pointer - drag.startPointer
-    const scrollDelta = max > 0 ? (pointerDelta / thumbTravel) * max : 0
-
-    setScrollValue(drag.startValue + scrollDelta)
-  }
-
-  const startThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setDrag({
-      startPointer: isVertical ? event.clientY : event.clientX,
-      startValue: value,
-    })
-  }
-
-  return (
-    <div className={`train-inspector-scrollbar train-inspector-scrollbar--${axis}`}>
-      <button
-        aria-label={`Scroll inspector ${isVertical ? 'up' : 'left'}`}
-        className="train-inspector-scrollbar__button"
-        onClick={() => setScrollValue(value - stepSize)}
-        type="button"
-      >
-        <span className={`train-inspector-scrollbar__arrow train-inspector-scrollbar__arrow--${isVertical ? 'up' : 'left'}`} />
-      </button>
-      <div className="train-inspector-scrollbar__track" onPointerDown={handleTrackPointerDown} ref={trackRef}>
-        <span
-          className="train-inspector-scrollbar__thumb"
-          onPointerCancel={() => setDrag(null)}
-          onPointerDown={startThumbDrag}
-          onPointerMove={handleThumbPointerMove}
-          onPointerUp={() => setDrag(null)}
-          style={isVertical ? { height: thumbLength, top: thumbOffset } : { left: thumbOffset, width: thumbLength }}
-        />
-      </div>
-      <button
-        aria-label={`Scroll inspector ${isVertical ? 'down' : 'right'}`}
-        className="train-inspector-scrollbar__button"
-        onClick={() => setScrollValue(value + stepSize)}
-        type="button"
-      >
-        <span className={`train-inspector-scrollbar__arrow train-inspector-scrollbar__arrow--${isVertical ? 'down' : 'right'}`} />
-      </button>
-    </div>
-  )
-}
-
-function ScadaDropdown({
-  id,
-  onChange,
-  options,
-  value,
-}: {
-  id: string
-  onChange: (value: string) => void
-  options: readonly string[]
-  value: string
-}) {
-  const visibleRows = 6
-  const scrollTrackHeight = 126
-  const [open, setOpen] = useState(false)
-  const [scrollIndex, setScrollIndex] = useState(0)
-  const [scrollDrag, setScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const scrollMax = Math.max(0, options.length - visibleRows)
-  const visibleOptions = options.slice(scrollIndex, scrollIndex + visibleRows)
-  const thumbHeight = Math.max(28, Math.round((visibleRows / options.length) * scrollTrackHeight))
-  const thumbTop = scrollMax > 0 ? Math.round((scrollIndex / scrollMax) * (scrollTrackHeight - thumbHeight)) : 0
-
-  const setScroll = (nextIndex: number) => {
-    setScrollIndex(Math.max(0, Math.min(scrollMax, nextIndex)))
-  }
-
-  const selectOption = (nextValue: string) => {
-    onChange(nextValue)
-    setOpen(false)
-  }
-
-  const handleScrollTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return
-    }
-
-    const trackTop = event.currentTarget.getBoundingClientRect().top
-    const clickY = event.clientY - trackTop
-    const pageSize = visibleRows - 1
-
-    setScroll(clickY < thumbTop ? scrollIndex - pageSize : scrollIndex + pageSize)
-  }
-
-  const startThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setScrollDrag({
-      startIndex: scrollIndex,
-      startY: event.clientY,
-    })
-  }
-
-  const handleThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!scrollDrag || scrollMax === 0) {
-      return
-    }
-
-    const thumbTravel = scrollTrackHeight - thumbHeight
-    const dragRatio = (event.clientY - scrollDrag.startY) / thumbTravel
-
-    setScroll(scrollDrag.startIndex + Math.round(dragRatio * scrollMax))
-  }
-
-  useEffect(() => {
-    if (scrollIndex > scrollMax) {
-      setScrollIndex(scrollMax)
-    }
-  }, [scrollIndex, scrollMax])
-
-  return (
-    <div className="arrival-time-dialog__station-combo train-inspector-dropdown">
-      <button
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        className="arrival-time-dialog__control arrival-time-dialog__station-trigger train-inspector-dropdown__trigger"
-        id={id}
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span>{value}</span>
-        <i aria-hidden="true" />
-      </button>
-      {open ? (
-        <div
-          className="arrival-time-dialog__station-list train-inspector-dropdown__list"
-          onWheel={(event) => {
-            event.preventDefault()
-            setScroll(scrollIndex + (event.deltaY > 0 ? 1 : -1))
-          }}
-          role="listbox"
-        >
-          <div className="arrival-time-dialog__station-options train-inspector-dropdown__options">
-            {visibleOptions.map((option) => (
-              <button
-                aria-selected={value === option}
-                className={value === option ? 'is-selected' : undefined}
-                key={option || 'blank'}
-                onClick={() => selectOption(option)}
-                role="option"
-                type="button"
-              >
-                {option || '\u00a0'}
-              </button>
-            ))}
-          </div>
-          <div className="arrival-time-dialog__station-scrollbar">
-            <button disabled={scrollIndex === 0} onClick={() => setScroll(scrollIndex - 1)} type="button">
-              <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
-            </button>
-            <div className="arrival-time-dialog__station-scroll-track" onPointerDown={handleScrollTrackPointerDown}>
-              <span
-                className="arrival-time-dialog__station-scroll-thumb"
-                onPointerCancel={() => setScrollDrag(null)}
-                onPointerDown={startThumbDrag}
-                onPointerMove={handleThumbDrag}
-                onPointerUp={() => setScrollDrag(null)}
-                style={{ height: thumbHeight, top: thumbTop }}
-              />
-            </div>
-            <button disabled={scrollIndex === scrollMax} onClick={() => setScroll(scrollIndex + 1)} type="button">
-              <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--down" />
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 function TrainInspectorPanel({
   arrivalTimeSelection,
   onClose,
@@ -5511,16 +4476,37 @@ function TrainInspectorPanel({
     Math.abs(platform.x - train.x) < Math.abs(closest.x - train.x) ? platform : closest
   ))
   const currentDirection = getTrainServiceDirectionLabel(train)
-  const [readiness, setReadiness] = useState(() => getTrainReadinessRequestValue(train))
+  const baseReadinessMode = getTrainReadinessMode(train)
+  const baseItamaStatus = getTrainItamaStatusValue(train)
+  const baseItamaAuthorisedPreparationConfirmed = train.itamaAuthorisedPreparationConfirmed === true
+  const baseItamaNotAuthorisedPreparationConfirmed = train.itamaNotAuthorisedPreparationConfirmed === true
+  const [readinessSelection, setReadinessSelection] = useState<{
+    baseMode: TrainReadinessMode
+    trainId: string
+    value: string
+  } | null>(null)
   const [doorRequest, setDoorRequest] = useState('')
   const [brakeResetRequest, setBrakeResetRequest] = useState('')
-  const [readinessModeOverride, setReadinessModeOverride] = useState<TrainReadinessMode | null>(null)
+  const [readinessModeOverride, setReadinessModeOverride] = useState<{
+    baseMode: TrainReadinessMode
+    mode: TrainReadinessMode
+    trainId: string
+  } | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
   const [trainTimeDialogKind, setTrainTimeDialogKind] = useState<'arrival' | 'departure' | null>(null)
   const [changeEndsDialogOpen, setChangeEndsDialogOpen] = useState(false)
-  const [displayedItamaStatus, setDisplayedItamaStatus] = useState<'GRANTED' | 'NOT GRANTED'>(() => getTrainItamaStatusValue(train))
-  const [itamaAuthorisedPreparationOverride, setItamaAuthorisedPreparationOverride] = useState<boolean | null>(null)
-  const [itamaNotAuthorisedPreparationOverride, setItamaNotAuthorisedPreparationOverride] = useState<boolean | null>(null)
+  const [displayedItamaStatusOverride, setDisplayedItamaStatusOverride] = useState<{
+    baseStatus: TrainItamaDisplayStatus
+    trainId: string
+    value: TrainItamaDisplayStatus
+  } | null>(null)
+  const [itamaPreparationOverride, setItamaPreparationOverride] = useState<{
+    authorisedConfirmed: boolean
+    baseAuthorisedConfirmed: boolean
+    baseNotAuthorisedConfirmed: boolean
+    notAuthorisedConfirmed: boolean
+    trainId: string
+  } | null>(null)
   const inspectorScrollRef = useRef<HTMLDivElement>(null)
   const [inspectorScroll, setInspectorScroll] = useState({
     clientHeight: 1,
@@ -5542,16 +4528,34 @@ function TrainInspectorPanel({
       | 'readiness-command'
     doorCommand?: TrainDoorCommand
   } | null>(null)
-  const effectiveReadinessMode = readinessModeOverride ?? getTrainReadinessMode(train)
+  const activeReadinessModeOverride = readinessModeOverride?.trainId === train.id
+    && readinessModeOverride.baseMode === baseReadinessMode
+    ? readinessModeOverride.mode
+    : null
+  const activeReadinessSelection = readinessSelection?.trainId === train.id
+    && readinessSelection.baseMode === baseReadinessMode
+    ? readinessSelection.value
+    : null
+  const effectiveReadinessMode = activeReadinessModeOverride ?? baseReadinessMode
+  const readiness = activeReadinessSelection ?? getTrainReadinessRequestValue({ readinessMode: effectiveReadinessMode })
   const readinessInfoValue = getTrainReadinessDisplayValue({ readinessMode: effectiveReadinessMode })
-  const itamaStatus = displayedItamaStatus
+  const activeItamaStatusOverride = displayedItamaStatusOverride?.trainId === train.id
+    && displayedItamaStatusOverride.baseStatus === baseItamaStatus
+    ? displayedItamaStatusOverride.value
+    : null
+  const activeItamaPreparationOverride = itamaPreparationOverride?.trainId === train.id
+    && itamaPreparationOverride.baseAuthorisedConfirmed === baseItamaAuthorisedPreparationConfirmed
+    && itamaPreparationOverride.baseNotAuthorisedConfirmed === baseItamaNotAuthorisedPreparationConfirmed
+    ? itamaPreparationOverride
+    : null
+  const itamaStatus = activeItamaStatusOverride ?? baseItamaStatus
   const isItamaGranted = itamaStatus === 'GRANTED'
   const isAuthorisedCommandSideAvailable = !isItamaGranted
   const isNotAuthorisedCommandSideAvailable = isItamaGranted
-  const isItamaAuthorisedPreparationConfirmed = itamaAuthorisedPreparationOverride
-    ?? train.itamaAuthorisedPreparationConfirmed === true
-  const isItamaNotAuthorisedPreparationConfirmed = itamaNotAuthorisedPreparationOverride
-    ?? train.itamaNotAuthorisedPreparationConfirmed === true
+  const isItamaAuthorisedPreparationConfirmed = activeItamaPreparationOverride?.authorisedConfirmed
+    ?? baseItamaAuthorisedPreparationConfirmed
+  const isItamaNotAuthorisedPreparationConfirmed = activeItamaPreparationOverride?.notAuthorisedConfirmed
+    ?? baseItamaNotAuthorisedPreparationConfirmed
   const canRequestItamaAuthorisedPreparation = isAuthorisedCommandSideAvailable
     && !isItamaAuthorisedPreparationConfirmed
   const canRequestItamaAuthorisedConfirmation = isAuthorisedCommandSideAvailable
@@ -5642,23 +4646,6 @@ function TrainInspectorPanel({
     return () => observer.disconnect()
   }, [updateInspectorScroll])
 
-  useEffect(() => {
-    const trainReadinessMode = getTrainReadinessMode(train)
-
-    if (readinessModeOverride !== null && readinessModeOverride !== trainReadinessMode) {
-      return
-    }
-
-    setReadinessModeOverride(null)
-    setReadiness(getTrainReadinessRequestValue({ readinessMode: trainReadinessMode }))
-  }, [train.id, train.readinessMode, readinessModeOverride])
-
-  useEffect(() => {
-    setDisplayedItamaStatus(getTrainItamaStatusValue(train))
-    setItamaAuthorisedPreparationOverride(null)
-    setItamaNotAuthorisedPreparationOverride(null)
-  }, [train.id])
-
   const renderTab = (targetPage: InspectorPage, label: string) => (
     <button
       className={`train-inspector-tab ${page === targetPage ? 'is-active' : ''}`}
@@ -5723,7 +4710,11 @@ function TrainInspectorPanel({
   }
 
   const handleReadinessChange = (nextReadiness: string) => {
-    setReadiness(nextReadiness)
+    setReadinessSelection({
+      baseMode: baseReadinessMode,
+      trainId: train.id,
+      value: nextReadiness,
+    })
 
     const command = nextReadiness.toUpperCase()
 
@@ -5737,7 +4728,7 @@ function TrainInspectorPanel({
 
   const cancelCommand = () => {
     if (confirmationCommand?.kind === 'readiness-command') {
-      setReadiness(getTrainReadinessRequestValue({ readinessMode: effectiveReadinessMode }))
+      setReadinessSelection(null)
     }
 
     setConfirmationCommand(null)
@@ -5750,31 +4741,59 @@ function TrainInspectorPanel({
 
     if (confirmationCommand.kind === 'itama-authorised-preparation') {
       onConfirmItamaAuthorisedPreparation()
-      setItamaAuthorisedPreparationOverride(true)
-      setItamaNotAuthorisedPreparationOverride(false)
+      setItamaPreparationOverride({
+        authorisedConfirmed: true,
+        baseAuthorisedConfirmed: baseItamaAuthorisedPreparationConfirmed,
+        baseNotAuthorisedConfirmed: baseItamaNotAuthorisedPreparationConfirmed,
+        notAuthorisedConfirmed: false,
+        trainId: train.id,
+      })
       setStatusMessage('ITAMA authorised preparation request\nCommand successful')
     }
 
     if (confirmationCommand.kind === 'itama-authorised-confirmation') {
       onConfirmItamaAuthorised()
-      setDisplayedItamaStatus('GRANTED')
-      setItamaAuthorisedPreparationOverride(false)
-      setItamaNotAuthorisedPreparationOverride(false)
+      setDisplayedItamaStatusOverride({
+        baseStatus: baseItamaStatus,
+        trainId: train.id,
+        value: 'GRANTED',
+      })
+      setItamaPreparationOverride({
+        authorisedConfirmed: false,
+        baseAuthorisedConfirmed: baseItamaAuthorisedPreparationConfirmed,
+        baseNotAuthorisedConfirmed: baseItamaNotAuthorisedPreparationConfirmed,
+        notAuthorisedConfirmed: false,
+        trainId: train.id,
+      })
       setStatusMessage('ITAMA authorised confirmation request\nCommand successful')
     }
 
     if (confirmationCommand.kind === 'itama-not-authorised-preparation') {
       onConfirmItamaNotAuthorisedPreparation()
-      setItamaAuthorisedPreparationOverride(false)
-      setItamaNotAuthorisedPreparationOverride(true)
+      setItamaPreparationOverride({
+        authorisedConfirmed: false,
+        baseAuthorisedConfirmed: baseItamaAuthorisedPreparationConfirmed,
+        baseNotAuthorisedConfirmed: baseItamaNotAuthorisedPreparationConfirmed,
+        notAuthorisedConfirmed: true,
+        trainId: train.id,
+      })
       setStatusMessage('ITAMA not authorised preparation request\nCommand successful')
     }
 
     if (confirmationCommand.kind === 'itama-not-authorised-confirmation') {
       onConfirmItamaNotAuthorised()
-      setDisplayedItamaStatus('NOT GRANTED')
-      setItamaAuthorisedPreparationOverride(false)
-      setItamaNotAuthorisedPreparationOverride(false)
+      setDisplayedItamaStatusOverride({
+        baseStatus: baseItamaStatus,
+        trainId: train.id,
+        value: 'NOT GRANTED',
+      })
+      setItamaPreparationOverride({
+        authorisedConfirmed: false,
+        baseAuthorisedConfirmed: baseItamaAuthorisedPreparationConfirmed,
+        baseNotAuthorisedConfirmed: baseItamaNotAuthorisedPreparationConfirmed,
+        notAuthorisedConfirmed: false,
+        trainId: train.id,
+      })
       setStatusMessage('ITAMA not authorised confirmation request\nCommand successful')
     }
 
@@ -5787,8 +4806,12 @@ function TrainInspectorPanel({
       const confirmedReadinessMode = getTrainReadinessModeFromCommand(confirmationCommand.command)
 
       onConfirmReadiness(confirmationCommand.command)
-      setReadinessModeOverride(confirmedReadinessMode)
-      setReadiness(getTrainReadinessRequestValue({ readinessMode: confirmedReadinessMode }))
+      setReadinessSelection(null)
+      setReadinessModeOverride({
+        baseMode: baseReadinessMode,
+        mode: confirmedReadinessMode,
+        trainId: train.id,
+      })
       setStatusMessage(`Train readiness request ${confirmationCommand.command}\nCommand successful`)
     }
 
@@ -5992,6 +5015,7 @@ function TrainInspectorPanel({
         <ChangeEndsDialog
           currentDirection={currentDirection}
           defaultStation={nearestPlatform.code}
+          key={`${train.id}-${nearestPlatform.code}-${currentDirection}`}
           onApply={(message) => setStatusMessage(message)}
           onClose={() => setChangeEndsDialogOpen(false)}
           train={train}
@@ -6001,1028 +5025,6 @@ function TrainInspectorPanel({
   )
 }
 
-const ARRIVAL_TIME_STATION_OPTIONS = [
-  'HBF',
-  'OTP',
-  'CNT',
-  'CQY',
-  'DBG',
-  'LTI',
-  'FRP',
-  'BNK',
-  'PTP',
-  'WLH',
-  'SER',
-  'KVN',
-  'HGN',
-  'BGK',
-  'SKG',
-  'PGL',
-  'PGC',
-  'NED',
-] as const
-const ARRIVAL_TIME_STATION_MENU_OPTIONS = ARRIVAL_TIME_STATION_OPTIONS
-const ARRIVAL_TIME_STATION_VISIBLE_ROWS = 8
-const ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT = 132
-const PLATFORM_SIDING_VISIBLE_ROWS = 6
-const PLATFORM_SIDING_SCROLL_TRACK_HEIGHT = 90
-const NED_PLATFORM_SIDING_OPTIONS = [
-  'W4',
-  'W3',
-  'W2',
-  'W1',
-  'UC',
-  'TTW',
-  'TTE',
-  'TT1N',
-  'TT1',
-  'T820',
-  'S9W',
-  'S9E',
-  'S8W',
-  'S8E',
-  'S7W',
-  'S7E',
-  'S6W',
-  'S6E',
-  'S5W',
-  'S5E',
-  'S4W',
-  'S4E',
-  'S3W',
-  'S3E',
-  'S2W',
-  'S2E',
-  'S1W',
-  'S1E',
-  '12W',
-  'S12E',
-  'S10W',
-  'S10E',
-  'RT3D',
-  'RT2D',
-  'RT1D',
-  'H5',
-  'H3',
-] as const
-type TrainTimeSelection = {
-  command: string
-  kind: 'arrival' | 'departure'
-  platformSiding: string
-  station: string
-}
-
-function getPlatformSidingMenuOptions(station: string, direction: 'NB' | 'SB'): readonly string[] {
-  if (!station) {
-    return [] as const
-  }
-
-  if (station === 'NED') {
-    return NED_PLATFORM_SIDING_OPTIONS
-  }
-
-  return getChangeEndsPlatformSidingMenuOptions(station, direction)
-}
-
-function getTrainServiceDirectionLabel(train: Pick<TrainState, 'direction' | 'service'>): 'NB' | 'SB' {
-  if (train.service === 'NB' || train.service === 'SB') {
-    return train.service
-  }
-
-  return train.direction === 'left' ? 'SB' : 'NB'
-}
-
-function getChangeEndsPlatformSidingMenuOptions(station: string, direction: 'NB' | 'SB'): readonly string[] {
-  if (!station) {
-    return [] as const
-  }
-
-  const preferred = `${station}${direction === 'NB' ? 'N' : 'S'}`
-  const alternate = `${station}${direction === 'NB' ? 'S' : 'N'}`
-
-  return [preferred, alternate] as const
-}
-
-function isRt2DepotArrivalDestination(selection: TrainTimeSelection | undefined) {
-  return selection?.kind === 'arrival'
-    && selection.station === 'NED'
-    && selection.platformSiding === 'RT2D'
-}
-
-function hasTrainMovementDestination(selection: TrainTimeSelection | undefined) {
-  return selection?.kind === 'arrival'
-    && selection.station.trim().length > 0
-    && selection.platformSiding.trim().length > 0
-}
-
-function ScadaNumberSpinner({
-  ariaLabel,
-  className = '',
-  max,
-  min = 0,
-  onChange,
-  onStep,
-  padLength = 0,
-  value,
-}: {
-  ariaLabel: string
-  className?: string
-  max?: number
-  min?: number
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void
-  onStep: (delta: -1 | 1) => void
-  padLength?: number
-  value: string
-}) {
-  const numericValue = Number.parseInt(value, 10)
-  const safeValue = Number.isFinite(numericValue) ? numericValue : min
-  const displayValue = padLength > 0 ? safeValue.toString().padStart(padLength, '0') : String(safeValue)
-  const atMin = safeValue <= min
-  const atMax = max !== undefined && safeValue >= max
-
-  return (
-    <span className={`arrival-time-dialog__spinner ${className}`}>
-      <input
-        aria-label={ariaLabel}
-        className="arrival-time-dialog__control arrival-time-dialog__spinner-input"
-        max={max}
-        min={min}
-        onChange={onChange}
-        type="text"
-        value={displayValue}
-      />
-      <span className="arrival-time-dialog__spinner-buttons">
-        <button
-          aria-label={`${ariaLabel} up`}
-          disabled={atMax}
-          onClick={() => onStep(1)}
-          type="button"
-        >
-          <i className="arrival-time-dialog__spinner-arrow arrival-time-dialog__spinner-arrow--up" />
-        </button>
-        <button
-          aria-label={`${ariaLabel} down`}
-          disabled={atMin}
-          onClick={() => onStep(-1)}
-          type="button"
-        >
-          <i className="arrival-time-dialog__spinner-arrow arrival-time-dialog__spinner-arrow--down" />
-        </button>
-      </span>
-    </span>
-  )
-}
-
-function TrainTimeDialog({
-  initialSelection,
-  kind,
-  onApply,
-  onConfirmDeparture,
-  onClose,
-  train,
-}: {
-  initialSelection?: TrainTimeSelection
-  kind: 'arrival' | 'departure'
-  onApply: (message: string, selection: TrainTimeSelection) => void
-  onConfirmDeparture?: () => void
-  onClose: () => void
-  train: TrainState
-}) {
-  const popupDrag = usePopupDrag()
-  const confirmationDrag = usePopupDrag()
-  const trainNumber = train.id.padStart(3, '0')
-  const trainRef = `EMU/${trainNumber}/TRN/XXXXXXXX`
-  const timeLabel = kind === 'arrival' ? 'Arrival Time' : 'Departure Time'
-  const commandLabel = kind === 'arrival' ? 'arrival' : 'departure'
-  const [arrivalTime, setArrivalTime] = useState({
-    hh: '00',
-    mm: '00',
-    ss: '00',
-  })
-  const [station, setStation] = useState(initialSelection?.station ?? '')
-  const [stationDropdownOpen, setStationDropdownOpen] = useState(false)
-  const [stationScrollIndex, setStationScrollIndex] = useState(0)
-  const [stationScrollDrag, setStationScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [platformSiding, setPlatformSiding] = useState(initialSelection?.platformSiding ?? '')
-  const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false)
-  const [platformScrollIndex, setPlatformScrollIndex] = useState(0)
-  const [platformScrollDrag, setPlatformScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [peakMode, setPeakMode] = useState<'peak' | 'not-peak'>('peak')
-  const [threshold, setThreshold] = useState('0')
-  const [status, setStatus] = useState('')
-  const [timeConfirmationCommand, setTimeConfirmationCommand] = useState<string | null>(null)
-  const serviceDirection = getTrainServiceDirectionLabel(train)
-  const platformSidingMenuOptions = getPlatformSidingMenuOptions(station, serviceDirection)
-  const stationScrollMax = Math.max(0, ARRIVAL_TIME_STATION_MENU_OPTIONS.length - ARRIVAL_TIME_STATION_VISIBLE_ROWS)
-  const platformScrollMax = Math.max(0, platformSidingMenuOptions.length - PLATFORM_SIDING_VISIBLE_ROWS)
-  const visibleStationOptions = ARRIVAL_TIME_STATION_MENU_OPTIONS.slice(
-    stationScrollIndex,
-    stationScrollIndex + ARRIVAL_TIME_STATION_VISIBLE_ROWS,
-  )
-  const visiblePlatformOptions = platformSidingMenuOptions.slice(
-    platformScrollIndex,
-    platformScrollIndex + PLATFORM_SIDING_VISIBLE_ROWS,
-  )
-  const stationThumbHeight = Math.max(
-    28,
-    Math.round((ARRIVAL_TIME_STATION_VISIBLE_ROWS / ARRIVAL_TIME_STATION_MENU_OPTIONS.length) * ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT),
-  )
-  const platformThumbHeight = Math.max(
-    28,
-    platformSidingMenuOptions.length > 0
-      ? Math.round((Math.min(PLATFORM_SIDING_VISIBLE_ROWS, platformSidingMenuOptions.length) / platformSidingMenuOptions.length) * PLATFORM_SIDING_SCROLL_TRACK_HEIGHT)
-      : PLATFORM_SIDING_SCROLL_TRACK_HEIGHT,
-  )
-  const stationThumbTop = stationScrollMax > 0
-    ? Math.round((stationScrollIndex / stationScrollMax) * (ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT - stationThumbHeight))
-    : 0
-  const platformThumbTop = platformScrollMax > 0
-    ? Math.round((platformScrollIndex / platformScrollMax) * (PLATFORM_SIDING_SCROLL_TRACK_HEIGHT - platformThumbHeight))
-    : 0
-
-  const setStationScroll = (nextIndex: number) => {
-    setStationScrollIndex(Math.max(0, Math.min(stationScrollMax, nextIndex)))
-  }
-
-  const setPlatformScroll = (nextIndex: number) => {
-    setPlatformScrollIndex(Math.max(0, Math.min(platformScrollMax, nextIndex)))
-  }
-
-  const selectStation = (nextStation: string) => {
-    setStation(nextStation)
-    setStationDropdownOpen(false)
-    setPlatformDropdownOpen(false)
-    setPlatformScrollIndex(0)
-
-    setPlatformSiding(getPlatformSidingMenuOptions(nextStation, serviceDirection)[0] ?? '')
-  }
-
-  const selectPlatformSiding = (nextPlatformSiding: string) => {
-    setPlatformSiding(nextPlatformSiding)
-    setPlatformDropdownOpen(false)
-  }
-
-  const handleStationScrollTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return
-    }
-
-    const trackTop = event.currentTarget.getBoundingClientRect().top
-    const clickY = event.clientY - trackTop
-    const pageSize = ARRIVAL_TIME_STATION_VISIBLE_ROWS - 1
-
-    setStationScroll(clickY < stationThumbTop ? stationScrollIndex - pageSize : stationScrollIndex + pageSize)
-  }
-
-  const handlePlatformScrollTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return
-    }
-
-    const trackTop = event.currentTarget.getBoundingClientRect().top
-    const clickY = event.clientY - trackTop
-    const pageSize = PLATFORM_SIDING_VISIBLE_ROWS - 1
-
-    setPlatformScroll(clickY < platformThumbTop ? platformScrollIndex - pageSize : platformScrollIndex + pageSize)
-  }
-
-  const startStationThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setStationScrollDrag({
-      startIndex: stationScrollIndex,
-      startY: event.clientY,
-    })
-  }
-
-  const startPlatformThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setPlatformScrollDrag({
-      startIndex: platformScrollIndex,
-      startY: event.clientY,
-    })
-  }
-
-  const handleStationThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!stationScrollDrag || stationScrollMax === 0) {
-      return
-    }
-
-    const thumbTravel = ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT - stationThumbHeight
-    const dragRatio = (event.clientY - stationScrollDrag.startY) / thumbTravel
-
-    setStationScroll(stationScrollDrag.startIndex + Math.round(dragRatio * stationScrollMax))
-  }
-
-  const handlePlatformThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!platformScrollDrag || platformScrollMax === 0) {
-      return
-    }
-
-    const thumbTravel = PLATFORM_SIDING_SCROLL_TRACK_HEIGHT - platformThumbHeight
-    const dragRatio = (event.clientY - platformScrollDrag.startY) / thumbTravel
-
-    setPlatformScroll(platformScrollDrag.startIndex + Math.round(dragRatio * platformScrollMax))
-  }
-
-  const setTimeFieldValue = (field: 'hh' | 'mm' | 'ss', value: number, maxValue: number) => {
-    const safeValue = Math.min(maxValue, Math.max(0, value))
-
-    setArrivalTime((current) => ({
-      ...current,
-      [field]: safeValue.toString().padStart(2, '0'),
-    }))
-  }
-
-  const updateArrivalTime = (field: 'hh' | 'mm' | 'ss', maxValue: number) => (event: ChangeEvent<HTMLInputElement>) => {
-    const parsedValue = Number.parseInt(event.currentTarget.value, 10)
-
-    setTimeFieldValue(field, Number.isFinite(parsedValue) ? parsedValue : 0, maxValue)
-  }
-
-  const stepArrivalTime = (field: 'hh' | 'mm' | 'ss', maxValue: number, delta: -1 | 1) => {
-    setTimeFieldValue(field, (Number.parseInt(arrivalTime[field], 10) || 0) + delta, maxValue)
-  }
-
-  const updateThreshold = (event: ChangeEvent<HTMLInputElement>) => {
-    const parsedValue = Number.parseInt(event.currentTarget.value, 10)
-
-    setThreshold(String(Math.max(0, Number.isFinite(parsedValue) ? parsedValue : 0)))
-  }
-
-  const stepThreshold = (delta: -1 | 1) => {
-    setThreshold((current) => String(Math.max(0, (Number.parseInt(current, 10) || 0) + delta)))
-  }
-
-  const getArrivalTimeCommand = () => {
-    const formattedTime = [arrivalTime.hh, arrivalTime.mm, arrivalTime.ss]
-      .map((value) => Number.parseInt(value, 10) || 0)
-      .join(':')
-    const peakFlag = peakMode === 'peak' ? '1' : '0'
-    const regulationHold = Math.max(0, Number.parseInt(threshold, 10) || 0)
-
-    return `${platformSiding} - ${formattedTime} - ${peakFlag} - ${regulationHold}`
-  }
-
-  const applyArrivalTime = () => {
-    setTimeConfirmationCommand(getArrivalTimeCommand())
-  }
-
-  const confirmArrivalTime = () => {
-    const nextStatus = `Train ${commandLabel} time setting\nCommand successful`
-    const selection: TrainTimeSelection = {
-      command: timeConfirmationCommand ?? getArrivalTimeCommand(),
-      kind,
-      platformSiding,
-      station,
-    }
-
-    setStatus(nextStatus)
-    onApply(nextStatus, selection)
-    setTimeConfirmationCommand(null)
-
-    if (kind === 'departure') {
-      onConfirmDeparture?.()
-      onClose()
-    }
-  }
-
-  return (
-    <div
-      className="arrival-time-dialog"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={popupDrag.style}
-    >
-      <div className="arrival-time-dialog__title" {...popupDrag.titleBarProps}>SIG {timeLabel} for Train : {trainRef}</div>
-      <div className="arrival-time-dialog__body">
-        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--area">
-          <legend>Area Selection</legend>
-          <div className="arrival-time-dialog__area-grid">
-            <label htmlFor="arrival-time-station">Station</label>
-            <label htmlFor="arrival-time-platform">Platform / Siding</label>
-            <div className="arrival-time-dialog__station-combo">
-              <button
-                aria-expanded={stationDropdownOpen}
-                aria-haspopup="listbox"
-                className="arrival-time-dialog__control arrival-time-dialog__station-trigger"
-                id="arrival-time-station"
-                onClick={() => setStationDropdownOpen((open) => !open)}
-                type="button"
-              >
-                <span>{station}</span>
-                <i aria-hidden="true" />
-              </button>
-              {stationDropdownOpen ? (
-                <div
-                  className="arrival-time-dialog__station-list"
-                  onWheel={(event) => {
-                    event.preventDefault()
-                    setStationScroll(stationScrollIndex + (event.deltaY > 0 ? 1 : -1))
-                  }}
-                  role="listbox"
-                >
-                  <div className="arrival-time-dialog__station-options">
-                    {visibleStationOptions.map((stationOption) => (
-                      <button
-                        aria-selected={station === stationOption}
-                        className={station === stationOption ? 'is-selected' : undefined}
-                        key={stationOption || 'blank'}
-                        onClick={() => selectStation(stationOption)}
-                        role="option"
-                        type="button"
-                      >
-                        {stationOption || '\u00a0'}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="arrival-time-dialog__station-scrollbar">
-                    <button
-                      disabled={stationScrollIndex === 0}
-                      onClick={() => setStationScroll(stationScrollIndex - 1)}
-                      type="button"
-                    >
-                      <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
-                    </button>
-                    <div
-                      className="arrival-time-dialog__station-scroll-track"
-                      onPointerDown={handleStationScrollTrackPointerDown}
-                    >
-                      <span
-                        className="arrival-time-dialog__station-scroll-thumb"
-                        onPointerCancel={() => setStationScrollDrag(null)}
-                        onPointerDown={startStationThumbDrag}
-                        onPointerMove={handleStationThumbDrag}
-                        onPointerUp={() => setStationScrollDrag(null)}
-                        style={{ height: stationThumbHeight, top: stationThumbTop }}
-                      />
-                    </div>
-                    <button
-                      disabled={stationScrollIndex === stationScrollMax}
-                      onClick={() => setStationScroll(stationScrollIndex + 1)}
-                      type="button"
-                    >
-                      <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--down" />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <div className="arrival-time-dialog__platform-combo">
-              <button
-                aria-expanded={platformDropdownOpen}
-                aria-haspopup="listbox"
-                className="arrival-time-dialog__control arrival-time-dialog__station-trigger arrival-time-dialog__platform-trigger"
-                id="arrival-time-platform"
-                onClick={() => setPlatformDropdownOpen((open) => !open)}
-                type="button"
-              >
-                <span>{platformSiding}</span>
-                <i aria-hidden="true" />
-              </button>
-              {platformDropdownOpen ? (
-                <div
-                  className="arrival-time-dialog__station-list arrival-time-dialog__platform-list"
-                  onWheel={(event) => {
-                    event.preventDefault()
-                    setPlatformScroll(platformScrollIndex + (event.deltaY > 0 ? 1 : -1))
-                  }}
-                  role="listbox"
-                >
-                  <div className="arrival-time-dialog__station-options arrival-time-dialog__platform-options">
-                    {visiblePlatformOptions.map((platformOption) => (
-                      <button
-                        aria-selected={platformSiding === platformOption}
-                        className={platformSiding === platformOption ? 'is-selected' : undefined}
-                        key={platformOption || 'blank-platform'}
-                        onClick={() => selectPlatformSiding(platformOption)}
-                        role="option"
-                        type="button"
-                      >
-                        {platformOption || '\u00a0'}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="arrival-time-dialog__station-scrollbar">
-                    <button
-                      disabled={platformScrollIndex === 0}
-                      onClick={() => setPlatformScroll(platformScrollIndex - 1)}
-                      type="button"
-                    >
-                      <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
-                    </button>
-                    <div
-                      className="arrival-time-dialog__station-scroll-track"
-                      onPointerDown={handlePlatformScrollTrackPointerDown}
-                    >
-                      <span
-                        className="arrival-time-dialog__station-scroll-thumb"
-                        onPointerCancel={() => setPlatformScrollDrag(null)}
-                        onPointerDown={startPlatformThumbDrag}
-                        onPointerMove={handlePlatformThumbDrag}
-                        onPointerUp={() => setPlatformScrollDrag(null)}
-                        style={{ height: platformThumbHeight, top: platformThumbTop }}
-                      />
-                    </div>
-                    <button
-                      disabled={platformScrollIndex === platformScrollMax}
-                      onClick={() => setPlatformScroll(platformScrollIndex + 1)}
-                      type="button"
-                    >
-                      <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--down" />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </fieldset>
-
-        <div className="arrival-time-dialog__settings">
-          <fieldset className="arrival-time-dialog__fieldset">
-            <legend>{timeLabel}</legend>
-            <div className="arrival-time-dialog__time-labels" aria-hidden="true">
-              <span>hh</span>
-              <span>:</span>
-              <span>mm</span>
-              <span>:</span>
-              <span>ss</span>
-            </div>
-            <div className="arrival-time-dialog__time-grid">
-              <ScadaNumberSpinner
-                ariaLabel="Hours"
-                className="arrival-time-dialog__time-spinner"
-                max={23}
-                min={0}
-                onChange={updateArrivalTime('hh', 23)}
-                onStep={(delta) => stepArrivalTime('hh', 23, delta)}
-                padLength={2}
-                value={arrivalTime.hh}
-              />
-              <ScadaNumberSpinner
-                ariaLabel="Minutes"
-                className="arrival-time-dialog__time-spinner"
-                max={59}
-                min={0}
-                onChange={updateArrivalTime('mm', 59)}
-                onStep={(delta) => stepArrivalTime('mm', 59, delta)}
-                padLength={2}
-                value={arrivalTime.mm}
-              />
-              <ScadaNumberSpinner
-                ariaLabel="Seconds"
-                className="arrival-time-dialog__time-spinner"
-                max={59}
-                min={0}
-                onChange={updateArrivalTime('ss', 59)}
-                onStep={(delta) => stepArrivalTime('ss', 59, delta)}
-                padLength={2}
-                value={arrivalTime.ss}
-              />
-            </div>
-          </fieldset>
-
-          <fieldset className="arrival-time-dialog__fieldset">
-            <legend>Peak / Off Peak</legend>
-            <label className="arrival-time-dialog__radio">
-              <input
-                checked={peakMode === 'peak'}
-                name="arrival-time-peak-mode"
-                onChange={() => setPeakMode('peak')}
-                type="radio"
-              />
-              <span>Peak</span>
-            </label>
-            <label className="arrival-time-dialog__radio">
-              <input
-                checked={peakMode === 'not-peak'}
-                name="arrival-time-peak-mode"
-                onChange={() => setPeakMode('not-peak')}
-                type="radio"
-              />
-              <span>Not Peak</span>
-            </label>
-          </fieldset>
-
-          <fieldset className="arrival-time-dialog__fieldset">
-            <legend>Regulation Threshold</legend>
-            <ScadaNumberSpinner
-              ariaLabel="Regulation Threshold"
-              className="arrival-time-dialog__threshold"
-              min={0}
-              onChange={updateThreshold}
-              onStep={stepThreshold}
-              value={threshold}
-            />
-          </fieldset>
-        </div>
-
-        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--status">
-          <legend>Status</legend>
-          <output>{status}</output>
-        </fieldset>
-
-        <div className="arrival-time-dialog__actions">
-          <Win98HtmlButton onClick={() => setStatus('Help selected')}>Help</Win98HtmlButton>
-          <span />
-          <Win98HtmlButton onClick={applyArrivalTime}>Apply</Win98HtmlButton>
-          <Win98HtmlButton onClick={onClose}>Close</Win98HtmlButton>
-        </div>
-      </div>
-
-      {timeConfirmationCommand ? (
-        <div
-          className="train-command-confirmation arrival-time-command-confirmation"
-          onPointerDown={(event) => event.stopPropagation()}
-          style={confirmationDrag.style}
-        >
-          <div className="train-command-confirmation__title" {...confirmationDrag.titleBarProps}>Command confirmation</div>
-          <fieldset>
-            <legend>Please confirm command...</legend>
-            <div className="train-command-confirmation__grid">
-              <label>Equipment</label>
-              <div>{trainRef} {'{'}Train {trainNumber}{'}'}</div>
-              <label>Attribute</label>
-              <div>Set {commandLabel} time</div>
-              <label>Command</label>
-              <div>{timeConfirmationCommand}</div>
-              <label>No wait</label>
-              <input type="checkbox" />
-            </div>
-          </fieldset>
-          <div className="train-command-confirmation__actions">
-            <Win98HtmlButton onClick={() => setStatus('Help selected')}>Help</Win98HtmlButton>
-            <span />
-            <Win98HtmlButton onClick={confirmArrivalTime}>Confirm</Win98HtmlButton>
-            <Win98HtmlButton onClick={() => setTimeConfirmationCommand(null)}>Cancel</Win98HtmlButton>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function ChangeEndsDialog({
-  currentDirection,
-  defaultStation,
-  onApply,
-  onClose,
-  train,
-}: {
-  currentDirection: 'NB' | 'SB'
-  defaultStation: string
-  onApply: (message: string) => void
-  onClose: () => void
-  train: TrainState
-}) {
-  const popupDrag = usePopupDrag()
-  const trainRef = `EMU/${train.id.padStart(3, '0')}/TRN/XXXXXXXX`
-  const [station, setStation] = useState(defaultStation)
-  const [stationDropdownOpen, setStationDropdownOpen] = useState(false)
-  const [stationScrollIndex, setStationScrollIndex] = useState(0)
-  const [stationScrollDrag, setStationScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [platformSiding, setPlatformSiding] = useState(() => {
-    const options = getChangeEndsPlatformSidingMenuOptions(defaultStation, currentDirection)
-    return options[0] ?? ''
-  })
-  const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false)
-  const [platformScrollIndex, setPlatformScrollIndex] = useState(0)
-  const [platformScrollDrag, setPlatformScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [status, setStatus] = useState('')
-  const stationOptions = ARRIVAL_TIME_STATION_MENU_OPTIONS
-  const platformOptions = getChangeEndsPlatformSidingMenuOptions(station, currentDirection)
-  const stationScrollMax = Math.max(0, stationOptions.length - ARRIVAL_TIME_STATION_VISIBLE_ROWS)
-  const platformScrollMax = Math.max(0, platformOptions.length - PLATFORM_SIDING_VISIBLE_ROWS)
-  const visibleStationOptions = stationOptions.slice(stationScrollIndex, stationScrollIndex + ARRIVAL_TIME_STATION_VISIBLE_ROWS)
-  const visiblePlatformOptions = platformOptions.slice(platformScrollIndex, platformScrollIndex + PLATFORM_SIDING_VISIBLE_ROWS)
-  const stationThumbHeight = Math.max(
-    28,
-    Math.round((ARRIVAL_TIME_STATION_VISIBLE_ROWS / stationOptions.length) * ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT),
-  )
-  const platformThumbHeight = Math.max(
-    28,
-    platformOptions.length > 0
-      ? Math.round((Math.min(PLATFORM_SIDING_VISIBLE_ROWS, platformOptions.length) / platformOptions.length) * PLATFORM_SIDING_SCROLL_TRACK_HEIGHT)
-      : PLATFORM_SIDING_SCROLL_TRACK_HEIGHT,
-  )
-  const stationThumbTop = stationScrollMax > 0
-    ? Math.round((stationScrollIndex / stationScrollMax) * (ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT - stationThumbHeight))
-    : 0
-  const platformThumbTop = platformScrollMax > 0
-    ? Math.round((platformScrollIndex / platformScrollMax) * (PLATFORM_SIDING_SCROLL_TRACK_HEIGHT - platformThumbHeight))
-    : 0
-
-  useEffect(() => {
-    setStation(defaultStation)
-    setPlatformSiding(getChangeEndsPlatformSidingMenuOptions(defaultStation, currentDirection)[0] ?? '')
-    setStationDropdownOpen(false)
-    setPlatformDropdownOpen(false)
-    setStationScrollIndex(0)
-    setPlatformScrollIndex(0)
-    setStatus('')
-  }, [currentDirection, defaultStation, train.id])
-
-  const setStationScroll = (nextIndex: number) => {
-    setStationScrollIndex(Math.max(0, Math.min(stationScrollMax, nextIndex)))
-  }
-
-  const setPlatformScroll = (nextIndex: number) => {
-    setPlatformScrollIndex(Math.max(0, Math.min(platformScrollMax, nextIndex)))
-  }
-
-  const selectStation = (nextStation: string) => {
-    setStation(nextStation)
-    setStationDropdownOpen(false)
-    setPlatformDropdownOpen(false)
-    setPlatformScrollIndex(0)
-    setPlatformSiding(getChangeEndsPlatformSidingMenuOptions(nextStation, currentDirection)[0] ?? '')
-  }
-
-  const selectPlatformSiding = (nextPlatformSiding: string) => {
-    setPlatformSiding(nextPlatformSiding)
-    setPlatformDropdownOpen(false)
-  }
-
-  const handleStationScrollTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return
-    }
-
-    const trackTop = event.currentTarget.getBoundingClientRect().top
-    const clickY = event.clientY - trackTop
-    const pageSize = ARRIVAL_TIME_STATION_VISIBLE_ROWS - 1
-
-    setStationScroll(clickY < stationThumbTop ? stationScrollIndex - pageSize : stationScrollIndex + pageSize)
-  }
-
-  const handlePlatformScrollTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return
-    }
-
-    const trackTop = event.currentTarget.getBoundingClientRect().top
-    const clickY = event.clientY - trackTop
-    const pageSize = PLATFORM_SIDING_VISIBLE_ROWS - 1
-
-    setPlatformScroll(clickY < platformThumbTop ? platformScrollIndex - pageSize : platformScrollIndex + pageSize)
-  }
-
-  const startStationThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setStationScrollDrag({
-      startIndex: stationScrollIndex,
-      startY: event.clientY,
-    })
-  }
-
-  const startPlatformThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setPlatformScrollDrag({
-      startIndex: platformScrollIndex,
-      startY: event.clientY,
-    })
-  }
-
-  const handleStationThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!stationScrollDrag || stationScrollMax <= 0) {
-      return
-    }
-
-    const dragRange = ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT - stationThumbHeight
-    if (dragRange <= 0) {
-      return
-    }
-
-    const dragRatio = (event.clientY - stationScrollDrag.startY) / dragRange
-    setStationScroll(stationScrollDrag.startIndex + Math.round(dragRatio * stationScrollMax))
-  }
-
-  const handlePlatformThumbDrag = (event: ReactPointerEvent<HTMLSpanElement>) => {
-    if (!platformScrollDrag || platformScrollMax <= 0) {
-      return
-    }
-
-    const dragRange = PLATFORM_SIDING_SCROLL_TRACK_HEIGHT - platformThumbHeight
-    if (dragRange <= 0) {
-      return
-    }
-
-    const dragRatio = (event.clientY - platformScrollDrag.startY) / dragRange
-    setPlatformScroll(platformScrollDrag.startIndex + Math.round(dragRatio * platformScrollMax))
-  }
-
-  const applyChangeEnds = () => {
-    const nextStatus = `Change of ends request ${station} ${platformSiding}\nCommand successful`
-    setStatus(nextStatus)
-    onApply(nextStatus)
-  }
-
-  return (
-    <div
-      className="arrival-time-dialog change-ends-dialog"
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
-      style={popupDrag.style}
-    >
-      <div className="arrival-time-dialog__title" {...popupDrag.titleBarProps}>SIG Change End Request for Train : {trainRef}</div>
-      <div className="arrival-time-dialog__body change-ends-dialog__body">
-        <div className="change-ends-dialog__top-row">
-          <fieldset className="arrival-time-dialog__fieldset change-ends-dialog__fieldset">
-            <legend>Area Selection</legend>
-            <div className="arrival-time-dialog__area-grid">
-              <label htmlFor="change-ends-station">Station</label>
-              <label htmlFor="change-ends-platform">Platform</label>
-              <div className="arrival-time-dialog__station-combo change-ends-dialog__station-combo">
-                <button
-                  aria-expanded={stationDropdownOpen}
-                  aria-haspopup="listbox"
-                  className="arrival-time-dialog__control arrival-time-dialog__station-trigger change-ends-dialog__station-trigger"
-                  id="change-ends-station"
-                  onClick={() => setStationDropdownOpen((open) => !open)}
-                  type="button"
-                >
-                  <span>{station}</span>
-                  <i aria-hidden="true" />
-                </button>
-                {stationDropdownOpen ? (
-                  <div
-                    className="arrival-time-dialog__station-list change-ends-dialog__station-list"
-                    onWheel={(event) => {
-                      event.preventDefault()
-                      setStationScroll(stationScrollIndex + (event.deltaY > 0 ? 1 : -1))
-                    }}
-                    role="listbox"
-                  >
-                    <div className="arrival-time-dialog__station-options">
-                      {visibleStationOptions.map((stationOption) => (
-                        <button
-                          aria-selected={station === stationOption}
-                          className={station === stationOption ? 'is-selected' : undefined}
-                          key={stationOption || 'blank'}
-                          onClick={() => selectStation(stationOption)}
-                          role="option"
-                          type="button"
-                        >
-                          {stationOption || '\u00a0'}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="arrival-time-dialog__station-scrollbar">
-                      <button
-                        disabled={stationScrollIndex === 0}
-                        onClick={() => setStationScroll(stationScrollIndex - 1)}
-                        type="button"
-                      >
-                        <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
-                      </button>
-                      <div
-                        className="arrival-time-dialog__station-scroll-track"
-                        onPointerDown={handleStationScrollTrackPointerDown}
-                      >
-                        <span
-                          className="arrival-time-dialog__station-scroll-thumb"
-                          onPointerCancel={() => setStationScrollDrag(null)}
-                          onPointerDown={startStationThumbDrag}
-                          onPointerMove={handleStationThumbDrag}
-                          onPointerUp={() => setStationScrollDrag(null)}
-                          style={{ height: stationThumbHeight, top: stationThumbTop }}
-                        />
-                      </div>
-                      <button
-                        disabled={stationScrollIndex === stationScrollMax}
-                        onClick={() => setStationScroll(stationScrollIndex + 1)}
-                        type="button"
-                      >
-                        <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--down" />
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <div className="arrival-time-dialog__platform-combo">
-                <button
-                  aria-expanded={platformDropdownOpen}
-                  aria-haspopup="listbox"
-                  className="arrival-time-dialog__control arrival-time-dialog__station-trigger arrival-time-dialog__platform-trigger"
-                  id="change-ends-platform"
-                  onClick={() => setPlatformDropdownOpen((open) => !open)}
-                  type="button"
-                >
-                  <span>{platformSiding}</span>
-                  <i aria-hidden="true" />
-                </button>
-                {platformDropdownOpen ? (
-                  <div
-                    className="arrival-time-dialog__station-list arrival-time-dialog__platform-list change-ends-dialog__platform-list"
-                    onWheel={(event) => {
-                      event.preventDefault()
-                      setPlatformScroll(platformScrollIndex + (event.deltaY > 0 ? 1 : -1))
-                    }}
-                    role="listbox"
-                  >
-                    <div className="arrival-time-dialog__station-options arrival-time-dialog__platform-options">
-                      {visiblePlatformOptions.map((platformOption) => (
-                        <button
-                          aria-selected={platformSiding === platformOption}
-                          className={platformSiding === platformOption ? 'is-selected' : undefined}
-                          key={platformOption || 'blank-platform'}
-                          onClick={() => selectPlatformSiding(platformOption)}
-                          role="option"
-                          type="button"
-                        >
-                          {platformOption || '\u00a0'}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="arrival-time-dialog__station-scrollbar">
-                      <button
-                        disabled={platformScrollIndex === 0}
-                        onClick={() => setPlatformScroll(platformScrollIndex - 1)}
-                        type="button"
-                      >
-                        <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
-                      </button>
-                      <div
-                        className="arrival-time-dialog__station-scroll-track"
-                        onPointerDown={handlePlatformScrollTrackPointerDown}
-                      >
-                        <span
-                          className="arrival-time-dialog__station-scroll-thumb"
-                          onPointerCancel={() => setPlatformScrollDrag(null)}
-                          onPointerDown={startPlatformThumbDrag}
-                          onPointerMove={handlePlatformThumbDrag}
-                          onPointerUp={() => setPlatformScrollDrag(null)}
-                          style={{ height: platformThumbHeight, top: platformThumbTop }}
-                        />
-                      </div>
-                      <button
-                        disabled={platformScrollIndex === platformScrollMax}
-                        onClick={() => setPlatformScroll(platformScrollIndex + 1)}
-                        type="button"
-                      >
-                        <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--down" />
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </fieldset>
-
-          <fieldset className="arrival-time-dialog__fieldset change-ends-dialog__direction-fieldset">
-            <legend>Current train direction</legend>
-            <label className="arrival-time-dialog__radio change-ends-dialog__radio">
-              <input checked={currentDirection === 'NB'} name="change-ends-direction" readOnly type="radio" />
-              <span>NB</span>
-            </label>
-            <label className="arrival-time-dialog__radio change-ends-dialog__radio">
-              <input checked={currentDirection === 'SB'} name="change-ends-direction" readOnly type="radio" />
-              <span>SB</span>
-            </label>
-          </fieldset>
-        </div>
-
-        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--status change-ends-dialog__status-fieldset">
-          <legend>Status</legend>
-          <output>{status}</output>
-        </fieldset>
-
-        <div className="arrival-time-dialog__actions change-ends-dialog__actions">
-          <Win98HtmlButton onClick={() => setStatus('Help selected')}>Help</Win98HtmlButton>
-          <span />
-          <Win98HtmlButton onClick={applyChangeEnds}>Apply</Win98HtmlButton>
-          <Win98HtmlButton onClick={onClose}>Close</Win98HtmlButton>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Win98HtmlButton({
-  children,
-  disabled = false,
-  onClick,
-  pressed = false,
-}: {
-  children: ReactNode
-  disabled?: boolean
-  onClick?: () => void
-  pressed?: boolean
-}) {
-  return (
-    <button
-      className={`train-inspector-button ${pressed ? 'is-toggle-active' : ''}`}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
-  )
-}
 function MonitorCanvas({
   onNavigate,
   session,
@@ -7042,14 +5044,61 @@ function MonitorCanvas({
   const [trainMenu, setTrainMenu] = useState<{ trainId: string; x: number; y: number } | null>(null)
   const [trainItamaStatusOverrides, setTrainItamaStatusOverrides] = useState<Record<string, 'GRANTED' | 'NOT_GRANTED'>>({})
   const [trainReadinessModeOverrides, setTrainReadinessModeOverrides] = useState<Record<string, TrainReadinessMode>>({})
-  const [trainArrivalDestinations, setTrainArrivalDestinations] = useState<Record<string, TrainTimeSelection>>({})
-  const [lineMapRouteSegmentOverrides, setLineMapRouteSegmentOverrides] = useState<LineMapRuntimeState['routeSegments']>({})
+  const [routeControlModes, setRouteControlModes] = useState<Record<string, RouteControlMode>>({})
+  const resetLocalLineMapStateKey = `${session.sessionMeta.createdAt}:${session.scenarioMode}:${session.scenarioStep}`
+  const shouldClearLocalLineMapState = session.scenarioMode === 'IDLE' && session.scenarioStep === 0
+  const [trainArrivalDestinationState, setTrainArrivalDestinationState] = useState<{
+    resetKey: string
+    value: Record<string, TrainTimeSelection>
+  }>({ resetKey: resetLocalLineMapStateKey, value: {} })
+  const [lineMapRouteSegmentOverrideState, setLineMapRouteSegmentOverrideState] = useState<{
+    resetKey: string
+    value: LineMapRuntimeState['routeSegments']
+  }>({ resetKey: resetLocalLineMapStateKey, value: {} })
   const panAnimationRef = useRef<number | null>(null)
   const trainRouteAnimationRef = useRef<number | null>(null)
   const train314RouteStepIndexRef = useRef<number | null>(null)
   const panTargetRef = useRef<number>(DEFAULT_LINE_MAP_PAN)
   const panValueRef = useRef<number>(DEFAULT_LINE_MAP_PAN)
   const dragRef = useRef<{ startX: number; startPan: number } | null>(null)
+  const trainArrivalDestinations = useMemo(() => (
+    shouldClearLocalLineMapState && trainArrivalDestinationState.resetKey !== resetLocalLineMapStateKey
+      ? {}
+      : trainArrivalDestinationState.value
+  ), [resetLocalLineMapStateKey, shouldClearLocalLineMapState, trainArrivalDestinationState])
+  const lineMapRouteSegmentOverrides = useMemo(() => (
+    shouldClearLocalLineMapState && lineMapRouteSegmentOverrideState.resetKey !== resetLocalLineMapStateKey
+      ? {}
+      : lineMapRouteSegmentOverrideState.value
+  ), [lineMapRouteSegmentOverrideState, resetLocalLineMapStateKey, shouldClearLocalLineMapState])
+  const setTrainArrivalDestinations = useCallback((update: SetStateAction<Record<string, TrainTimeSelection>>) => {
+    setTrainArrivalDestinationState((current) => {
+      const currentValue = shouldClearLocalLineMapState && current.resetKey !== resetLocalLineMapStateKey
+        ? {}
+        : current.value
+
+      return {
+        resetKey: resetLocalLineMapStateKey,
+        value: typeof update === 'function'
+          ? (update as (currentValue: Record<string, TrainTimeSelection>) => Record<string, TrainTimeSelection>)(currentValue)
+          : update,
+      }
+    })
+  }, [resetLocalLineMapStateKey, shouldClearLocalLineMapState])
+  const setLineMapRouteSegmentOverrides = useCallback((update: SetStateAction<LineMapRuntimeState['routeSegments']>) => {
+    setLineMapRouteSegmentOverrideState((current) => {
+      const currentValue = shouldClearLocalLineMapState && current.resetKey !== resetLocalLineMapStateKey
+        ? {}
+        : current.value
+
+      return {
+        resetKey: resetLocalLineMapStateKey,
+        value: typeof update === 'function'
+          ? (update as (currentValue: LineMapRuntimeState['routeSegments']) => LineMapRuntimeState['routeSegments'])(currentValue)
+          : update,
+      }
+    })
+  }, [resetLocalLineMapStateKey, shouldClearLocalLineMapState])
   const sessionLineMap = normalizeLineMapRuntimeState(session.lineMap)
   const renderedTrains = session.trains.map((train) => {
     const itamaStatus = trainItamaStatusOverrides[train.id]
@@ -7168,8 +5217,6 @@ function MonitorCanvas({
 
     cancelTrainRouteAnimation()
     train314RouteStepIndexRef.current = null
-    setTrainArrivalDestinations({})
-    setLineMapRouteSegmentOverrides({})
   }, [cancelTrainRouteAnimation, session.scenarioMode, session.scenarioStep, session.sessionMeta.createdAt])
 
   const setPanImmediate = useCallback((value: number) => {
@@ -7202,6 +5249,13 @@ function MonitorCanvas({
       cycleMode: current.cycleMode === 'NONE' ? 'AUTO' : 'NONE',
     }))
   }
+
+  const toggleRouteControlMode = useCallback((panelCode: string) => {
+    setRouteControlModes((current) => ({
+      ...current,
+      [panelCode]: current[panelCode] === 'OCCM' ? 'OCCA' : 'OCCM',
+    }))
+  }, [])
 
   const showItamaForTrain = (trainId: string) => {
     setInspectorPanel(null)
@@ -7775,7 +5829,7 @@ function MonitorCanvas({
     if (currentStepIndex < lastStepIndex) {
       scheduleRouteStep(currentStepIndex + 1, TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS)
     }
-  }, [cancelTrainRouteAnimation, session.lineMap, session.trains, trainArrivalDestinations, updateSession])
+  }, [cancelTrainRouteAnimation, session.lineMap, session.trains, setLineMapRouteSegmentOverrides, trainArrivalDestinations, updateSession])
 
   const openTrainContextMenu = (trainId: string, x: number, y: number) => {
     setInspectorPanel(null)
@@ -8196,6 +6250,7 @@ function MonitorCanvas({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
+        onToggleRouteControlMode={toggleRouteControlMode}
         onToggleCycle={toggleCycleMode}
         onWheel={(event) => {
           const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0
@@ -8206,6 +6261,7 @@ function MonitorCanvas({
           }
         }}
         panX={panX}
+        routeControlModes={routeControlModes}
         selectedTrain={selectedTrain}
         selectedTrainId={session.selectedTrainId}
         trains={renderedTrains}
@@ -8236,18 +6292,21 @@ function MonitorCanvas({
                 openTrainInspector(selectedTrain.id, 'information')
               }
             }}
-            signal={signalMenu.signal}
+            title={getSignalEquipmentLabel(signalMenu.signal)}
             x={signalMenu.x}
             y={signalMenu.y}
           />
         )}
         {defineRouteSignal && (
           <SignalRouteDefinitionWindow
+            equipmentLabel={getSignalEquipmentLabel(defineRouteSignal)}
+            key={defineRouteSignal.label}
             onClose={() => setDefineRouteSignal(null)}
             onSet={(routeLabel) => setRouteFromSignal(defineRouteSignal, routeLabel)}
             onUnset={(routeLabel) => unsetRouteFromSignal(defineRouteSignal, routeLabel)}
+            routeLabels={getSignalRouteLabels(defineRouteSignal)}
             routeSetLabels={defineRouteSetLabels}
-            signal={defineRouteSignal}
+            signalLabel={defineRouteSignal.label}
             statusText={defineRouteSet ? 'Route set successful' : 'Route not set'}
           />
         )}

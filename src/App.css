@@ -10145,6 +10145,14 @@
   box-shadow: none;
 }
 
+.line-map-command-panel button.is-route-manual {
+  background: #ff8800;
+}
+
+.line-map-command-panel button.is-route-manual strong {
+  background: #ff8800;
+}
+
 .line-map-gh-button {
   position: absolute;
   left: 2px;
