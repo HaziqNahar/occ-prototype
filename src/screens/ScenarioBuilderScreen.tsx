@@ -4,7 +4,7 @@ import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SelectField from '../components/SelectField'
 import SessionRunway from '../components/SessionRunway'
-import { prototypeScenarios } from '../prototypeData'
+import { scenarioTemplates } from '../scenarioLibrary'
 import { appendScenarioEvidence, createEmptyScenarioTasks, createScenarioEvidence } from '../scenario'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
@@ -54,15 +54,15 @@ function createSummaryEvent(event: MonitorAlarmRow, tone: AlarmSummaryRow['tone'
 }
 
 function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioBuilderScreenProps) {
-  const [selectedScenarioId, setSelectedScenarioId] = useState(prototypeScenarios[0].id)
+  const [selectedScenarioId, setSelectedScenarioId] = useState(scenarioTemplates[0].id)
   const [trainingMode, setTrainingMode] = useState<TrainingMode>(session.trainingMode)
-  const [customDuration, setCustomDuration] = useState(prototypeScenarios[0].duration)
-  const [selectedIncident, setSelectedIncident] = useState(prototypeScenarios[0].incidents[0])
+  const [customDuration, setCustomDuration] = useState(scenarioTemplates[0].duration)
+  const [selectedIncident, setSelectedIncident] = useState(scenarioTemplates[0].incidents[0])
   const [builderNote, setBuilderNote] = useState('Scenario builder ready. Select a template and load it into IOS.')
-  const selectedScenario = prototypeScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? prototypeScenarios[0]
+  const selectedScenario = scenarioTemplates.find((scenario) => scenario.id === selectedScenarioId) ?? scenarioTemplates[0]
 
   const selectScenario = (scenarioId: string) => {
-    const nextScenario = prototypeScenarios.find((scenario) => scenario.id === scenarioId) ?? prototypeScenarios[0]
+    const nextScenario = scenarioTemplates.find((scenario) => scenario.id === scenarioId) ?? scenarioTemplates[0]
 
     setSelectedScenarioId(nextScenario.id)
     setCustomDuration(nextScenario.duration)
@@ -142,11 +142,11 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
 
   return (
     <main
-      className="prototype-tool-shell"
+      className="module-tool-shell"
       style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
     >
-      <header className="prototype-tool-header">
-        <div className="prototype-tool-brand">
+      <header className="module-tool-header">
+        <div className="module-tool-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
             <p>IOS Scenario Management</p>
@@ -154,7 +154,7 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
             <span>{selectedScenario.status} | {trainingMode}</span>
           </div>
         </div>
-        <div className="prototype-tool-actions">
+        <div className="module-tool-actions">
           <button type="button" onClick={() => onNavigate('/ios/modules')}>IOS Modules</button>
           <button type="button" onClick={() => onNavigate('/ios/assessment')}>Assessment Rubric</button>
           <button type="button" onClick={() => onNavigate('/ios')}>Open IOS</button>
@@ -168,7 +168,7 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
           <p className="module-eyebrow">Scenario Library</p>
           <h2>Available Templates</h2>
           <div className="scenario-template-list">
-            {prototypeScenarios.map((scenario) => (
+            {scenarioTemplates.map((scenario) => (
               <button
                 type="button"
                 className={scenario.id === selectedScenario.id ? 'is-selected' : ''}
@@ -254,8 +254,8 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
           <div className="scenario-builder-actions">
             <button type="button" onClick={loadScenarioToIos}>Load Scenario to IOS</button>
             <button type="button" onClick={pushIncidentPreview}>Push Incident Preview</button>
-            <button type="button" onClick={() => setBuilderNote('Template duplicated for prototype demonstration.')}>Duplicate Template</button>
-            <button type="button" onClick={() => setBuilderNote('Scenario draft saved locally for prototype demonstration.')}>Save Draft</button>
+            <button type="button" onClick={() => setBuilderNote('Template duplicated.')}>Duplicate Template</button>
+            <button type="button" onClick={() => setBuilderNote('Scenario draft saved locally.')}>Save Draft</button>
           </div>
 
           <div className="scenario-builder-note">

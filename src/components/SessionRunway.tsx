@@ -22,13 +22,13 @@ function SessionRunway({ session }: SessionRunwayProps) {
   const lastLaunch = session.sessionMeta?.lastMonitorLaunch
 
   return (
-    <section className="session-runway" aria-label="Connected demo flow">
+    <section className="session-runway" aria-label="Connected session flow">
       <div className="session-runway-heading">
         <div>
-          <p className="module-eyebrow">Connected Prototype Flow</p>
+          <p className="module-eyebrow">Connected Session Flow</p>
           <h2>{session.activeScenario.title}</h2>
         </div>
-        <span>{session.sessionMeta?.code ?? 'OCC-DEMO-001'} | {session.scenarioMode} | {session.trainingMode}</span>
+        <span>{session.sessionMeta?.code ?? 'OCC-TRAINING-001'} | {session.scenarioMode} | {session.trainingMode}</span>
       </div>
 
       <div className="session-runway-summary">

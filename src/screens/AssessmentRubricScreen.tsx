@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SessionRunway from '../components/SessionRunway'
-import { assessmentRubric } from '../prototypeData'
+import { assessmentRubric } from '../scenarioLibrary'
 import { scenarioTaskList } from '../scenario'
 import type { AppRoute, OccSessionState } from '../types'
 
@@ -25,11 +25,11 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
 
   return (
     <main
-      className="prototype-tool-shell"
+      className="module-tool-shell"
       style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
     >
-      <header className="prototype-tool-header">
-        <div className="prototype-tool-brand">
+      <header className="module-tool-header">
+        <div className="module-tool-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
             <p>IOS Assessment Mode</p>
@@ -37,7 +37,7 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
             <span>{session.trainingMode} | {resultLabel}</span>
           </div>
         </div>
-        <div className="prototype-tool-actions">
+        <div className="module-tool-actions">
           <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario Builder</button>
           <button type="button" onClick={() => onNavigate('/report')}>Open Report</button>
           <button type="button" onClick={() => onNavigate('/ios')}>Open IOS</button>
@@ -78,7 +78,7 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
             <p className="module-eyebrow">Scoring Model</p>
             <h2>Quantitative results for trainee performance</h2>
             <p>
-              This screen makes the assessment logic visible for the prototype:
+              This screen makes the assessment logic visible for the training session:
               response quality, correct sequence, alarm handling, command accuracy,
               and trainer sign-off.
             </p>

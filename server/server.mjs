@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { mkdir, readFile, appendFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, appendFile, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -11,12 +11,12 @@ const serverDir = path.dirname(fileURLToPath(import.meta.url))
 const dataDir = path.join(serverDir, 'data')
 const sessionFile = path.join(dataDir, 'session.json')
 const reportsFile = path.join(dataDir, 'reports.ndjson')
-const DEFAULT_SESSION_CODE = 'OCC-DEMO-001'
+const DEFAULT_SESSION_CODE = 'OCC-TRAINING-001'
 const MONITOR_LAUNCH_ORIGIN = '/screen/line-map'
 const MONITOR_LAUNCH_TARGETS = new Set(['/screen/alarms', '/screen/timetable'])
 const MAX_TRANSPORT_EVENTS = 80
-const LINE_MAP_LAYOUT_VERSION = 3
-// First-round vetting validates this one polished workflow end to end.
+const LINE_MAP_LAYOUT_VERSION = 10
+// The core assessed workflow validates one operator path end to end.
 const REQUIRED_TASKS = ['selectTrain', 'ackAlarm', 'setRoute', 'dispatchTrain', 'completeScenario']
 const TASK_STEPS = {
   ackAlarm: 2,
@@ -54,7 +54,6 @@ const TRAIN_ROUTE_SEGMENT_IDS = {
   '095': 'hbf-turnback',
   '097': 'frp-turnback',
   '301': 'bgk-rt3',
-  '304': 'bgk-651',
   '309': 'pgc-depot',
   '312': 'pgc-depot',
   '314': 'pgc-depot',
@@ -96,6 +95,18 @@ function createSessionMeta(lifecycle = 'CREATED') {
   }
 }
 
+function normalizeSessionCode(code) {
+  if (typeof code !== 'string' || !code.trim()) {
+    return DEFAULT_SESSION_CODE
+  }
+
+  if (code.startsWith('OCC-') && !code.startsWith('OCC-TRAINING-')) {
+    return DEFAULT_SESSION_CODE
+  }
+
+  return code
+}
+
 function normalizeSessionMeta(session, lifecycle) {
   const existingMeta = session?.sessionMeta ?? {}
   const fallbackLifecycle = lifecycle ?? existingMeta.lifecycle ?? 'CREATED'
@@ -103,6 +114,7 @@ function normalizeSessionMeta(session, lifecycle) {
   return {
     ...createSessionMeta(fallbackLifecycle),
     ...existingMeta,
+    code: normalizeSessionCode(existingMeta.code),
     lifecycle: fallbackLifecycle,
     screens: existingMeta.screens ?? {},
   }
@@ -115,6 +127,7 @@ function mergeSessionMeta(existingMeta, incomingMeta) {
     ...baseMeta,
     ...existingMeta,
     ...incomingMeta,
+    code: normalizeSessionCode(incomingMeta?.code ?? existingMeta?.code),
     screens: {
       ...(existingMeta?.screens ?? {}),
       ...(incomingMeta?.screens ?? {}),
@@ -169,8 +182,8 @@ function getAssessmentResult(score, sessionTasks, rejectedActions) {
   return 'INCOMPLETE'
 }
 
-// Accepts older sessions gracefully by filling missing metrics. This protects
-// demo reloads after the data model evolves during prototype work.
+// Accepts older sessions gracefully by filling missing metrics after the data
+// model evolves.
 function normalizeAssessmentMetrics(session, metrics = session?.assessmentMetrics) {
   const fallback = createAssessmentMetrics()
   const tasks = Object.fromEntries(REQUIRED_TASKS.map((taskId) => [
@@ -439,8 +452,7 @@ function getScenarioTaskBlocker(tasks, taskId) {
     }
 
     if (!currentTasks.setRoute) {
-      // Dispatch before route is the main wrong-sequence behavior we want to
-      // demonstrate in the first vetting round.
+      // Dispatch before route is the main wrong-sequence behavior to prevent.
       return 'Apply route command before dispatch.'
     }
   }
@@ -509,8 +521,8 @@ function recordAcceptedAssessmentTask(session, taskId, source, completedAt) {
   return finalizeAssessmentMetrics(session, nextMetrics)
 }
 
-// Rejected actions count as backend assessment penalties even when the UI
-// continues running the demo.
+// Rejected actions count as backend assessment penalties while the UI remains
+// available for recovery.
 function recordRejectedAssessmentAction(session) {
   const currentMetrics = normalizeAssessmentMetrics(session)
   const startedAt = currentMetrics.startedAt ?? session.sessionMeta?.startedAt ?? getIsoNow()
@@ -575,7 +587,7 @@ function applyAcceptedTask(session, taskId, source, successText) {
 
 function setCorsHeaders(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
-  response.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,OPTIONS')
+  response.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
   response.setHeader('Access-Control-Allow-Headers', 'content-type')
   response.setHeader('Access-Control-Max-Age', '86400')
 }
@@ -616,6 +628,16 @@ async function loadStoredSession() {
 async function persistSession(session) {
   await ensureDataDir()
   await writeFile(sessionFile, `${JSON.stringify(session, null, 2)}\n`, 'utf8')
+}
+
+async function clearPersistedSession() {
+  try {
+    await unlink(sessionFile)
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error
+    }
+  }
 }
 
 async function appendReport(report) {
@@ -801,6 +823,25 @@ function broadcastMonitorLaunch(launchRequest) {
   for (const client of sseClients) {
     writeSse(client, payload)
   }
+}
+
+async function handleRuntimeSessionClear(request, response) {
+  const body = request.method === 'POST' ? await readJsonBody(request) : {}
+
+  currentSession = null
+  await clearPersistedSession()
+  recordTransportEvent('session_runtime_cleared', {
+    detail: 'Runtime session snapshot cleared. The next browser seed will create a fresh training session.',
+    sourceId: body.sourceId ?? 'backend',
+    transport: 'backend',
+  })
+  broadcastSession('session:reset', body.sourceId ?? 'backend')
+
+  sendJson(response, 200, {
+    ok: true,
+    session: null,
+    updatedAt: null,
+  })
 }
 
 // The frontend may publish a complete session snapshot; this method normalizes
@@ -1271,6 +1312,11 @@ async function routeRequest(request, response) {
 
     if (request.method === 'POST' && url.pathname === '/api/session/reset') {
       await acceptSessionUpdate(request, response, true)
+      return
+    }
+
+    if ((request.method === 'DELETE' || request.method === 'POST') && url.pathname === '/api/session/runtime') {
+      await handleRuntimeSessionClear(request, response)
       return
     }
 

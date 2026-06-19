@@ -23,7 +23,6 @@ import footerTrafficIcon from './assets/toolbar-icons/traffic.png'
 import footerUtilityIcon from './assets/toolbar-icons/utility.png'
 import footerWindowPairIcon from './assets/toolbar-icons/window_pair.png'
 import footerWindowPanelIcon from './assets/toolbar-icons/window_panel.png'
-import { submitOccSessionAction } from './backendClient'
 import type { OccSessionAction } from './backendClient'
 import LiveScadaClock from './components/LiveScadaClock'
 import MonitorWorkspace from './components/MonitorWorkspace'
@@ -36,41 +35,117 @@ import { InspectorInfoRow, ScadaDropdown, TrainInspectorScrollbar } from './comp
 import TrainTimeDialog from './components/train-control/TrainTimeDialog'
 import {
   getTrainServiceDirectionLabel,
-  hasTrainMovementDestination,
-  isRt2DepotArrivalDestination,
 } from './components/train-control/trainTimeOptions'
 import type { TrainTimeSelection } from './components/train-control/trainTimeOptions'
 import type { InspectorPage, TrainAuxiliaryView } from './components/train-control/trainControlTypes'
+import {
+  getAllowedTrainDoorCommands,
+  getTrainDoorCommandFromRequest,
+  getTrainDoorCommandLabel,
+  getTrainDoorCommandRejectionMessage,
+  getTrainDoorCommandStatusMessage,
+  getTrainDoorCommandValue,
+  getTrainDoorFailureState,
+  getTrainDoorFaultDisplayValue,
+  getTrainDoorIsolationStatus,
+  getTrainDoorStateAfterCommand,
+  getTrainDoorSummaryStatus,
+  getTrainReadinessModeFromCommand,
+  getTrainReadinessRequestValue,
+} from './components/train-control/trainCommandState'
+import type { TrainDoorCommand } from './components/train-control/trainCommandState'
 import usePopupDrag from './components/train-control/usePopupDrag'
 import Win98HtmlButton from './components/train-control/Win98HtmlButton'
+import { NEL_TIMETABLE_NAME } from './data/nelTimetable'
 import {
   DEFAULT_LINE_MAP_PAN,
-  LINE_SECTION_OFFSETS,
   LINE_VIEWPORT_PANS,
   MAP_PAN_MAX,
   MAP_PAN_STEP,
-  MAP_WORLD_WIDTH,
   MONITOR_HEIGHT,
   MONITOR_WIDTH,
   getTrainItamaStatusValue,
   getTrainReadinessDisplayValue,
   getTrainReadinessMode,
-  getRouteSegmentIdForTrain,
-  initialTrains,
-  lowerTrackPieces,
   platformData,
-  schematicAnnotations,
-  upperTrackPieces,
 } from './screens/line-map/model'
 import type { LineMapSignalData } from './screens/line-map/model'
+import { getSignalRouteCommandLabels, getSignalRouteSetLabels } from './screens/line-map/signalRouteState'
+import {
+  normalizeLineMapRuntimeState,
+} from './screens/line-map/lineMapRuntimeState'
+import {
+  createRouteAutomationSummary,
+  createTrainOccupancyRouteSegmentStates,
+  getLineMapRouteStatus,
+  getSignalEquipmentLabel,
+  getSignalRouteLabels,
+  updateLineMapRouteState,
+} from './screens/line-map/lineMapRouteState'
+import {
+  TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS,
+  TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
+  TRAIN_ROUTE_RENDER_STEPS,
+} from './screens/line-map/trainMovementRoutes'
+import { TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID } from './screens/line-map/lineMapRoutePaths'
+import {
+  applyManualTrainRouteStepState,
+  clearManualTrainRouteSegmentOverrides,
+  createManualTrainRoutePlan,
+} from './screens/line-map/trainMovementState'
+import {
+  applySignalRouteSetSession,
+  applySignalRouteUnsetSession,
+  createSignalRouteSetOverrideSegments,
+  createSignalRouteUnsetOverrideSegments,
+  getSignalRouteTargetTrain,
+  hasSignalRouteCommand,
+  shouldResetTrainRouteIndexForSignal,
+} from './screens/line-map/signalRouteCommands'
+import {
+  getTrainRouteStepFromLineMap,
+  getTrainRouteStepIndexFromLineMap,
+  updateTrainRouteStepState,
+} from './screens/line-map/trainRoutePlaybackState'
+import { warnLineMapRouteValidationIssues } from './screens/line-map/routeValidation'
+import { clearTimetableGuideRouteState } from './screens/line-map/timetableRouteStateCleanup'
+import {
+  TIMETABLE_PLAYBACK_PROFILE,
+  TIMETABLE_PLAYBACK_REFRESH_MS,
+  getTimetableRowSelectedStation,
+} from './screens/line-map/timetablePlayback'
+import {
+  createTimetablePlaybackRunKey,
+  scheduleTimetablePlaybackRun,
+} from './screens/line-map/timetablePlaybackController'
 import LineMapMonitorDom from './screens/line-map/LineMapDom'
 import { ToolbarButton } from './components/ScadaSvgToolbarButton'
 import { appendScenarioEvidence, createScenarioEvidence, scenarioTaskList } from './scenario'
-import { createOccSessionTransport, OCC_SESSION_KEY } from './sessionTransport'
+import {
+  applyScenarioStep,
+  completeScenarioTask,
+  createMonitorEvent,
+  createSummaryEvent,
+  formatAlarmSummaryTimestamp,
+  formatScenarioTime,
+  getScenarioStepBlocker,
+  rejectScenarioAction,
+  scenarioCues,
+  scenarioSteps,
+  submitBackendScenarioAction,
+  updateScenarioTask,
+  upsertTimetableRow,
+} from './scenarioWorkflow'
 import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTransport'
-import { prototypeScenarios } from './prototypeData'
+import {
+  alarmSummaryRows,
+  createInitialSession,
+  getTimetablePlaybackTrainIdSet,
+  trainingModeDetails,
+  updateSessionLifecycle,
+  useOccSession,
+} from './sessionState'
 import AssessmentRubricScreen from './screens/AssessmentRubricScreen'
-import DemoGuideScreen from './screens/DemoGuideScreen'
 import IosModulesScreen from './screens/IosModulesScreen'
 import LoginPage from './screens/LoginPage'
 import ReportScreen from './screens/ReportScreen'
@@ -79,744 +154,27 @@ import TraineeLobbyScreen from './screens/TraineeLobbyScreen'
 import type {
   AlarmSummaryRow,
   AppRoute,
-  AssessmentTaskMetric,
-  CycleMode,
-  LineMapRouteSegmentStatus,
   LineMapRuntimeState,
   MonitorAlarmRow,
-  OccAssessmentMetrics,
-  OccSessionMeta,
   OccSessionState,
   RouteControlMode,
-  ScenarioNotice,
   ScenarioNoticeTone,
-  SessionLifecycle,
   ScenarioTaskId,
-  ScenarioTaskState,
-  TraineeParticipant,
-  TimetableRow,
   TrainingMode,
   TrainCommand,
-  TrainDoorFailureState,
   TrainReadinessMode,
   TrainState,
   TrainStatus,
 } from './types'
 
-const LINE_MAP_LAYOUT_VERSION = 10
-const STALE_LINE_MAP_TRAIN_DELTAS = new Set([MONITOR_WIDTH - 1064, MONITOR_WIDTH * 2 - 2084, MONITOR_WIDTH * 3 - 3066, -164, -16, -2, 2, 3, 10])
-const LEGACY_OCC_SESSION_KEYS = [
-  'sbs-occ-training-session-v1',
-  'sbs-occ-training-session-v2',
-  'sbs-occ-training-session-v3',
-  'sbs-occ-training-session-v4',
-] as const
-const DEFAULT_LINE_MAP_ROUTE_SEGMENT_STATUSES = {
-  'rail-314': 'UNSET',
-  'rail-318': 'UNSET',
-  'rail-320': 'UNSET',
-  'rail-416': 'UNSET',
-  'rail-418': 'UNSET',
-  'rail-420': 'UNSET',
-  'rail-653': 'UNSET',
-  'rail-655': 'UNSET',
-  'rail-661': 'UNSET',
-  'rail-RT3': 'UNSET',
-} as const satisfies Record<string, LineMapRouteSegmentStatus>
-
-const EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS = [
-  { preferredSide: 0, sides: [['rail-P101'], ['rail-102']] },
-  { preferredSide: 0, sides: [['rail-P102'], ['rail-110']] },
-  { preferredSide: 0, sides: [['rail-P103'], ['rail-103']] },
-  { preferredSide: 0, sides: [['rail-P105'], ['rail-109']] },
-  { preferredSide: 0, sides: [['rail-P200'], ['rail-204']] },
-  { preferredSide: 0, sides: [['rail-P201'], ['rail-205']] },
-  { preferredSide: 0, sides: [['rail-P300'], ['rail-314']] },
-  { preferredSide: 0, sides: [['rail-P301'], ['rail-313']] },
-  { preferredSide: 0, sides: [['rail-P302'], ['rail-312']] },
-  { preferredSide: 0, sides: [['rail-P303'], ['rail-320']] },
-  { preferredSide: 0, sides: [['rail-P304'], ['rail-314']] },
-  { preferredSide: 0, sides: [['rail-P305'], ['rail-317']] },
-  { preferredSide: 0, sides: [['rail-P306'], ['rail-322']] },
-  { preferredSide: 0, sides: [['rail-P400'], ['rail-416']] },
-  { preferredSide: 0, sides: [['rail-P401'], ['rail-415']] },
-  { preferredSide: 0, sides: [['rail-P402'], ['rail-422']] },
-  { preferredSide: 0, sides: [['rail-P403'], ['rail-420']] },
-  { preferredSide: 0, sides: [['rail-P600'], ['rail-604']] },
-  { preferredSide: 0, sides: [['rail-P601'], ['rail-605A']] },
-  { preferredSide: 0, sides: [['rail-P602'], ['rail-661']] },
-  { preferredSide: 0, sides: [['rail-P603'], ['rail-605A']] },
-  { preferredSide: 0, sides: [['rail-P606'], ['rail-612']] },
-  { preferredSide: 0, sides: [['rail-P608'], ['rail-614']] },
-  { preferredSide: 0, sides: [['rail-P609'], ['rail-651', 'bgk-651']] },
-  { preferredSide: 0, sides: [['rail-P610'], ['rail-616']] },
-  { preferredSide: 0, sides: [['rail-P611'], ['rail-611']] },
-  { preferredSide: 0, sides: [['rail-P613'], ['rail-613']] },
-  { preferredSide: 0, sides: [['rail-P615'], ['rail-615']] },
-  { preferredSide: 0, sides: [['rail-P700'], ['rail-704']] },
-  { preferredSide: 0, sides: [['rail-P701'], ['rail-705']] },
-  { preferredSide: 0, sides: [['rail-P702'], ['rail-706']] },
-  { preferredSide: 0, sides: [['rail-P703'], ['rail-707']] },
-  { preferredSide: 0, sides: [['rail-P1100'], ['rail-1104']] },
-  { preferredSide: 0, sides: [['rail-P1101'], ['rail-1105']] },
-  { preferredSide: 0, sides: [['rail-P1102'], ['rail-1106']] },
-  { preferredSide: 0, sides: [['rail-P1103'], ['rail-1107']] },
-] as const
-
-const DEFAULT_P_ROUTE_SEGMENT_IDS: ReadonlySet<string> = new Set(
-  EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.flatMap((group) => group.sides[0]),
-)
-
-const DEFAULT_ACTIVE_STRAIGHT_TRACK_SEGMENT_IDS: ReadonlySet<string> = new Set([
-  ...getDefaultActiveStraightTrackSegmentIds(upperTrackPieces, 'upper'),
-  ...getDefaultActiveStraightTrackSegmentIds(lowerTrackPieces, 'lower'),
-])
-
-const S610_ROUTE_SEGMENT_IDS = [
-  'route-r610-652-652',
-  'route-r610-652-650',
-  'bgk-rt2-p606',
-  'route-r610-652-lower-614',
-  'route-r610-652-p608-default',
-  'route-r610-652-lower-p610',
-  'route-r610-652-upper-p615',
-  'route-r610-652-p610-default',
-  'route-r610-652-p615-default',
-  'route-r610-652-upper-617',
-  'route-r610-652-upper-619',
-  'route-r610-652-upper-621',
-  'route-r610-652-upper-701',
-  'route-r610-652-upper-703',
-] as const
-
-const S610_LEGACY_ROUTE_SEGMENT_MIGRATIONS = [
-  ['bgk-rt2-652', 'route-r610-652-652'],
-  ['bgk-rt2', 'route-r610-652-650'],
-] as const
-
-const REMOVED_ROUTE_SEGMENT_IDS = [
-  'route-r610-652-652',
-  'route-r610-652-650',
-  'bgk-rt2-p606',
-  'route-r610-652-lower-614',
-  'route-r610-652-p608-default',
-  'route-r610-652-lower-p610',
-  'route-r610-652-upper-p615',
-  'route-r610-652-p610-default',
-  'route-r610-652-p615-default',
-  'route-r610-652-upper-617',
-  'route-r610-652-upper-619',
-  'route-r610-652-upper-621',
-  'route-r610-652-upper-701',
-  'route-r610-652-upper-703',
-  'route-r610-652-upper-705',
-  'skg-p606-guide',
-  'pgl-p701-p700-guide',
-  'rail-guide-skg-p606-guide-0',
-  'rail-guide-pgl-p701-p700-guide-0',
-  'rail-guide-pgl-p701-p700-guide-1',
-  'rail-P701-2',
-  'rail-P1100-2',
-  'rail-P1101-2',
-  'rail-P1101-3',
-  'rail-P1101-4',
-  'rail-P1101-5',
-  'rail-P1102-2',
-  'rail-P1103-2',
-  'rail-P1103-3',
-  'rail-P1103-4',
-  'rail-P1103-5',
-] as const
-
-const S610_REAL_ROUTE_SEGMENT_IDS = [
-  'rail-652',
-  'rail-650',
-  'rail-P606',
-  'rail-614',
-  'rail-P610',
-  'rail-P615',
-  'rail-617',
-  'rail-619',
-  'rail-621',
-  'rail-705',
-  'rail-701',
-  'rail-703',
-] as const
-
-const S608_R608_803_REAL_ROUTE_SEGMENT_IDS = [
-  'rail-618',
-  'rail-616',
-  'rail-614',
-  'rail-P606',
-  'rail-650',
-  'rail-652',
-] as const
-
-const S700_REAL_ROUTE_SEGMENT_IDS = [
-  'rail-710',
-  'rail-708',
-  'rail-706',
-  'rail-704',
-  'rail-702',
-  'rail-700',
-  'rail-622',
-  'rail-620',
-] as const
-
-const S704_REAL_ROUTE_SEGMENT_IDS = [
-  'rail-712',
-  'rail-710',
-] as const
-
-const S1104_REAL_ROUTE_SEGMENT_IDS = [
-  'rail-1109',
-  'rail-P1103',
-  'rail-1115',
-  'rail-P1100',
-  'rail-1102',
-  'rail-716',
-  'rail-714',
-] as const
-
-const STARTUP_SIGNAL_ROUTE_SEGMENT_IDS = [
-  ...S610_REAL_ROUTE_SEGMENT_IDS,
-  ...S608_R608_803_REAL_ROUTE_SEGMENT_IDS,
-  ...S700_REAL_ROUTE_SEGMENT_IDS,
-  ...S704_REAL_ROUTE_SEGMENT_IDS,
-  ...S1104_REAL_ROUTE_SEGMENT_IDS,
-] as const
-
-const LINE_SUFFIX_ROUTE_SEGMENT_MIGRATIONS = [
-  ['rail-614-line03', 'rail-614'],
-  ['rail-617-line03', 'rail-617'],
-  ['rail-619-line03', 'rail-619'],
-  ['rail-621-line03', 'rail-621'],
-  ['rail-705-line04', 'rail-705'],
-  ['rail-701-line04', 'rail-701'],
-  ['rail-703-line04', 'rail-703'],
-  ['rail-1109-line04', 'rail-1109'],
-  ['rail-1102-line04', 'rail-1102'],
-  ['rail-716-line04', 'rail-716'],
-  ['rail-712-line04', 'rail-712'],
-  ['rail-710-line04', 'rail-710'],
-  ['rail-714-line04', 'rail-714'],
-] as const
-
-const S610_RETIRED_ROUTE_SEGMENT_IDS = [
-  'rail-P701',
-] as const
-
-const S610_SIGNAL_TRACK_SEGMENT_IDS = [
-  `track:${Math.round(LINE_SECTION_OFFSETS.line03 + 1198)}`,
-  `track:${Math.round(LINE_SECTION_OFFSETS.line04 + 187)}`,
-] as const
-
-type TrainRouteAnimationPoint = {
-  x: number
-  y: number
-}
-
-type TrainRouteAnimationStep = {
-  point: TrainRouteAnimationPoint
-  segmentId: string
-}
-
-const TRAIN_MARKER_UPPER_ROUTE_Y = 205
-const TRAIN_MARKER_LOWER_ROUTE_Y = 508
-const TRAIN_FLAT_RAIL_OCCUPANCY_TOLERANCE = 48
-const TRAIN_ROUTE_STEP_POSITION_TOLERANCE = 8
-const TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS = 2500
-const TRAIN_314_S610_TO_RT2_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
-  {
-    segmentId: 'rail-705',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 105, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-703',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 49, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-701',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 17, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-621',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1265, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-619',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1242, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-617',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1198, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-P615',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1129, y: 283 },
-  },
-  {
-    segmentId: 'rail-P610',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1111, y: 424 },
-  },
-  {
-    segmentId: 'rail-614',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 999, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-P606',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 840, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-650',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 819, y: 243 },
-  },
-  {
-    segmentId: 'rail-652',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 796, y: 110 },
-  },
-] as const
-
-const TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
-  {
-    segmentId: 'rail-618',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1194, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-616',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1116, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-614',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 999, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-P606',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 840, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-650',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 819, y: 243 },
-  },
-  {
-    segmentId: 'rail-652',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 796, y: 110 },
-  },
-] as const
-
-const TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
-  {
-    segmentId: 'rail-1109',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 791, y: TRAIN_MARKER_UPPER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-P1103',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 650, y: 285 },
-  },
-  {
-    segmentId: 'rail-1115',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 633, y: 360 },
-  },
-  {
-    segmentId: 'rail-P1100',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 575, y: 432 },
-  },
-  {
-    segmentId: 'rail-1102',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 492, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-716',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 410, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-714',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 369, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-712',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 337, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-710',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 292, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-708',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 248, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-706',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 199, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-704',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 132, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-702',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 61, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-700',
-    point: { x: LINE_SECTION_OFFSETS.line04 + 12, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-622',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1265, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-620',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1230, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-  {
-    segmentId: 'rail-618',
-    point: { x: LINE_SECTION_OFFSETS.line03 + 1194, y: TRAIN_MARKER_LOWER_ROUTE_Y },
-  },
-] as const
-
-const TRAIN_ROUTE_RENDER_STEPS: readonly TrainRouteAnimationStep[] = [
-  ...TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
-  ...TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
-  ...TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
-]
-
-const TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID: Record<string, readonly TrainRouteAnimationStep[]> = {
-  '312': TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
-  '314': TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
+if (import.meta.env.DEV) {
+  warnLineMapRouteValidationIssues()
 }
 
 type SignalMenuState = {
   signal: LineMapSignalData
   x: number
   y: number
-}
-
-const alarmRows: MonitorAlarmRow[] = [
-  {
-    level: 'S',
-    time: '05/11 11:00:06',
-    asset: 'SIG/SKG/RT1/SIGN0655',
-    message: 'Signal S655: Signal Lamp Filament Status',
-    value: 'BURNT',
-    tone: 'orange',
-  },
-  {
-    level: 'S',
-    time: '05/11 11:02:17',
-    asset: 'EMU/032/TRN/XXXXXXX',
-    message: 'Train 032: Action Needed (from operator for recovery)',
-    value: 'YES',
-    tone: 'red',
-  },
-  {
-    level: 'S',
-    time: '05/11 11:02:17',
-    asset: 'EMU/032/TRN/XXXXXXX',
-    message: 'Train 032: Train ITAMA Status',
-    value: 'NOT GRANTED',
-    tone: 'yellow',
-  },
-  {
-    level: 'S',
-    time: '05/11 11:02:21',
-    asset: 'EMU/049/TRN/XXXXXXX',
-    message: 'Train 049: Train Hold',
-    value: 'APPLIED',
-    tone: 'yellow',
-  },
-]
-
-const scenarioSteps = [
-  {
-    label: 'T+00',
-    title: 'Ready',
-    text: 'Session reset and monitors synchronized',
-  },
-  {
-    label: 'T+30',
-    title: 'Hold train',
-    text: 'Train 317 is held for launch / withdrawal handling',
-  },
-  {
-    label: 'T+60',
-    title: 'Inject alarm',
-    text: 'Door fault alarm appears on Alarm Summary monitor',
-  },
-  {
-    label: 'T+90',
-    title: 'Route command',
-    text: 'Route command selected and train waits for dispatch',
-  },
-  {
-    label: 'T+120',
-    title: 'Dispatch',
-    text: 'Train dispatches and cycle mode starts movement',
-  },
-  {
-    label: 'T+150',
-    title: 'Complete',
-    text: 'Scenario complete and operator response recorded',
-  },
-]
-
-const demoCues = [
-  {
-    primary: 'Confirm three monitor windows are online.',
-    secondary: 'Start at IOS, then point to Monitor 02.',
-  },
-  {
-    primary: 'Monitor 02: Train 317 changes to HOLD.',
-    secondary: 'Explain launch / withdrawal control.',
-  },
-  {
-    primary: 'Monitor 01: red alarm needs acknowledgement.',
-    secondary: 'Show sync with IOS event feed.',
-  },
-  {
-    primary: 'Monitor 03: timetable state changes.',
-    secondary: 'Explain route and timetable linkage.',
-  },
-  {
-    primary: 'Monitor 02: dispatch starts AUTO cycle.',
-    secondary: 'Watch train state update across screens.',
-  },
-  {
-    primary: 'Wrap up: acknowledge, replay, or reset.',
-    secondary: 'Close the loop without stale state.',
-  },
-]
-
-const trainingModeDetails: Record<TrainingMode, { label: string; title: string; cue: string; report: string }> = {
-  PRACTICE: {
-    label: 'Practice',
-    title: 'Guided practice mode',
-    cue: 'Hints and trainer step controls are visible.',
-    report: 'Guided learning with trainer support.',
-  },
-  ASSESSMENT: {
-    label: 'Assessment',
-    title: 'Assessment mode',
-    cue: 'Hints hidden. Operator actions and rejected commands are scored.',
-    report: 'Timed competency check with reduced guidance.',
-  },
-  PLAYER: {
-    label: 'Player',
-    title: 'Player replay mode',
-    cue: 'Auto-run playback walks the client through the scenario.',
-    report: 'Demonstration playback for review and presentation.',
-  },
-}
-
-const scenarioTaskStep: Record<ScenarioTaskId, number> = {
-  ackAlarm: 2,
-  completeScenario: 5,
-  dispatchTrain: 4,
-  selectTrain: 1,
-  setRoute: 3,
-}
-
-const scenarioTaskEvidenceLabels: Record<ScenarioTaskId, string> = {
-  ackAlarm: 'Alarm acknowledged',
-  completeScenario: 'Scenario reviewed',
-  dispatchTrain: 'Train dispatched',
-  selectTrain: 'Train selected',
-  setRoute: 'Route command applied',
-}
-
-const scenarioTaskThresholds: Record<ScenarioTaskId, number> = {
-  ackAlarm: 45,
-  completeScenario: 150,
-  dispatchTrain: 105,
-  selectTrain: 20,
-  setRoute: 75,
-}
-
-const initialScenarioTasks: ScenarioTaskState = {
-  ackAlarm: false,
-  completeScenario: false,
-  dispatchTrain: false,
-  selectTrain: false,
-  setRoute: false,
-}
-
-const defaultSessionCode = 'OCC-DEMO-001'
-
-const initialScenarioNotice: ScenarioNotice = {
-  text: 'Ready for Train 317 launch / withdrawal drill.',
-  tone: 'info',
-}
-
-const defaultScenarioTemplate = prototypeScenarios[0]
-
-const initialActiveScenario = {
-  duration: defaultScenarioTemplate.duration,
-  id: defaultScenarioTemplate.id,
-  incident: defaultScenarioTemplate.incidents[0],
-  target: defaultScenarioTemplate.target,
-  title: defaultScenarioTemplate.title,
-}
-
-const initialTrainees: TraineeParticipant[] = [
-  {
-    email: 'traffic.controller@sbs.local',
-    joinedAt: '11:00',
-    monitor: 'Monitor 02 - Line Map',
-    name: 'Traffic Controller',
-    role: 'Traffic Controller',
-    status: 'Joined',
-  },
-  {
-    email: 'station.manager@sbs.local',
-    joinedAt: '--',
-    monitor: 'Monitor 01 - Alarms',
-    name: 'Station Manager',
-    role: 'Station Manager',
-    status: 'Waiting',
-  },
-]
-
-const alarmSummaryRows: AlarmSummaryRow[] = [
-  {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:42:19',
-    asset: 'SIG/BNK/B2/DMS0901',
-    description: 'DMS: Timetable Loading Acknowledgement',
-    value: 'NO ACK',
-    tone: 'yellow',
-  },
-  {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:42:19',
-    asset: 'SIG/HGN/B2/DMS0401',
-    description: 'DMS: Timetable Loading Acknowledgement',
-    value: 'NO ACK',
-    tone: 'yellow',
-  },
-  {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:42:19',
-    asset: 'SIG/OTP/B4/DMS1501',
-    description: 'DMS: Timetable Loading Acknowledgement',
-    value: 'NO ACK',
-    tone: 'yellow',
-  },
-  {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:55:50',
-    asset: 'EMU/042/TRN/XXXXXXX',
-    description: 'Train 042: Action Needed (from operator for recovery)',
-    value: 'YES',
-    tone: 'red',
-  },
-  {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:55:52',
-    asset: 'EMU/037/TRN/XXXXXXX',
-    description: 'Train 037: Status of Train Hold Request',
-    value: 'AUTOMATIC HOLD',
-    tone: 'yellow',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:56:50',
-    asset: 'SIG/NED/1133/DMS0003',
-    description: 'DMS:HMI Status',
-    value: 'OK',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:57:09',
-    asset: 'EMU/017/TRN/XXXXXXX',
-    description: 'Train 017: Train Hold',
-    value: 'NOT APPLIED',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: '',
-    timestamp: '05/11/25 10:57:48',
-    asset: 'EMU/032/TRN/XXXXXXX',
-    description: 'Train 032: Train Skip Stop Demand',
-    value: 'FAILED: RET. COND',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: '',
-    timestamp: '05/11/25 10:58:31',
-    asset: 'SKG_ROUT_S003',
-    description: 'Route abandoned: R613_617/Management of Route Control',
-    value: '',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:58:33',
-    asset: 'EMU/048/TRN/XXXXXXX',
-    description: 'Train 048: Emergency Brake',
-    value: 'NOT APPLIED',
-    tone: 'grey',
-  },
-]
-
-const timetableRows: TimetableRow[] = []
-
-function createLiveTimetableRow(trainId: string, state: string): TimetableRow {
-  return {
-    state,
-    train: trainId,
-    sched: '',
-    originPoint: '',
-    originTime: '',
-    stationPoint: '',
-    stationTime: '',
-    dwell: '',
-    run: '',
-    destinationPoint: '',
-    destinationTime: '',
-    revision: '',
-    speed: '',
-  }
-}
-
-function upsertTimetableRow(rows: TimetableRow[], trainId: string, state: string): TimetableRow[] {
-  const match = rows.findIndex((row) => row.train === trainId)
-
-  if (match === -1) {
-    return [...rows, createLiveTimetableRow(trainId, state)]
-  }
-
-  return rows.map((row, index) => (
-    index === match ? { ...row, state } : row
-  ))
-}
-
-function normalizeTimetableRows(rows: TimetableRow[] | undefined): TimetableRow[] {
-  if (!rows) {
-    return timetableRows
-  }
-
-  return rows.filter((row) => !(row.originPoint === 'HBFS' && row.stationPoint === 'SKGN' && row.sched !== ''))
 }
 
 function clampPan(value: number) {
@@ -831,1896 +189,7 @@ function snapLineMapPan(value: number) {
   ), LINE_VIEWPORT_PANS[0])
 }
 
-function advanceTrain(train: TrainState): TrainState {
-  if (train.status !== 'RUN') {
-    return train
-  }
-
-  const delta = train.direction === 'right' ? 18 : -18
-  const nextX = train.x + delta
-
-  if (nextX > MAP_WORLD_WIDTH - 50) {
-    return { ...train, x: 60 }
-  }
-
-  if (nextX < 40) {
-    return { ...train, x: MAP_WORLD_WIDTH - 70 }
-  }
-
-  return { ...train, x: nextX }
-}
-
-function formatScenarioTime() {
-  const now = new Date()
-  const day = String(now.getDate()).padStart(2, '0')
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  const seconds = String(now.getSeconds()).padStart(2, '0')
-
-  return `${day}/${month} ${hours}:${minutes}:${seconds}`
-}
-
-function formatAlarmSummaryTimestamp(time: string) {
-  if (/^\d{2}\/\d{2}\/\d{2}\s/.test(time)) {
-    return time
-  }
-
-  const year = String(new Date().getFullYear()).slice(-2)
-
-  return time.replace(/^(\d{2}\/\d{2})\s/, `$1/${year} `)
-}
-
-function createMonitorEvent(
-  trainId: string,
-  message: string,
-  value: string,
-  tone: MonitorAlarmRow['tone'] = 'yellow',
-): MonitorAlarmRow {
-  return {
-    level: 'S',
-    time: formatScenarioTime(),
-    asset: `EMU/${trainId}/TRN/OCC`,
-    message,
-    value,
-    tone,
-  }
-}
-
-function createSummaryEvent(event: MonitorAlarmRow, tone: AlarmSummaryRow['tone'] = 'yellow'): AlarmSummaryRow {
-  return {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: formatAlarmSummaryTimestamp(event.time),
-    asset: event.asset,
-    description: event.message,
-    value: event.value,
-    tone,
-  }
-}
-
-function updateScenarioTask(
-  tasks: ScenarioTaskState | undefined,
-  taskId: ScenarioTaskId,
-  complete = true,
-): ScenarioTaskState {
-  return {
-    ...initialScenarioTasks,
-    ...tasks,
-    [taskId]: complete,
-  }
-}
-
-function getScenarioTaskBlocker(tasks: ScenarioTaskState | undefined, taskId: ScenarioTaskId) {
-  const currentTasks = { ...initialScenarioTasks, ...tasks }
-
-  if (taskId === 'ackAlarm' && !currentTasks.selectTrain) {
-    return 'Select Train 317 before acknowledging the injected alarm.'
-  }
-
-  if (taskId === 'setRoute') {
-    if (!currentTasks.selectTrain) {
-      return 'Select Train 317 before applying route.'
-    }
-
-    if (!currentTasks.ackAlarm) {
-      return 'Acknowledge the door fault before applying route.'
-    }
-  }
-
-  if (taskId === 'dispatchTrain') {
-    if (!currentTasks.ackAlarm) {
-      return 'Acknowledge the door fault before dispatch.'
-    }
-
-    if (!currentTasks.setRoute) {
-      return 'Apply route command before dispatch.'
-    }
-  }
-
-  if (taskId === 'completeScenario' && !currentTasks.dispatchTrain) {
-    return 'Dispatch Train 317 before completing the scenario.'
-  }
-
-  return ''
-}
-
-function withScenarioNotice(
-  current: OccSessionState,
-  text: string,
-  tone: ScenarioNoticeTone = 'info',
-): OccSessionState {
-  return {
-    ...current,
-    scenarioNotice: { text, tone },
-  }
-}
-
-function rejectScenarioAction(
-  current: OccSessionState,
-  text: string,
-  trainId = '317',
-  source = 'Scenario Guard',
-): OccSessionState {
-  const event = createMonitorEvent(trainId, `Command rejected: ${text}`, 'REJECTED', 'red')
-
-  return {
-    ...withScenarioNotice(current, text, 'warning'),
-    evidenceLog: appendScenarioEvidence(
-      current.evidenceLog,
-      createScenarioEvidence(source, 'Action rejected', 'rejected', text),
-    ),
-    eventRows: [event, ...current.eventRows].slice(0, 4),
-  }
-}
-
-type TrainDoorCommand =
-  | 'cycle-door'
-  | 'confirm-closed-locked'
-  | 'authorize-door-isolation'
-  | 'authorize-move'
-  | 'withdraw-service'
 type TrainItamaDisplayStatus = ReturnType<typeof getTrainItamaStatusValue>
-
-function completeScenarioTask(
-  current: OccSessionState,
-  taskId: ScenarioTaskId,
-  successText: string,
-  source = 'OCC Workflow',
-): { allowed: boolean; next: OccSessionState } {
-  const blocker = getScenarioTaskBlocker(current.scenarioTasks, taskId)
-
-  if (blocker) {
-    return {
-      allowed: false,
-      next: rejectScenarioAction(current, blocker),
-    }
-  }
-
-  return {
-    allowed: true,
-    next: {
-      ...withScenarioNotice(current, successText, taskId === 'completeScenario' ? 'success' : 'info'),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(source, scenarioTaskEvidenceLabels[taskId], 'accepted', successText),
-      ),
-      scenarioMode: taskId === 'completeScenario' ? 'COMPLETE' : current.scenarioMode === 'COMPLETE' ? 'COMPLETE' : 'RUNNING',
-      sessionMeta: updateSessionLifecycle(
-        current.sessionMeta,
-        taskId === 'completeScenario' ? 'COMPLETE' : 'RUNNING',
-      ),
-      scenarioStep: Math.max(current.scenarioStep, scenarioTaskStep[taskId]),
-      scenarioTasks: updateScenarioTask(current.scenarioTasks, taskId),
-    },
-  }
-}
-
-function getScenarioStepBlocker(current: OccSessionState, nextStep: number) {
-  if (nextStep === 3) {
-    return getScenarioTaskBlocker(current.scenarioTasks, 'setRoute')
-  }
-
-  if (nextStep === 4) {
-    return getScenarioTaskBlocker(current.scenarioTasks, 'dispatchTrain')
-  }
-
-  if (nextStep >= 5) {
-    return getScenarioTaskBlocker(current.scenarioTasks, 'completeScenario')
-  }
-
-  return ''
-}
-
-function applyScenarioStep(current: OccSessionState, step: number): OccSessionState {
-  const scenarioStep = Math.min(step, scenarioSteps.length - 1)
-  const trainId = '317'
-  let status: TrainStatus = 'RUN'
-  let cycleMode: CycleMode = 'NONE'
-  let timetableState = '>'
-  let event = createMonitorEvent(trainId, 'Trainer scenario ready: Train launch and withdrawal', 'READY', 'yellow')
-  let summaryTone: AlarmSummaryRow['tone'] = 'yellow'
-  let scenarioTasks = { ...initialScenarioTasks, ...current.scenarioTasks }
-  let doorFailureState: TrainDoorFailureState | undefined
-
-  if (scenarioStep === 1) {
-    status = 'HOLD'
-    timetableState = 'H>'
-    event = createMonitorEvent(trainId, 'Trainer scenario started: Train 317 launch / withdrawal hold', 'HOLD', 'red')
-    summaryTone = 'red'
-    scenarioTasks = updateScenarioTask(scenarioTasks, 'selectTrain')
-  }
-
-  if (scenarioStep === 2) {
-    status = 'HOLD'
-    timetableState = 'H>'
-    event = createMonitorEvent(trainId, 'Trainer injected alarm: Train 317 door fault pending', 'YES', 'red')
-    summaryTone = 'red'
-    doorFailureState = 'FAULT_ALARM'
-  }
-
-  if (scenarioStep === 3) {
-    status = 'WAIT'
-    timetableState = 'R'
-    event = createMonitorEvent(trainId, 'Instructor command: Train 317 route selected', 'WAIT', 'yellow')
-    scenarioTasks = updateScenarioTask(scenarioTasks, 'setRoute')
-  }
-
-  if (scenarioStep === 4) {
-    status = 'RUN'
-    cycleMode = 'AUTO'
-    timetableState = '>'
-    event = createMonitorEvent(trainId, 'Instructor command: Train 317 dispatch', 'RUN', 'yellow')
-    scenarioTasks = updateScenarioTask(updateScenarioTask(scenarioTasks, 'setRoute'), 'dispatchTrain')
-  }
-
-  if (scenarioStep === 5) {
-    status = 'RUN'
-    cycleMode = 'AUTO'
-    timetableState = '>'
-    event = createMonitorEvent(trainId, 'Scenario complete: Train 317 launch / withdrawal response recorded', 'COMPLETE', 'yellow')
-    scenarioTasks = {
-      ...scenarioTasks,
-      completeScenario: true,
-      dispatchTrain: true,
-      selectTrain: true,
-      setRoute: true,
-    }
-  }
-
-  const shouldAddEvent = scenarioStep > current.scenarioStep || current.scenarioMode === 'IDLE'
-
-  return {
-    ...current,
-    alarmSummaryRows: shouldAddEvent
-      ? [createSummaryEvent(event, summaryTone), ...current.alarmSummaryRows].slice(0, 12)
-      : current.alarmSummaryRows,
-    cycleMode,
-    eventRows: shouldAddEvent ? [event, ...current.eventRows].slice(0, 4) : current.eventRows,
-    lineMap: scenarioStep === 0
-      ? createLineMapRuntimeState()
-      : scenarioStep >= 3
-        ? updateLineMapRouteState(current.lineMap, { id: trainId }, scenarioStep >= 4 ? 'DISPATCHED' : 'SET')
-        : current.lineMap,
-    evidenceLog: shouldAddEvent
-      ? appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'IOS Scenario Control',
-          scenarioSteps[scenarioStep]?.title ?? 'Scenario step',
-          scenarioStep === scenarioSteps.length - 1 ? 'accepted' : 'info',
-          scenarioSteps[scenarioStep]?.text ?? 'Scenario step updated.',
-        ),
-      )
-      : current.evidenceLog,
-    scenarioMode: scenarioStep === 0 ? 'IDLE' : scenarioStep === scenarioSteps.length - 1 ? 'COMPLETE' : 'RUNNING',
-    sessionMeta: updateSessionLifecycle(
-      current.sessionMeta,
-      scenarioStep === 0 ? 'CREATED' : scenarioStep === scenarioSteps.length - 1 ? 'COMPLETE' : 'RUNNING',
-    ),
-    scenarioNotice: {
-      text: scenarioSteps[scenarioStep]?.text ?? initialScenarioNotice.text,
-      tone: scenarioStep === scenarioSteps.length - 1 ? 'success' : 'info',
-    },
-    scenarioStep,
-    scenarioTasks,
-    selectedTrainId: trainId,
-    timetableRows: upsertTimetableRow(current.timetableRows, trainId, timetableState),
-    trains: current.trains.map((train) => (
-      train.id === trainId
-        ? {
-            ...train,
-            status,
-            ...(doorFailureState ? { doorFailureState } : {}),
-          }
-        : train
-    )),
-  }
-}
-
-function createSessionMeta(lifecycle: SessionLifecycle = 'CREATED'): OccSessionMeta {
-  const createdAt = new Date().toISOString()
-
-  return {
-    code: defaultSessionCode,
-    createdAt,
-    lifecycle,
-    screens: {},
-    trainer: 'MNADZRULS [TSR1] @ OCC',
-  }
-}
-
-function createAssessmentMetrics(): OccAssessmentMetrics {
-  const tasks = scenarioTaskList.reduce((currentTasks, task) => ({
-    ...currentTasks,
-    [task.id]: {
-      label: task.label,
-      score: 0,
-      status: 'PENDING',
-      taskId: task.id,
-      thresholdSeconds: scenarioTaskThresholds[task.id],
-    } satisfies AssessmentTaskMetric,
-  }), {} as OccAssessmentMetrics['tasks'])
-
-  return {
-    lateTasks: 0,
-    onTimeTasks: 0,
-    rejectedActions: 0,
-    result: 'INCOMPLETE',
-    score: 0,
-    tasks,
-  }
-}
-
-function normalizeAssessmentMetrics(metrics: Partial<OccAssessmentMetrics> | undefined): OccAssessmentMetrics {
-  const fallback = createAssessmentMetrics()
-  const tasks = scenarioTaskList.reduce((currentTasks, task) => ({
-    ...currentTasks,
-    [task.id]: {
-      ...fallback.tasks[task.id],
-      ...metrics?.tasks?.[task.id],
-    },
-  }), {} as OccAssessmentMetrics['tasks'])
-
-  return {
-    ...fallback,
-    ...metrics,
-    tasks,
-  }
-}
-
-function updateSessionLifecycle(sessionMeta: OccSessionMeta | undefined, lifecycle: SessionLifecycle): OccSessionMeta {
-  const currentMeta = sessionMeta ?? createSessionMeta(lifecycle)
-  const now = new Date().toISOString()
-
-  return {
-    ...currentMeta,
-    completedAt: lifecycle === 'COMPLETE' ? currentMeta.completedAt ?? now : currentMeta.completedAt,
-    lifecycle,
-    startedAt: lifecycle === 'RUNNING' || lifecycle === 'COMPLETE'
-      ? currentMeta.startedAt ?? now
-      : currentMeta.startedAt,
-  }
-}
-
-function createInitialTrainStates(): TrainState[] {
-  return initialTrains.map((train) => ({
-    ...train,
-    doorFailureState: undefined,
-    isMoving: false,
-  }))
-}
-
-function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): OccSessionState {
-  return {
-    activeScenario: initialActiveScenario,
-    alarmSummaryRows,
-    assessmentMetrics: createAssessmentMetrics(),
-    cycleMode: 'NONE',
-    evidenceLog: [
-      createScenarioEvidence(
-        'IOS',
-        'Session initialized',
-        'info',
-        `${trainingModeDetails[trainingMode].label} session ready for Train 317 drill.`,
-      ),
-    ],
-    eventRows: alarmRows,
-    lineMap: createLineMapRuntimeState(),
-    scenarioMode: 'IDLE',
-    sessionMeta: createSessionMeta(),
-    scenarioNotice: initialScenarioNotice,
-    scenarioStep: 0,
-    scenarioTasks: initialScenarioTasks,
-    selectedTrainId: '317',
-    timetableRows,
-    trainingMode,
-    trainees: initialTrainees,
-    trains: createInitialTrainStates(),
-    updatedAt: Date.now(),
-  }
-}
-
-function isTrainDemoBaselineSession(session: OccSessionState) {
-  const baselineTrains = createInitialTrainStates()
-
-  return baselineTrains.every((baselineTrain) => {
-    const train = session.trains.find((item) => item.id === baselineTrain.id)
-
-    return Boolean(train)
-      && train?.x === baselineTrain.x
-      && train?.y === baselineTrain.y
-      && train?.direction === baselineTrain.direction
-      && train?.status === baselineTrain.status
-      && train?.isMoving !== true
-      && !train?.doorFailureState
-  })
-}
-
-function mergeStoredTrains(storedTrains: TrainState[] | undefined, preserveGeometry = true): TrainState[] {
-  if (!storedTrains) {
-    return createInitialTrainStates()
-  }
-
-  const storedById = new Map(storedTrains.map((train) => [train.id, train]))
-
-  return createInitialTrainStates().map((train) => {
-    const stored = storedById.get(train.id)
-
-    if (!stored) {
-      return train
-    }
-
-    if (train.id === '314') {
-      return {
-        ...train,
-        ...stored,
-        itamaGranted: stored.itamaGranted ?? train.itamaGranted,
-        readinessMode: stored.readinessMode ?? train.readinessMode,
-      }
-    }
-
-    const hasStaleGeometry = STALE_LINE_MAP_TRAIN_DELTAS.has(Math.round(train.x - stored.x))
-
-    if (preserveGeometry && !hasStaleGeometry) {
-      return {
-        ...train,
-        ...stored,
-        direction: train.id === '312' ? 'left' : stored.direction ?? train.direction,
-        itamaGranted: stored.itamaGranted ?? train.itamaGranted,
-        readinessMode: stored.readinessMode ?? train.readinessMode,
-        y: train.id === '047' || train.id === '314' ? stored.y ?? train.y : train.y,
-      }
-    }
-
-    return {
-      ...train,
-      direction: train.id === '312' ? 'left' : stored.direction ?? train.direction,
-      status: stored.status ?? train.status,
-    }
-  })
-}
-
-function hasTrain317DoorFaultIncident(session: Partial<OccSessionState>) {
-  return session.scenarioMode === 'RUNNING'
-    && Number(session.scenarioStep ?? 0) >= 2
-    && String(session.activeScenario?.incident ?? '').trim().toLowerCase() === 'door fault'
-}
-
-function getTrain317DoorFailureStateFromRows(session: Partial<OccSessionState>): TrainDoorFailureState | null {
-  const rows = [
-    ...(session.eventRows ?? []).map((row) => ({
-      message: row.message,
-      value: row.value,
-    })),
-    ...(session.alarmSummaryRows ?? []).map((row) => ({
-      message: row.description,
-      value: row.value,
-    })),
-  ]
-
-  for (const row of rows) {
-    const message = String(row.message ?? '').toLowerCase()
-    const value = String(row.value ?? '').toUpperCase()
-
-    if (!message.includes('train 317')) {
-      continue
-    }
-
-    switch (value) {
-      case 'CYCLE DOOR REQUESTED':
-        return 'CYCLE_DOOR_REQUESTED'
-      case 'CLOSED/LOCKED':
-        return 'CLOSED_LOCKED_CONFIRMED'
-      case 'DOOR ISOLATED':
-        return 'DOOR_ISOLATED'
-      case 'AUTHORISED TO MOVE':
-      case 'AUTHORIZED TO MOVE':
-        return 'AUTHORIZED_TO_MOVE'
-      case 'WITHDRAW FROM SERVICE':
-        return 'WITHDRAW_FROM_SERVICE'
-      default:
-        break
-    }
-  }
-
-  return null
-}
-
-function inferTrain317DoorFailureState(session: Partial<OccSessionState>, trains: TrainState[]) {
-  if (!hasTrain317DoorFaultIncident(session)) {
-    return trains
-  }
-
-  const derivedDoorFailureState = getTrain317DoorFailureStateFromRows(session)
-
-  return trains.map((train) => {
-    if (train.id !== '317') {
-      return train
-    }
-
-    if (derivedDoorFailureState) {
-      return {
-        ...train,
-        doorFailureState: derivedDoorFailureState,
-      }
-    }
-
-    if (train.doorFailureState && train.doorFailureState !== 'NORMAL') {
-      return train
-    }
-
-    return {
-      ...train,
-      doorFailureState: 'FAULT_ALARM' as const,
-    }
-  })
-}
-
-function createLineMapRuntimeState(): LineMapRuntimeState {
-  const routeSegments = createDefaultLineMapRouteSegments()
-
-  routeSegments['rail-651'] = {
-    segmentId: 'rail-651',
-    status: 'SET',
-    trainId: '',
-    updatedAt: 0,
-  }
-  routeSegments['bgk-651'] = {
-    segmentId: 'bgk-651',
-    status: 'SET',
-    trainId: '',
-    updatedAt: 0,
-  }
-
-  delete routeSegments['rail-P609']
-  enforceLineMapRouteSegmentExclusivity(routeSegments, ['rail-651', 'bgk-651'])
-
-  return {
-    layoutVersion: LINE_MAP_LAYOUT_VERSION,
-    routeSegments,
-  }
-}
-
-function clearStartupSignalRouteState(lineMap: LineMapRuntimeState): LineMapRuntimeState {
-  const routeSegments = { ...lineMap.routeSegments }
-
-  STARTUP_SIGNAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-    resetLineMapRouteSegmentState(routeSegments, segmentId)
-  })
-
-  return {
-    ...lineMap,
-    routeSegments,
-  }
-}
-
-function normalizeLineMapRuntimeState(lineMap: Partial<LineMapRuntimeState> | undefined): LineMapRuntimeState {
-  if (lineMap?.layoutVersion !== LINE_MAP_LAYOUT_VERSION) {
-    return createLineMapRuntimeState()
-  }
-
-  let normalized = {
-    layoutVersion: LINE_MAP_LAYOUT_VERSION,
-    routeSegments: migrateLineMapRouteSegments(lineMap?.routeSegments),
-  }
-
-  Object.entries(TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID).forEach(([trainId, routeSteps]) => {
-    const routeStepIndex = getTrainRouteStepIndexFromRouteSegments(normalized.routeSegments, trainId, routeSteps)
-
-    if (routeStepIndex === undefined) {
-      return
-    }
-
-    normalized = {
-      ...normalized,
-      routeSegments: applyTrainRouteStepStates(normalized.routeSegments, trainId, routeSteps, routeStepIndex),
-    }
-  })
-
-  return normalized
-}
-
-function migrateLineMapRouteSegments(routeSegments: LineMapRuntimeState['routeSegments'] | undefined) {
-  const next = {
-    ...createDefaultLineMapRouteSegments(),
-    ...(routeSegments ?? {}),
-  }
-
-  DEFAULT_ACTIVE_STRAIGHT_TRACK_SEGMENT_IDS.forEach((segmentId) => {
-    const state = next[segmentId]
-
-    if (!state || state.status === 'UNSET' || isSeededLineMapRouteSegmentState(state)) {
-      next[segmentId] = {
-        segmentId,
-        status: 'SET',
-        trainId: '',
-        updatedAt: 0,
-      }
-    }
-  })
-
-  if (routeSegments) {
-    EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
-      const preferredSideStates = group.sides[0]
-        .map((segmentId) => next[segmentId])
-        .filter((state): state is NonNullable<typeof state> => Boolean(state))
-      const straightSideStates = group.sides[1]
-        .map((segmentId) => next[segmentId])
-        .filter((state): state is NonNullable<typeof state> => Boolean(state))
-      const hasLegacyPreferredSeed = preferredSideStates.length > 0 && preferredSideStates.every(isSeededLineMapRouteSegmentState)
-      const hasMeaningfulPreferredState = preferredSideStates.some((state) => !isSeededLineMapRouteSegmentState(state))
-      const hasMeaningfulStraightState = straightSideStates.some((state) => !isSeededLineMapRouteSegmentState(state))
-      const hasMeaningfulState = hasMeaningfulPreferredState || hasMeaningfulStraightState
-
-      if (!hasLegacyPreferredSeed && hasMeaningfulState) {
-        return
-      }
-
-      group.sides[0].forEach((segmentId) => {
-        delete next[segmentId]
-      })
-
-      group.sides[1].forEach((segmentId) => {
-        next[segmentId] = {
-          segmentId,
-          status: 'SET',
-          trainId: '',
-          updatedAt: 0,
-        }
-      })
-    })
-  }
-
-  Array.from(DEFAULT_P_ROUTE_SEGMENT_IDS).forEach((segmentId) => {
-    const state = next[segmentId]
-
-    if (state && state.updatedAt === 0 && state.trainId === '') {
-      delete next[segmentId]
-    }
-  })
-
-  LINE_SUFFIX_ROUTE_SEGMENT_MIGRATIONS.forEach(([legacySegmentId, migratedSegmentId]) => {
-    if (next[legacySegmentId] && !next[migratedSegmentId]) {
-      next[migratedSegmentId] = {
-        ...next[legacySegmentId],
-        segmentId: migratedSegmentId,
-      }
-    }
-
-    delete next[legacySegmentId]
-  })
-
-  REMOVED_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-    delete next[segmentId]
-  })
-
-  S610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-    if (!isSignalRouteCommandState(next[segmentId])) {
-      delete next[segmentId]
-    }
-  })
-
-  const activeS610SignalSegment = S610_SIGNAL_TRACK_SEGMENT_IDS
-    .map((segmentId) => next[segmentId])
-    .find(isActiveLineMapRouteSegment)
-  const activeS610RetiredSegment = S610_RETIRED_ROUTE_SEGMENT_IDS
-    .map((segmentId) => next[segmentId])
-    .find(isActiveLineMapRouteSegment)
-  const activeS610CurrentSegment = S610_REAL_ROUTE_SEGMENT_IDS
-    .map((segmentId) => next[segmentId])
-    .find(isActiveLineMapRouteSegment)
-  const activeS610MigrationSegment = activeS610SignalSegment
-    ?? (activeS610RetiredSegment && activeS610CurrentSegment ? activeS610RetiredSegment : undefined)
-
-  if (activeS610MigrationSegment) {
-    S610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-      next[segmentId] = {
-        ...activeS610MigrationSegment,
-        segmentId,
-      }
-    })
-  }
-  S610_RETIRED_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-    delete next[segmentId]
-  })
-
-  enforceLineMapRouteSegmentExclusivity(next)
-
-  delete next['rail-P609']
-  next['rail-651'] = {
-    segmentId: 'rail-651',
-    status: 'SET',
-    trainId: '',
-    updatedAt: Date.now(),
-  }
-  next['bgk-651'] = {
-    segmentId: 'bgk-651',
-    status: 'SET',
-    trainId: '',
-    updatedAt: Date.now(),
-  }
-  enforceLineMapRouteSegmentExclusivity(next, ['rail-651', 'bgk-651'])
-
-  return next
-}
-
-function createDefaultLineMapRouteSegments(): LineMapRuntimeState['routeSegments'] {
-  return Object.fromEntries([
-    ...Object.entries(DEFAULT_LINE_MAP_ROUTE_SEGMENT_STATUSES).map(([segmentId, status]) => [
-      segmentId,
-      {
-        segmentId,
-        status,
-        trainId: '',
-        updatedAt: 0,
-      },
-    ]),
-    ...Array.from(DEFAULT_ACTIVE_STRAIGHT_TRACK_SEGMENT_IDS).map((segmentId) => [
-      segmentId,
-      {
-        segmentId,
-        status: 'SET' as const,
-        trainId: '',
-        updatedAt: 0,
-      },
-    ]),
-  ])
-}
-
-function getDefaultLineMapRouteSegmentState(segmentId: string) {
-  if (DEFAULT_ACTIVE_STRAIGHT_TRACK_SEGMENT_IDS.has(segmentId)) {
-    return {
-      segmentId,
-      status: 'SET' as const,
-      trainId: '',
-      updatedAt: 0,
-    }
-  }
-
-  const status = DEFAULT_LINE_MAP_ROUTE_SEGMENT_STATUSES[segmentId as keyof typeof DEFAULT_LINE_MAP_ROUTE_SEGMENT_STATUSES]
-
-  return status
-    ? {
-        segmentId,
-        status,
-        trainId: '',
-        updatedAt: 0,
-      }
-    : undefined
-}
-
-function resetLineMapRouteSegmentState(routeSegments: LineMapRuntimeState['routeSegments'], segmentId: string) {
-  const defaultState = getDefaultLineMapRouteSegmentState(segmentId)
-
-  if (defaultState) {
-    routeSegments[segmentId] = defaultState
-    enforceLineMapRouteSegmentExclusivity(routeSegments, [segmentId])
-    return
-  }
-
-  delete routeSegments[segmentId]
-  enforceLineMapRouteSegmentExclusivity(routeSegments)
-}
-
-function enforceLineMapRouteSegmentExclusivity(
-  routeSegments: LineMapRuntimeState['routeSegments'],
-  prioritySegmentIds: readonly string[] = [],
-) {
-  const prioritySegmentIdSet = new Set(prioritySegmentIds)
-
-  EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
-    const prioritySideIndex = group.sides.findIndex((side) => side.some((segmentId) => prioritySegmentIdSet.has(segmentId)))
-    const keepSideIndex = prioritySideIndex >= 0
-      ? prioritySideIndex
-      : getExclusiveLineMapRouteSegmentSideToKeep(routeSegments, group.sides, group.preferredSide)
-
-    if (keepSideIndex === undefined) {
-      return
-    }
-
-    group.sides.forEach((side, sideIndex) => {
-      if (sideIndex === keepSideIndex) {
-        return
-      }
-
-      side.forEach((segmentId) => {
-        delete routeSegments[segmentId]
-      })
-    })
-  })
-}
-
-function withLineMapRouteSegmentExclusivity(
-  routeSegments: LineMapRuntimeState['routeSegments'],
-  prioritySegmentIds: readonly string[] = [],
-) {
-  const next = { ...routeSegments }
-
-  enforceLineMapRouteSegmentExclusivity(next, prioritySegmentIds)
-
-  return next
-}
-
-function getExclusiveLineMapRouteSegmentSideToKeep(
-  routeSegments: LineMapRuntimeState['routeSegments'],
-  sides: readonly (readonly string[])[],
-  preferredSide: number,
-) {
-  const sideScores = sides.map((side) => Math.max(...side.map((segmentId) => getLineMapRouteSegmentExclusivityScore(routeSegments[segmentId]))))
-  const presentSides = sideScores.filter((score) => score > 0).length
-
-  if (presentSides <= 1) {
-    return undefined
-  }
-
-  const highestScore = Math.max(...sideScores)
-  const highestScoreSideIndexes = sideScores
-    .map((score, sideIndex) => ({ score, sideIndex }))
-    .filter(({ score }) => score === highestScore)
-    .map(({ sideIndex }) => sideIndex)
-
-  return highestScoreSideIndexes.includes(preferredSide) ? preferredSide : highestScoreSideIndexes[0]
-}
-
-function getLineMapRouteSegmentExclusivityScore(state: LineMapRuntimeState['routeSegments'][string] | undefined) {
-  if (!state) {
-    return 0
-  }
-
-  if (isActiveLineMapRouteSegment(state)) {
-    return 3
-  }
-
-  return state.updatedAt > 0 ? 2 : 1
-}
-
-function getClosestTrainRoutePointIndex(
-  train: TrainState | undefined,
-  routePoints: readonly TrainRouteAnimationPoint[],
-) {
-  if (!train) {
-    return 0
-  }
-
-  return routePoints.reduce((closestIndex, point, pointIndex) => {
-    const closestPoint = routePoints[closestIndex]
-    const pointDistance = Math.hypot(train.x - point.x, train.y - point.y)
-    const closestDistance = Math.hypot(train.x - closestPoint.x, train.y - closestPoint.y)
-
-    return pointDistance < closestDistance ? pointIndex : closestIndex
-  }, 0)
-}
-
-function getVisibleTrainRoutePointIndex(
-  train: TrainState | undefined,
-  routePoints: readonly TrainRouteAnimationPoint[],
-) {
-  if (!train) {
-    return undefined
-  }
-
-  const closestIndex = getClosestTrainRoutePointIndex(train, routePoints)
-  const closestPoint = routePoints[closestIndex]
-  const distance = Math.hypot(train.x - closestPoint.x, train.y - closestPoint.y)
-
-  return distance <= TRAIN_ROUTE_STEP_POSITION_TOLERANCE ? closestIndex : undefined
-}
-
-function isActiveLineMapRouteSegment(state: LineMapRuntimeState['routeSegments'][string] | undefined) {
-  return Boolean(state && ['DISPATCHED', 'HELD', 'SET'].includes(state.status))
-}
-
-function isSignalRouteCommandState(state: LineMapRuntimeState['routeSegments'][string] | undefined) {
-  return Boolean(isActiveLineMapRouteSegment(state) && state && (state.trainId || state.updatedAt > 0))
-}
-
-function isSeededLineMapRouteSegmentState(state: LineMapRuntimeState['routeSegments'][string] | undefined) {
-  return Boolean(state && state.updatedAt === 0 && state.trainId === '')
-}
-
-function getDefaultActiveStraightTrackSegmentIds(
-  pieces: readonly { x: number; width: number }[],
-  track: 'lower' | 'upper',
-) {
-  const labelY = track === 'upper' ? 211 : 478
-
-  return pieces
-    .map((piece) => {
-      const section = getLineMapDefaultRailSection(piece.x)
-      const centerX = piece.x + piece.width / 2
-      const candidates = schematicAnnotations.filter((annotation) => (
-        annotation.y === labelY
-        && getLineMapDefaultRailSection(annotation.x).name === section.name
-        && /^[0-9A-Z]+$/.test(annotation.label)
-      ))
-      const labelsOnPiece = candidates.filter((annotation) => (
-        annotation.x >= piece.x - 4 && annotation.x <= piece.x + piece.width + 4
-      ))
-      const labelsToCompare = labelsOnPiece.length ? labelsOnPiece : candidates
-      const closest = labelsToCompare.reduce<(typeof labelsToCompare)[number] | undefined>((current, annotation) => {
-        if (!current) {
-          return annotation
-        }
-
-        return Math.abs(annotation.x - centerX) < Math.abs(current.x - centerX) ? annotation : current
-      }, undefined)
-
-      return closest && Math.abs(closest.x - centerX) <= 96
-        ? `rail-${normalizeLineMapDefaultRailLabel(closest.label)}`
-        : undefined
-    })
-    .filter((segmentId): segmentId is string => Boolean(segmentId))
-}
-
-function getLineMapDefaultRailSection(x: number) {
-  const sections = [
-    { name: 'line01', start: LINE_SECTION_OFFSETS.line01 },
-    { name: 'line02', start: LINE_SECTION_OFFSETS.line02 },
-    { name: 'line03', start: LINE_SECTION_OFFSETS.line03 },
-    { name: 'line04', start: LINE_SECTION_OFFSETS.line04 },
-  ] as const
-
-  return sections.reduce((current, section) => (x >= section.start ? section : current), sections[0])
-}
-
-function normalizeLineMapDefaultRailLabel(label: string) {
-  return label.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
-
-function createRouteCommandSegmentStates(
-  segmentIds: readonly string[],
-  train: Pick<TrainState, 'id'>,
-  status: LineMapRouteSegmentStatus,
-): LineMapRuntimeState['routeSegments'] {
-  const updatedAt = Date.now()
-
-  return Object.fromEntries(segmentIds.map((segmentId) => [
-    segmentId,
-    {
-      segmentId,
-      status,
-      trainId: train.id,
-      updatedAt,
-    },
-  ]))
-}
-
-function getSignalRouteTargetTrain(trains: readonly TrainState[], selectedTrainId: string) {
-  return trains.find((train) => train.id === selectedTrainId)
-    ?? trains.find((train) => train.id === '314')
-    ?? trains.find((train) => train.id === '317')
-    ?? trains[0]
-}
-
-function getLineMapRouteStatus(status: TrainStatus): LineMapRouteSegmentStatus {
-  if (status === 'RUN') {
-    return 'DISPATCHED'
-  }
-
-  if (status === 'HOLD') {
-    return 'HELD'
-  }
-
-  return 'SET'
-}
-
-function getTrainReadinessRequestValue(train: Pick<TrainState, 'readinessMode'>) {
-  switch (getTrainReadinessMode(train)) {
-    case 'ASLEEP':
-      return 'Asleep'
-    case 'DEPOT_MOVEMENT':
-      return 'Depot movement'
-    case 'HV_ISOLATED':
-      return 'HV isolated'
-    case 'MAINLINE_OFF_SERVICE':
-      return 'Mainline off service'
-    case 'MAINLINE_SERVICE':
-    default:
-      return 'Mainline service'
-  }
-}
-
-function getTrainReadinessModeFromCommand(command: string): TrainReadinessMode {
-  switch (command) {
-    case 'ASLEEP':
-      return 'ASLEEP'
-    case 'DEPOT MOVEMENT':
-      return 'DEPOT_MOVEMENT'
-    case 'HV ISOLATED':
-      return 'HV_ISOLATED'
-    case 'MAINLINE OFF SERVICE':
-      return 'MAINLINE_OFF_SERVICE'
-    case 'MAINLINE SERVICE':
-    default:
-      return 'MAINLINE_SERVICE'
-  }
-}
-
-function getTrainDoorFailureState(train: Pick<TrainState, 'doorFailureState'>): TrainDoorFailureState {
-  return train.doorFailureState ?? 'NORMAL'
-}
-
-function getTrainDoorFaultDisplayValue(state: TrainDoorFailureState) {
-  return state === 'NORMAL' || state === 'CLOSED_LOCKED_CONFIRMED'
-    ? 'NO'
-    : 'YES'
-}
-
-function getTrainDoorSummaryStatus(state: TrainDoorFailureState) {
-  switch (state) {
-    case 'FAULT_ALARM':
-      return 'NOT OPEN/CLOSE'
-    case 'CYCLE_DOOR_REQUESTED':
-      return 'CYCLE DOOR REQUESTED'
-    case 'CLOSED_LOCKED_CONFIRMED':
-      return 'CLOSED/LOCKED'
-    case 'ISOLATION_REQUIRED':
-      return 'ISOLATION REQUIRED'
-    case 'DOOR_ISOLATED':
-      return 'DOOR ISOLATED'
-    case 'AUTHORIZED_TO_MOVE':
-      return 'AUTHORISED TO MOVE'
-    case 'WITHDRAW_FROM_SERVICE':
-      return 'WITHDRAW FROM SERVICE'
-    case 'NORMAL':
-    default:
-      return 'CLOSED/LOCKED'
-  }
-}
-
-function getTrainDoorIsolationStatus(state: TrainDoorFailureState) {
-  return state === 'DOOR_ISOLATED' || state === 'AUTHORIZED_TO_MOVE' || state === 'WITHDRAW_FROM_SERVICE'
-    ? 'ISOLATED'
-    : 'NOT ISOLATED'
-}
-
-function getTrainDoorCommandLabel(command: TrainDoorCommand) {
-  switch (command) {
-    case 'cycle-door':
-      return 'Cycle Door'
-    case 'confirm-closed-locked':
-      return 'Confirm Closed/Locked'
-    case 'authorize-door-isolation':
-      return 'Authorize Door Isolation'
-    case 'authorize-move':
-      return 'Authorize Movement'
-    case 'withdraw-service':
-      return 'Withdraw From Service'
-    default:
-      return ''
-  }
-}
-
-function getTrainDoorCommandValue(command: TrainDoorCommand) {
-  switch (command) {
-    case 'cycle-door':
-      return 'CYCLE DOOR'
-    case 'confirm-closed-locked':
-      return 'CONFIRM CLOSED/LOCKED'
-    case 'authorize-door-isolation':
-      return 'AUTHORIZE ISOLATION'
-    case 'authorize-move':
-      return 'AUTHORIZE MOVEMENT'
-    case 'withdraw-service':
-      return 'WITHDRAW SERVICE'
-    default:
-      return ''
-  }
-}
-
-function getTrainDoorCommandFromRequest(value: string): TrainDoorCommand | null {
-  switch (value) {
-    case 'Cycle Door':
-      return 'cycle-door'
-    case 'Confirm Closed/Locked':
-      return 'confirm-closed-locked'
-    case 'Authorize door isolation':
-      return 'authorize-door-isolation'
-    case 'Authorize movement':
-      return 'authorize-move'
-    case 'Withdraw from service':
-      return 'withdraw-service'
-    default:
-      return null
-  }
-}
-
-function getAllowedTrainDoorCommands(state: TrainDoorFailureState): TrainDoorCommand[] {
-  switch (state) {
-    case 'FAULT_ALARM':
-      return ['cycle-door']
-    case 'CYCLE_DOOR_REQUESTED':
-      return ['confirm-closed-locked', 'authorize-door-isolation']
-    case 'DOOR_ISOLATED':
-      return ['authorize-move', 'withdraw-service']
-    case 'CLOSED_LOCKED_CONFIRMED':
-      return ['authorize-move']
-    default:
-      return []
-  }
-}
-
-function getTrainDoorCommandRejectionMessage(state: TrainDoorFailureState, command: TrainDoorCommand) {
-  if (state === 'NORMAL') {
-    return `${getTrainDoorCommandLabel(command)} rejected\nNo active train door failure`
-  }
-
-  if (state === 'WITHDRAW_FROM_SERVICE' || state === 'AUTHORIZED_TO_MOVE') {
-    return `${getTrainDoorCommandLabel(command)} rejected\nDoor failure workflow already completed`
-  }
-
-  return `${getTrainDoorCommandLabel(command)} rejected\nFollow train door failure sequence`
-}
-
-function getTrainDoorStateAfterCommand(command: TrainDoorCommand): TrainDoorFailureState {
-  switch (command) {
-    case 'cycle-door':
-      return 'CYCLE_DOOR_REQUESTED'
-    case 'confirm-closed-locked':
-      return 'CLOSED_LOCKED_CONFIRMED'
-    case 'authorize-door-isolation':
-      return 'DOOR_ISOLATED'
-    case 'authorize-move':
-      return 'AUTHORIZED_TO_MOVE'
-    case 'withdraw-service':
-      return 'WITHDRAW_FROM_SERVICE'
-    default:
-      return 'NORMAL'
-  }
-}
-
-function getTrainDoorCommandStatusMessage(command: TrainDoorCommand) {
-  return `${getTrainDoorCommandLabel(command)} request\nCommand successful`
-}
-
-function updateLineMapRouteState(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  train: Pick<TrainState, 'id'>,
-  status: LineMapRouteSegmentStatus,
-): LineMapRuntimeState {
-  const current = normalizeLineMapRuntimeState(lineMap)
-  const segmentId = getRouteSegmentIdForTrain(train)
-
-  if (!segmentId) {
-    return current
-  }
-
-  const routeSegments = {
-    ...current.routeSegments,
-    [segmentId]: {
-      segmentId,
-      status,
-      trainId: train.id,
-      updatedAt: Date.now(),
-    },
-  }
-
-  enforceLineMapRouteSegmentExclusivity(routeSegments, [segmentId])
-
-  return {
-    ...current,
-    routeSegments,
-  }
-}
-
-function clearLineMapRouteState(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  train: Pick<TrainState, 'id'>,
-): LineMapRuntimeState {
-  const current = normalizeLineMapRuntimeState(lineMap)
-  const segmentId = getRouteSegmentIdForTrain(train)
-
-  if (!segmentId) {
-    return current
-  }
-
-  const routeSegments = { ...current.routeSegments }
-  resetLineMapRouteSegmentState(routeSegments, segmentId)
-
-  return {
-    ...current,
-    routeSegments,
-  }
-}
-
-function updateTrainRouteStepState(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  trainId: string,
-  routeSteps: readonly TrainRouteAnimationStep[],
-  currentStepIndex: number,
-): LineMapRuntimeState {
-  const current = normalizeLineMapRuntimeState(lineMap)
-
-  return {
-    ...current,
-    routeSegments: applyTrainRouteStepStates(current.routeSegments, trainId, routeSteps, currentStepIndex),
-  }
-}
-
-function applyTrainRouteStepStates(
-  currentRouteSegments: LineMapRuntimeState['routeSegments'],
-  trainId: string,
-  routeSteps: readonly TrainRouteAnimationStep[],
-  currentStepIndex: number,
-) {
-  const routeSegments = { ...currentRouteSegments }
-  const updatedAt = Date.now()
-
-  routeSteps.forEach((step, stepIndex) => {
-    routeSegments[step.segmentId] = {
-      segmentId: step.segmentId,
-      status: stepIndex < currentStepIndex
-        ? 'UNSET'
-        : stepIndex === currentStepIndex
-          ? 'DISPATCHED'
-          : 'SET',
-      trainId,
-      updatedAt,
-    }
-  })
-
-  enforceLineMapRouteSegmentExclusivity(routeSegments, routeSteps.map((step) => step.segmentId))
-
-  return routeSegments
-}
-
-function getTrainRouteStepIndexFromRouteSegments(
-  routeSegments: LineMapRuntimeState['routeSegments'],
-  trainId: string,
-  routeSteps: readonly TrainRouteAnimationStep[],
-) {
-  const dispatchedStepIndex = routeSteps.findIndex((step) => {
-    const state = routeSegments[step.segmentId]
-
-    return state?.status === 'DISPATCHED' && state.trainId === trainId
-  })
-
-  return dispatchedStepIndex >= 0 ? dispatchedStepIndex : undefined
-}
-
-function getTrainRouteStepIndexFromLineMap(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  trainId: string,
-  routeSteps: readonly TrainRouteAnimationStep[],
-) {
-  const current = normalizeLineMapRuntimeState(lineMap)
-
-  return getTrainRouteStepIndexFromRouteSegments(current.routeSegments, trainId, routeSteps)
-}
-
-function getTrainRouteStepFromLineMap(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  trainId: string,
-) {
-  const current = normalizeLineMapRuntimeState(lineMap)
-
-  return TRAIN_ROUTE_RENDER_STEPS.find((step) => {
-    const state = current.routeSegments[step.segmentId]
-
-    return state?.status === 'DISPATCHED' && state.trainId === trainId
-  })
-}
-
-function createTrainOccupancyRouteSegmentStates(
-  trains: readonly TrainState[],
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-): LineMapRuntimeState['routeSegments'] {
-  const current = normalizeLineMapRuntimeState(lineMap)
-
-  return Object.fromEntries(trains.flatMap((train) => {
-    const routeStep = getTrainRouteStepFromLineMap(current, train.id)
-    const segmentId = routeStep?.segmentId ?? train.occupancySegmentId ?? getFlatRailSegmentIdForTrain(train)
-
-    if (!segmentId) {
-      return []
-    }
-
-    return [[
-      segmentId,
-      {
-        segmentId,
-        status: 'DISPATCHED' as const,
-        trainId: '',
-        updatedAt: 0,
-      },
-    ]]
-  }))
-}
-
-function getFlatRailSegmentIdForTrain(train: TrainState) {
-  const track = getFlatRailTrackForTrain(train)
-
-  if (!track) {
-    return ''
-  }
-
-  const pieces = track === 'upper' ? upperTrackPieces : lowerTrackPieces
-  const section = getOccupancyRailSection(train.x)
-  const nearestPiece = pieces
-    .filter((piece) => getOccupancyRailSection(piece.x).name === section.name)
-    .reduce<(typeof pieces)[number] | undefined>((closest, piece) => {
-      if (!closest) {
-        return piece
-      }
-
-      const pieceDistance = getTrainDistanceFromTrackPiece(train.x, piece)
-      const closestDistance = getTrainDistanceFromTrackPiece(train.x, closest)
-      const pieceCenterDistance = Math.abs(train.x - (piece.x + piece.width / 2))
-      const closestCenterDistance = Math.abs(train.x - (closest.x + closest.width / 2))
-
-      return pieceDistance < closestDistance || (pieceDistance === closestDistance && pieceCenterDistance < closestCenterDistance)
-        ? piece
-        : closest
-    }, undefined)
-
-  if (!nearestPiece || getTrainDistanceFromTrackPiece(train.x, nearestPiece) > TRAIN_FLAT_RAIL_OCCUPANCY_TOLERANCE) {
-    return ''
-  }
-
-  const label = getOccupancyTrackPieceLabel(nearestPiece, track)
-
-  return label
-    ? `rail-${normalizeOccupancyRailLabel(label)}`
-    : `rail-unlabelled-${track}-${section.name}-${Math.round(nearestPiece.x - section.start)}-${Math.round(nearestPiece.width)}`
-}
-
-function getFlatRailTrackForTrain(train: TrainState): 'lower' | 'upper' | '' {
-  const upperDistance = Math.abs(train.y - TRAIN_MARKER_UPPER_ROUTE_Y)
-  const lowerDistance = Math.abs(train.y - TRAIN_MARKER_LOWER_ROUTE_Y)
-  const closestDistance = Math.min(upperDistance, lowerDistance)
-
-  if (closestDistance > TRAIN_FLAT_RAIL_OCCUPANCY_TOLERANCE) {
-    return ''
-  }
-
-  return upperDistance <= lowerDistance ? 'upper' : 'lower'
-}
-
-function getTrainDistanceFromTrackPiece(
-  trainX: number,
-  piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number],
-) {
-  if (trainX >= piece.x && trainX <= piece.x + piece.width) {
-    return 0
-  }
-
-  return Math.min(Math.abs(trainX - piece.x), Math.abs(trainX - (piece.x + piece.width)))
-}
-
-function getOccupancyTrackPieceLabel(
-  piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number],
-  track: 'lower' | 'upper',
-) {
-  const section = getOccupancyRailSection(piece.x)
-  const labelY = track === 'upper' ? 211 : 478
-  const centerX = piece.x + piece.width / 2
-  const candidates = schematicAnnotations.filter((annotation) => (
-    annotation.y === labelY
-    && getOccupancyRailSection(annotation.x).name === section.name
-  ))
-  const labelsOnPiece = candidates.filter((annotation) => (
-    annotation.x >= piece.x - 4 && annotation.x <= piece.x + piece.width + 4
-  ))
-  const labelsToCompare = labelsOnPiece.length ? labelsOnPiece : candidates
-  const closest = labelsToCompare.reduce<(typeof labelsToCompare)[number] | undefined>((current, annotation) => {
-    if (!current) {
-      return annotation
-    }
-
-    return Math.abs(annotation.x - centerX) < Math.abs(current.x - centerX) ? annotation : current
-  }, undefined)
-
-  return closest && Math.abs(closest.x - centerX) <= 96 ? closest.label : ''
-}
-
-function getOccupancyRailSection(x: number) {
-  const sections = [
-    { name: 'line01', start: LINE_SECTION_OFFSETS.line01 },
-    { name: 'line02', start: LINE_SECTION_OFFSETS.line02 },
-    { name: 'line03', start: LINE_SECTION_OFFSETS.line03 },
-    { name: 'line04', start: LINE_SECTION_OFFSETS.line04 },
-  ] as const
-
-  return sections.reduce((current, section) => (
-    x >= section.start ? section : current
-  ), sections[0])
-}
-
-function normalizeOccupancyRailLabel(label: string) {
-  return label.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
-
-function getSignalNumber(signal: LineMapSignalData) {
-  return signal.label.replace(/\D/g, '') || '000'
-}
-
-function getSignalStationCode(signal: LineMapSignalData) {
-  return platformData.reduce((closest, platform) => (
-    Math.abs(platform.x - signal.x) < Math.abs(closest.x - signal.x) ? platform : closest
-  )).code
-}
-
-function getSignalEquipmentLabel(signal: LineMapSignalData) {
-  const equipmentOverrides: Record<string, string> = {
-    S608: 'SIG/SKG/S03/SIGN0608',
-    S700: 'SIG/PGL/S02/SIGN0700',
-    S1104: 'SIG/PGC/N01/SIGN1104',
-  }
-
-  if (equipmentOverrides[signal.label]) {
-    return equipmentOverrides[signal.label]
-  }
-
-  return `SIG/${getSignalStationCode(signal)}/S01/SIGN${getSignalNumber(signal).padStart(4, '0')}`
-}
-
-function getSignalRouteLabel(signal: LineMapSignalData) {
-  const routeNumber = Number(getSignalNumber(signal))
-  const routeEndOverrides: Record<string, string> = {
-    S610: '652',
-    S700: '608',
-    S704: '700',
-    S1104: '704',
-  }
-  const routeEnd = routeEndOverrides[signal.label] ?? (
-    Number.isFinite(routeNumber) ? String(Math.max(0, routeNumber - 4)).padStart(3, '0') : '000'
-  )
-
-  return `Route R${String(routeNumber).padStart(3, '0')}_${routeEnd}`
-}
-
-function getSignalRouteLabels(signal: LineMapSignalData) {
-  const routeLabelOverrides: Record<string, readonly string[]> = {
-    S608: ['Route R608_600', 'Route R608_602', 'Route R608_803'],
-  }
-
-  return routeLabelOverrides[signal.label] ?? [getSignalRouteLabel(signal)]
-}
-
-function getSignalRouteSegmentIds(signal: LineMapSignalData) {
-  const routeSegmentOverrides: Record<string, readonly string[]> = {
-    S610: S610_ROUTE_SEGMENT_IDS,
-  }
-
-  return routeSegmentOverrides[signal.label] ?? []
-}
-
-function getSignalRuntimeRouteSegmentIdsForRoute(signal: LineMapSignalData, routeLabel: string) {
-  if (signal.label === 'S608') {
-    return routeLabel === 'Route R608_803' ? S608_R608_803_REAL_ROUTE_SEGMENT_IDS : []
-  }
-
-  if (signal.label === 'S610') {
-    return S610_REAL_ROUTE_SEGMENT_IDS
-  }
-
-  if (signal.label === 'S700') {
-    return S700_REAL_ROUTE_SEGMENT_IDS
-  }
-
-  if (signal.label === 'S704') {
-    return S704_REAL_ROUTE_SEGMENT_IDS
-  }
-
-  if (signal.label === 'S1104') {
-    return S1104_REAL_ROUTE_SEGMENT_IDS
-  }
-
-  return [getSignalTrackSegmentId(signal), ...getSignalRouteSegmentIds(signal)]
-}
-
-function getKnownSignalRuntimeRouteSegmentIds(signal: LineMapSignalData) {
-  return [...new Set(getSignalRouteLabels(signal).flatMap((routeLabel) => (
-    getSignalRuntimeRouteSegmentIdsForRoute(signal, routeLabel)
-  )))]
-}
-
-function getSignalTrackSegmentId(signal: LineMapSignalData) {
-  return `track:${Math.round(signal.x)}`
-}
-
-function updateLineMapSignalTrackState(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  signal: LineMapSignalData,
-  train: Pick<TrainState, 'id'>,
-  status: LineMapRouteSegmentStatus,
-  routeLabel = getSignalRouteLabel(signal),
-): LineMapRuntimeState {
-  const current = normalizeLineMapRuntimeState(lineMap)
-  const segmentId = getSignalTrackSegmentId(signal)
-  const routeSegments = { ...current.routeSegments }
-  const trainRouteSegmentId = getRouteSegmentIdForTrain(train)
-
-  getSignalRouteSegmentIds(signal).forEach((routeSegmentId) => {
-    delete routeSegments[routeSegmentId]
-  })
-  if (signal.label === 'S610') {
-    S610_SIGNAL_TRACK_SEGMENT_IDS.forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-    S610_REAL_ROUTE_SEGMENT_IDS.forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-    S610_RETIRED_ROUTE_SEGMENT_IDS.forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-  }
-  if (signal.label === 'S608') {
-    getKnownSignalRuntimeRouteSegmentIds(signal).forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-  }
-  if (signal.label === 'S700') {
-    S700_REAL_ROUTE_SEGMENT_IDS.forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-  }
-  if (signal.label === 'S704') {
-    S704_REAL_ROUTE_SEGMENT_IDS.forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-  }
-  if (signal.label === 'S1104') {
-    S1104_REAL_ROUTE_SEGMENT_IDS.forEach((routeSegmentId) => {
-      delete routeSegments[routeSegmentId]
-    })
-  }
-  S610_LEGACY_ROUTE_SEGMENT_MIGRATIONS.forEach(([legacySegmentId, migratedSegmentId]) => {
-    delete routeSegments[legacySegmentId]
-    delete routeSegments[migratedSegmentId]
-  })
-  if (trainRouteSegmentId) {
-    delete routeSegments[trainRouteSegmentId]
-  }
-
-  const updatedAt = Date.now()
-
-  if (signal.label === 'S610') {
-    Object.assign(routeSegments, createRouteCommandSegmentStates(S610_REAL_ROUTE_SEGMENT_IDS, train, status))
-    enforceLineMapRouteSegmentExclusivity(routeSegments, S610_REAL_ROUTE_SEGMENT_IDS)
-
-    return {
-      ...current,
-      routeSegments,
-    }
-  }
-
-  if (signal.label === 'S608') {
-    const routeSegmentIds = getSignalRuntimeRouteSegmentIdsForRoute(signal, routeLabel)
-
-    Object.assign(routeSegments, createRouteCommandSegmentStates(routeSegmentIds, train, status))
-    enforceLineMapRouteSegmentExclusivity(routeSegments, routeSegmentIds)
-
-    return {
-      ...current,
-      routeSegments,
-    }
-  }
-
-  if (signal.label === 'S700') {
-    Object.assign(routeSegments, createRouteCommandSegmentStates(S700_REAL_ROUTE_SEGMENT_IDS, train, status))
-    enforceLineMapRouteSegmentExclusivity(routeSegments, S700_REAL_ROUTE_SEGMENT_IDS)
-
-    return {
-      ...current,
-      routeSegments,
-    }
-  }
-
-  if (signal.label === 'S704') {
-    Object.assign(routeSegments, createRouteCommandSegmentStates(S704_REAL_ROUTE_SEGMENT_IDS, train, status))
-    enforceLineMapRouteSegmentExclusivity(routeSegments, S704_REAL_ROUTE_SEGMENT_IDS)
-
-    return {
-      ...current,
-      routeSegments,
-    }
-  }
-
-  if (signal.label === 'S1104') {
-    Object.assign(routeSegments, createRouteCommandSegmentStates(S1104_REAL_ROUTE_SEGMENT_IDS, train, status))
-    enforceLineMapRouteSegmentExclusivity(routeSegments, S1104_REAL_ROUTE_SEGMENT_IDS)
-
-    return {
-      ...current,
-      routeSegments,
-    }
-  }
-
-  routeSegments[segmentId] = {
-    segmentId,
-    status,
-    trainId: train.id,
-    updatedAt,
-  }
-  enforceLineMapRouteSegmentExclusivity(routeSegments, [segmentId])
-
-  return {
-    ...current,
-    routeSegments,
-  }
-}
-
-function clearLineMapSignalTrackState(
-  lineMap: Partial<LineMapRuntimeState> | undefined,
-  signal: LineMapSignalData,
-): LineMapRuntimeState {
-  const current = normalizeLineMapRuntimeState(lineMap)
-  const routeSegments = { ...current.routeSegments }
-
-  resetLineMapRouteSegmentState(routeSegments, getSignalTrackSegmentId(signal))
-  getSignalRouteSegmentIds(signal).forEach((segmentId) => {
-    resetLineMapRouteSegmentState(routeSegments, segmentId)
-  })
-  if (signal.label === 'S610') {
-    S610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-      resetLineMapRouteSegmentState(routeSegments, segmentId)
-    })
-    S610_RETIRED_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-      delete routeSegments[segmentId]
-    })
-    S610_LEGACY_ROUTE_SEGMENT_MIGRATIONS.forEach(([legacySegmentId]) => {
-      delete routeSegments[legacySegmentId]
-    })
-  }
-  if (signal.label === 'S608') {
-    getKnownSignalRuntimeRouteSegmentIds(signal).forEach((segmentId) => {
-      resetLineMapRouteSegmentState(routeSegments, segmentId)
-    })
-  }
-  if (signal.label === 'S700') {
-    S700_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-      resetLineMapRouteSegmentState(routeSegments, segmentId)
-    })
-  }
-  if (signal.label === 'S704') {
-    S704_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-      resetLineMapRouteSegmentState(routeSegments, segmentId)
-    })
-  }
-  if (signal.label === 'S1104') {
-    S1104_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-      resetLineMapRouteSegmentState(routeSegments, segmentId)
-    })
-  }
-
-  return {
-    ...current,
-    routeSegments,
-  }
-}
-
-function normalizeClientSession(session: OccSessionState): OccSessionState {
-  const lineMap = normalizeLineMapRuntimeState(session.lineMap)
-  const trains = mergeStoredTrains(session.trains, session.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION)
-
-  return {
-    ...session,
-    lineMap,
-    timetableRows: normalizeTimetableRows(session.timetableRows),
-    trains: inferTrain317DoorFailureState(session, trains),
-  }
-}
-
-function clearStoredOccSessions(includeCurrent = false) {
-  try {
-    const keys = includeCurrent
-      ? [...LEGACY_OCC_SESSION_KEYS, OCC_SESSION_KEY]
-      : [...LEGACY_OCC_SESSION_KEYS]
-
-    keys.forEach((key) => window.localStorage.removeItem(key))
-  } catch {
-    // Storage is a fallback transport; reset still works through in-memory state.
-  }
-}
-
-function readStoredSession(): OccSessionState {
-  try {
-    clearStoredOccSessions()
-
-    const stored = window.localStorage.getItem(OCC_SESSION_KEY)
-
-    if (!stored) {
-      return createInitialSession()
-    }
-
-    const parsed = JSON.parse(stored) as Partial<OccSessionState>
-
-    const lineMap = clearStartupSignalRouteState(normalizeLineMapRuntimeState(parsed.lineMap))
-
-    const nextSession: OccSessionState = {
-      ...createInitialSession(),
-      ...parsed,
-      activeScenario: parsed.activeScenario ?? initialActiveScenario,
-      alarmSummaryRows: parsed.alarmSummaryRows ?? alarmSummaryRows,
-      assessmentMetrics: normalizeAssessmentMetrics(parsed.assessmentMetrics),
-      evidenceLog: parsed.evidenceLog ?? [],
-      eventRows: parsed.eventRows ?? alarmRows,
-      scenarioMode: parsed.scenarioMode ?? 'IDLE',
-      sessionMeta: {
-        ...createSessionMeta(parsed.scenarioMode === 'COMPLETE' ? 'COMPLETE' : 'CREATED'),
-        ...parsed.sessionMeta,
-        screens: parsed.sessionMeta?.screens ?? {},
-      },
-      scenarioNotice: parsed.scenarioNotice ?? initialScenarioNotice,
-      scenarioStep: parsed.scenarioStep ?? 0,
-      scenarioTasks: { ...initialScenarioTasks, ...parsed.scenarioTasks },
-      lineMap,
-      timetableRows: normalizeTimetableRows(parsed.timetableRows),
-      trainingMode: parsed.trainingMode ?? 'PRACTICE',
-      trainees: parsed.trainees ?? initialTrainees,
-      trains: mergeStoredTrains(parsed.trains, parsed.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION),
-      updatedAt: Date.now(),
-    }
-
-    return {
-      ...nextSession,
-      trains: inferTrain317DoorFailureState(nextSession, nextSession.trains),
-    }
-  } catch {
-    return createInitialSession()
-  }
-}
-
-// Submit golden-path actions to the backend validator. If the local backend is
-// down during a demo, the fallback keeps the same UI reducer path working.
-function submitBackendScenarioAction(
-  session: OccSessionState,
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void,
-  action: OccSessionAction,
-  fallback?: (current: OccSessionState) => OccSessionState,
-  onComplete?: (accepted: boolean, reason: string | null) => void,
-) {
-  void submitOccSessionAction(session, action)
-    .then((payload) => {
-      const normalized = normalizeClientSession(payload.session)
-
-      updateSession(() => ({
-        ...normalized,
-        selectedTrainId: action.trainId ?? normalized.selectedTrainId,
-      }))
-      onComplete?.(payload.accepted, payload.reason)
-    })
-    .catch(() => {
-      if (fallback) {
-        updateSession(fallback)
-      }
-      onComplete?.(false, 'Backend unavailable. Used local fallback.')
-    })
-}
-
-function useOccSession() {
-  const [session, setSession] = useState<OccSessionState>(readStoredSession)
-  const monitorLaunchSubscribersRef = useRef(new Set<(request: MonitorLaunchRequest) => void>())
-  const sessionRef = useRef(session)
-  const transportRef = useRef<ReturnType<typeof createOccSessionTransport> | null>(null)
-
-  useEffect(() => {
-    setSession((current) => {
-      const timetableRows = normalizeTimetableRows(current.timetableRows)
-
-      if (timetableRows.length === current.timetableRows.length) {
-        return current
-      }
-
-      const next = {
-        ...current,
-        timetableRows,
-        updatedAt: Date.now(),
-      }
-
-      transportRef.current?.publish(next)
-      return next
-    })
-  }, [session.timetableRows.length])
-
-  useEffect(() => {
-    sessionRef.current = session
-
-    try {
-      window.localStorage.setItem(OCC_SESSION_KEY, JSON.stringify(session))
-    } catch {
-      // Storage is a fallback transport; the SharedWorker/BroadcastChannel bus can still run.
-    }
-  }, [session])
-
-  useEffect(() => {
-    transportRef.current = createOccSessionTransport({
-      initialSession: sessionRef.current,
-      onMonitorLaunchRequest: (request) => {
-        monitorLaunchSubscribersRef.current.forEach((subscriber) => subscriber(request))
-      },
-      onSession: (nextSession) => {
-        setSession((currentSession) => {
-          const normalizedSession = normalizeClientSession(nextSession)
-
-          if (normalizedSession.updatedAt <= currentSession.updatedAt) {
-            return currentSession
-          }
-
-          return normalizedSession
-        })
-      },
-    })
-
-    return () => {
-      transportRef.current?.close()
-      transportRef.current = null
-    }
-  }, [])
-
-  const requestMonitorPeerLaunch = useCallback(() => (
-    transportRef.current?.requestMonitorPeerLaunch() ?? ''
-  ), [])
-
-  const registerScreen = useCallback((screen: ScreenRegistration) => {
-    transportRef.current?.registerScreen(screen, sessionRef.current)
-  }, [])
-
-  const subscribeMonitorLaunch = useCallback((subscriber: (request: MonitorLaunchRequest) => void) => {
-    monitorLaunchSubscribersRef.current.add(subscriber)
-
-    return () => {
-      monitorLaunchSubscribersRef.current.delete(subscriber)
-    }
-  }, [])
-
-  const updateSession = useCallback((updater: (current: OccSessionState) => OccSessionState) => {
-    setSession((current) => {
-      const next = {
-        ...updater(current),
-        updatedAt: Date.now(),
-      }
-
-      transportRef.current?.publish(next)
-
-      return next
-    })
-  }, [])
-
-  const resetSession = useCallback((trainingMode: TrainingMode = 'PRACTICE') => {
-    clearStoredOccSessions(true)
-    const baseSession = createInitialSession(trainingMode)
-    const baselineReady = isTrainDemoBaselineSession(baseSession)
-    const next = {
-      ...baseSession,
-      scenarioNotice: {
-        text: baselineReady
-          ? 'Train demo reset complete. Trains, routes and movement state returned to baseline.'
-          : 'Train demo reset requested. Review train baseline state.',
-        tone: baselineReady ? 'success' : 'warning',
-      } satisfies ScenarioNotice,
-      updatedAt: Date.now(),
-    }
-    sessionRef.current = next
-    transportRef.current?.publish(next)
-    setSession(next)
-  }, [])
-
-  return { registerScreen, requestMonitorPeerLaunch, resetSession, session, subscribeMonitorLaunch, updateSession }
-}
 
 function getCurrentRoute(): AppRoute {
   const path = window.location.pathname as AppRoute
@@ -2734,7 +203,6 @@ function getCurrentRoute(): AppRoute {
     path === '/ios/scenarios' ||
     path === '/ios/assessment' ||
     path === '/session/join' ||
-    path === '/guide' ||
     path === '/report'
   ) {
     return path
@@ -2743,7 +211,7 @@ function getCurrentRoute(): AppRoute {
   return '/'
 }
 
-// Routes that should register as active backend participants in OCC-DEMO-001.
+// Routes that should register as active backend participants in the OCC training session.
 const screenRegistrationByRoute: Partial<Record<AppRoute, ScreenRegistration>> = {
   '/ios': { label: 'IOS Trainer Control', role: 'IOS', route: '/ios' },
   '/ios/modules': { label: 'IOS Trainer Modules', role: 'IOS', route: '/ios/modules' },
@@ -2857,10 +325,6 @@ function App() {
     )
   }
 
-  if (route === '/guide') {
-    return <DemoGuideScreen onNavigate={navigate} resetSession={resetSession} session={session} />
-  }
-
   if (route === '/report') {
     return <ReportScreen onNavigate={navigate} session={session} />
   }
@@ -2886,7 +350,7 @@ function LineMapScreen({
   const requestedLaunchRef = useRef(false)
 
   // Monitor 02 is the operator's main control screen, so it can launch the
-  // peer monitor layout for first-round vetting.
+  // peer monitor layout.
   const openPeerMonitorWindows = useCallback((targets: MonitorLaunchRequest['targets']) => {
     const monitorConfig: Record<MonitorLaunchRequest['targets'][number], { left: number; name: string; top: number }> = {
       '/screen/alarms': { left: 0, name: 'occ-monitor-1-alarms', top: 0 },
@@ -3069,10 +533,10 @@ function IosCanvas({
   const selectedTrain = session.trains.find((train) => train.id === session.selectedTrainId) ?? session.trains[0]
   const [autoRun, setAutoRun] = useState(false)
   const currentScenario = scenarioSteps[session.scenarioStep] ?? scenarioSteps[0]
-  const demoCue = demoCues[session.scenarioStep] ?? demoCues[0]
+  const scenarioCue = scenarioCues[session.scenarioStep] ?? scenarioCues[0]
   const trainingMode = trainingModeDetails[session.trainingMode]
-  const cuePrimary = session.trainingMode === 'PRACTICE' ? demoCue.primary : trainingMode.title
-  const cueSecondary = session.trainingMode === 'PRACTICE' ? demoCue.secondary : trainingMode.cue
+  const cuePrimary = session.trainingMode === 'PRACTICE' ? scenarioCue.primary : trainingMode.title
+  const cueSecondary = session.trainingMode === 'PRACTICE' ? scenarioCue.secondary : trainingMode.cue
   const completedTasks = scenarioTaskList.filter((task) => session.scenarioTasks[task.id]).length
   const scenarioScore = Math.round((completedTasks / scenarioTaskList.length) * 100)
   const noticeFill = session.scenarioNotice.tone === 'warning'
@@ -3083,6 +547,13 @@ function IosCanvas({
   const noticeText = session.scenarioNotice.text.length > 68
     ? `${session.scenarioNotice.text.slice(0, 65)}...`
     : session.scenarioNotice.text
+  const iosTrainListRows = [...session.trains]
+    .sort((left, right) => {
+      const visibleRank = Number(right.lineMapVisible !== false) - Number(left.lineMapVisible !== false)
+
+      return visibleRank || Number(left.id) - Number(right.id)
+    })
+    .slice(0, 8)
 
   const pushInstructorEvent = (
     trainId: string,
@@ -3190,7 +661,7 @@ function IosCanvas({
     updateSession((current) => applyScenarioStep({
       ...createInitialSession(current.trainingMode),
       sessionMeta: updateSessionLifecycle(current.sessionMeta, 'RUNNING'),
-    }, 1))
+    }, 1, { updateLineMapRouteState }))
   }
 
   const advanceScenario = useCallback(() => {
@@ -3207,7 +678,7 @@ function IosCanvas({
         return rejectScenarioAction(current, blocker, '317', 'IOS Scenario Control')
       }
 
-      return applyScenarioStep(current, nextStep)
+      return applyScenarioStep(current, nextStep, { updateLineMapRouteState })
     })
   }, [session, updateSession])
 
@@ -3340,7 +811,8 @@ function IosCanvas({
       </IosPanel>
 
       <IosPanel x={614} y={330} w={646} h={330} title="TRAIN LIST">
-        {session.trains.map((train, index) => (
+        <text className="svg-ios-label" x="638" y="362">{session.trains.length} trains loaded from NEL_OTES_Weekday_03</text>
+        {iosTrainListRows.map((train, index) => (
           <g
             className="svg-clickable"
             onClick={() => submitBackendScenarioAction(session, updateSession, {
@@ -4019,12 +1491,18 @@ function TimetableCanvas({
   session: OccSessionState
   updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
 }) {
-  const rows = session.timetableRows
   const tableRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [stationFilter, setStationFilter] = useState('SKG')
   const [direction, setDirection] = useState<'NB' | 'SB'>('NB')
+  const stationOptions = useMemo(() => (
+    Array.from(new Set(session.timetableRows.map(getTimetableRowSelectedStation).filter(Boolean))).sort()
+  ), [session.timetableRows])
+  const activeStation = stationOptions.includes(stationFilter) ? stationFilter : stationOptions[0] ?? 'SKG'
+  const rowsForStation = session.timetableRows.filter((row) => getTimetableRowSelectedStation(row) === activeStation)
+  const rows = rowsForStation.filter((row) => row.run === direction)
   const [scrollState, setScrollState] = useState({ clientHeight: 0, max: 0, scrollHeight: 0, top: 0 })
-  const loadedTimeTableName = 'NEL_OTES_Weekday_03'
+  const loadedTimeTableName = NEL_TIMETABLE_NAME
   const [actionNote, setActionNote] = useState('')
   const selectedRowIndex = rows.length > 0 ? Math.min(selectedIndex, rows.length - 1) : -1
   const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : undefined
@@ -4059,6 +1537,13 @@ function TimetableCanvas({
     updateTimetableScroll()
   }, [rows.length, updateTimetableScroll])
 
+  useEffect(() => {
+    if (tableRef.current) {
+      tableRef.current.scrollTop = 0
+    }
+
+    updateTimetableScroll()
+  }, [activeStation, direction, updateTimetableScroll])
 
   const scrollTimetableBy = (delta: number) => {
     const table = tableRef.current
@@ -4127,7 +1612,14 @@ function TimetableCanvas({
 
   const setDirectionFilter = (nextDirection: 'NB' | 'SB') => {
     setDirection(nextDirection)
+    setSelectedIndex(0)
     setActionNote(`Direction filter changed to ${nextDirection}`)
+  }
+
+  const setStationSelection = (nextStation: string) => {
+    setStationFilter(nextStation)
+    setSelectedIndex(0)
+    setActionNote(`Station ${nextStation} selected`)
   }
 
   const applyTripAction = (action: string) => {
@@ -4176,8 +1668,8 @@ function TimetableCanvas({
         eventRows: [event, ...current.eventRows].slice(0, 4),
         selectedTrainId: selectedRow.train,
         lineMap: updateLineMapRouteState(current.lineMap, { id: selectedRow.train }, getLineMapRouteStatus(meta.status)),
-        timetableRows: current.timetableRows.map((row, index) => (
-          index === selectedRowIndex ? { ...row, state: meta.state } : row
+        timetableRows: current.timetableRows.map((row) => (
+          row.train === selectedRow.train && row.sched === selectedRow.sched ? { ...row, state: meta.state } : row
         )),
         trains: current.trains.map((train) => (
           train.id === selectedRow.train ? { ...train, status: meta.status } : train
@@ -4216,8 +1708,14 @@ function TimetableCanvas({
           </label>
           <label>
             <span>Station</span>
-            <select value="SKG" onChange={() => setActionNote('Station SKG selected')}>
-              <option value="SKG">SKG</option>
+            <select
+              disabled={stationOptions.length <= 1}
+              value={activeStation}
+              onChange={(event) => setStationSelection(event.target.value)}
+            >
+              {stationOptions.map((station) => (
+                <option key={station} value={station}>{station}</option>
+              ))}
             </select>
           </label>
           <fieldset>
@@ -4225,6 +1723,9 @@ function TimetableCanvas({
             <label><input checked={direction === 'NB'} onChange={() => setDirectionFilter('NB')} type="radio" /> NB</label>
             <label><input checked={direction === 'SB'} onChange={() => setDirectionFilter('SB')} type="radio" /> SB</label>
           </fieldset>
+          <output className="timetable-dom-filter-summary">
+            {rows.length} {direction} rows shown / {rowsForStation.length} {activeStation} rows loaded | {TIMETABLE_PLAYBACK_PROFILE.label}
+          </output>
         </div>
         <div className="timetable-dom-headings">
           <span className="origin">ORIGIN</span>
@@ -5044,9 +2545,13 @@ function MonitorCanvas({
   const [trainMenu, setTrainMenu] = useState<{ trainId: string; x: number; y: number } | null>(null)
   const [trainItamaStatusOverrides, setTrainItamaStatusOverrides] = useState<Record<string, 'GRANTED' | 'NOT_GRANTED'>>({})
   const [trainReadinessModeOverrides, setTrainReadinessModeOverrides] = useState<Record<string, TrainReadinessMode>>({})
-  const [routeControlModes, setRouteControlModes] = useState<Record<string, RouteControlMode>>({})
+  const [timetablePlaybackTick, setTimetablePlaybackTick] = useState(0)
   const resetLocalLineMapStateKey = `${session.sessionMeta.createdAt}:${session.scenarioMode}:${session.scenarioStep}`
   const shouldClearLocalLineMapState = session.scenarioMode === 'IDLE' && session.scenarioStep === 0
+  const [routeControlModeState, setRouteControlModeState] = useState<{
+    resetKey: string
+    value: Record<string, RouteControlMode>
+  }>({ resetKey: resetLocalLineMapStateKey, value: {} })
   const [trainArrivalDestinationState, setTrainArrivalDestinationState] = useState<{
     resetKey: string
     value: Record<string, TrainTimeSelection>
@@ -5057,10 +2562,18 @@ function MonitorCanvas({
   }>({ resetKey: resetLocalLineMapStateKey, value: {} })
   const panAnimationRef = useRef<number | null>(null)
   const trainRouteAnimationRef = useRef<number | null>(null)
+  const timetablePlaybackTimeoutsRef = useRef<number[]>([])
+  const timetablePlaybackRunKeyRef = useRef('')
   const train314RouteStepIndexRef = useRef<number | null>(null)
+  const latestLineMapSessionRef = useRef(session)
   const panTargetRef = useRef<number>(DEFAULT_LINE_MAP_PAN)
   const panValueRef = useRef<number>(DEFAULT_LINE_MAP_PAN)
   const dragRef = useRef<{ startX: number; startPan: number } | null>(null)
+  const routeControlModes = useMemo(() => (
+    shouldClearLocalLineMapState && routeControlModeState.resetKey !== resetLocalLineMapStateKey
+      ? {}
+      : routeControlModeState.value
+  ), [resetLocalLineMapStateKey, routeControlModeState, shouldClearLocalLineMapState])
   const trainArrivalDestinations = useMemo(() => (
     shouldClearLocalLineMapState && trainArrivalDestinationState.resetKey !== resetLocalLineMapStateKey
       ? {}
@@ -5071,6 +2584,20 @@ function MonitorCanvas({
       ? {}
       : lineMapRouteSegmentOverrideState.value
   ), [lineMapRouteSegmentOverrideState, resetLocalLineMapStateKey, shouldClearLocalLineMapState])
+  const setRouteControlModes = useCallback((update: SetStateAction<Record<string, RouteControlMode>>) => {
+    setRouteControlModeState((current) => {
+      const currentValue = shouldClearLocalLineMapState && current.resetKey !== resetLocalLineMapStateKey
+        ? {}
+        : current.value
+
+      return {
+        resetKey: resetLocalLineMapStateKey,
+        value: typeof update === 'function'
+          ? (update as (currentValue: Record<string, RouteControlMode>) => Record<string, RouteControlMode>)(currentValue)
+          : update,
+      }
+    })
+  }, [resetLocalLineMapStateKey, shouldClearLocalLineMapState])
   const setTrainArrivalDestinations = useCallback((update: SetStateAction<Record<string, TrainTimeSelection>>) => {
     setTrainArrivalDestinationState((current) => {
       const currentValue = shouldClearLocalLineMapState && current.resetKey !== resetLocalLineMapStateKey
@@ -5099,11 +2626,19 @@ function MonitorCanvas({
       }
     })
   }, [resetLocalLineMapStateKey, shouldClearLocalLineMapState])
-  const sessionLineMap = normalizeLineMapRuntimeState(session.lineMap)
+
+  useEffect(() => {
+    latestLineMapSessionRef.current = session
+  }, [session])
+
+  const sessionLineMap = clearTimetableGuideRouteState(
+    normalizeLineMapRuntimeState(session.lineMap),
+    getTimetablePlaybackTrainIdSet(session.trains),
+  )
   const renderedTrains = session.trains.map((train) => {
     const itamaStatus = trainItamaStatusOverrides[train.id]
     const readinessMode = trainReadinessModeOverrides[train.id]
-    const routeStep = getTrainRouteStepFromLineMap(sessionLineMap, train.id)
+    const routeStep = getTrainRouteStepFromLineMap(sessionLineMap, train.id, TRAIN_ROUTE_RENDER_STEPS)
     const routePinnedTrain = routeStep
       ? {
           ...train,
@@ -5127,6 +2662,7 @@ function MonitorCanvas({
       : routePinnedTrain
   })
   const selectedTrain = renderedTrains.find((train) => train.id === session.selectedTrainId)
+  const routeAutomationSummary = useMemo(() => createRouteAutomationSummary(routeControlModes), [routeControlModes])
   const inspectorTrain = inspectorPanel ? renderedTrains.find((train) => train.id === inspectorPanel.trainId) : undefined
   const auxiliaryTrain = auxiliaryPanel ? renderedTrains.find((train) => train.id === auxiliaryPanel.trainId) : undefined
   const itamaTrain = itamaTrainId ? renderedTrains.find((train) => train.id === itamaTrainId) : undefined
@@ -5135,7 +2671,6 @@ function MonitorCanvas({
   const renderedRouteSegments = {
     ...lineMapRouteSegmentOverrides,
     ...sessionLineMap.routeSegments,
-    ...trainOccupancyRouteSegments,
   }
 
   const renderedLineMap: LineMapRuntimeState = {
@@ -5155,7 +2690,7 @@ function MonitorCanvas({
     updateSession((current) => {
       let changed = false
       const trains = current.trains.map((currentTrain) => {
-        const currentRouteStep = getTrainRouteStepFromLineMap(current.lineMap, currentTrain.id)
+        const currentRouteStep = getTrainRouteStepFromLineMap(current.lineMap, currentTrain.id, TRAIN_ROUTE_RENDER_STEPS)
 
         if (!currentRouteStep) {
           return currentTrain
@@ -5165,6 +2700,7 @@ function MonitorCanvas({
           currentTrain.x === currentRouteStep.point.x
           && currentTrain.y === currentRouteStep.point.y
           && currentTrain.direction === 'left'
+          && currentTrain.occupancySegmentId === currentRouteStep.segmentId
         ) {
           return currentTrain
         }
@@ -5174,6 +2710,7 @@ function MonitorCanvas({
         return {
           ...currentTrain,
           direction: 'left' as const,
+          occupancySegmentId: currentRouteStep.segmentId,
           service: 'SB',
           x: currentRouteStep.point.x,
           y: currentRouteStep.point.y,
@@ -5189,10 +2726,7 @@ function MonitorCanvas({
     })
   }, [session.lineMap, updateSession])
   const defineRouteSetLabels = defineRouteSignal
-    ? getSignalRouteLabels(defineRouteSignal).filter((routeLabel) => (
-      getSignalRuntimeRouteSegmentIdsForRoute(defineRouteSignal, routeLabel)
-        .some((segmentId) => isSignalRouteCommandState(renderedLineMap.routeSegments[segmentId]))
-    ))
+    ? getSignalRouteSetLabels(defineRouteSignal.label, renderedLineMap)
     : []
   const defineRouteSet = defineRouteSetLabels.length > 0
 
@@ -5210,14 +2744,23 @@ function MonitorCanvas({
     }
   }, [])
 
+  const cancelTimetablePlayback = useCallback(() => {
+    timetablePlaybackTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId)
+    })
+    timetablePlaybackTimeoutsRef.current = []
+    timetablePlaybackRunKeyRef.current = ''
+  }, [])
+
   useEffect(() => {
     if (session.scenarioMode !== 'IDLE' || session.scenarioStep !== 0) {
       return
     }
 
     cancelTrainRouteAnimation()
+    cancelTimetablePlayback()
     train314RouteStepIndexRef.current = null
-  }, [cancelTrainRouteAnimation, session.scenarioMode, session.scenarioStep, session.sessionMeta.createdAt])
+  }, [cancelTimetablePlayback, cancelTrainRouteAnimation, session.scenarioMode, session.scenarioStep, session.sessionMeta.createdAt])
 
   const setPanImmediate = useCallback((value: number) => {
     const nextPan = clampPan(value)
@@ -5243,19 +2786,12 @@ function MonitorCanvas({
     setPanImmediate(LINE_VIEWPORT_PANS[nextIndex])
   }, [setPanImmediate])
 
-  const toggleCycleMode = () => {
-    updateSession((current) => ({
-      ...current,
-      cycleMode: current.cycleMode === 'NONE' ? 'AUTO' : 'NONE',
-    }))
-  }
-
   const toggleRouteControlMode = useCallback((panelCode: string) => {
     setRouteControlModes((current) => ({
       ...current,
       [panelCode]: current[panelCode] === 'OCCM' ? 'OCCA' : 'OCCM',
     }))
-  }, [])
+  }, [setRouteControlModes])
 
   const showItamaForTrain = (trainId: string) => {
     setInspectorPanel(null)
@@ -5351,7 +2887,7 @@ function MonitorCanvas({
       'pec-reset': {
         action: 'PEC reset requested',
         message: `Train ${trainId}: PEC Reset All request`,
-        notice: `PEC Reset All request prepared for Train ${trainId}. No reset applied in prototype.`,
+        notice: `PEC Reset All request prepared for Train ${trainId}. No reset applied.`,
         noticeTone: 'warning',
         summaryTone: 'yellow',
         tone: 'orange',
@@ -5660,88 +3196,35 @@ function MonitorCanvas({
   }
 
   const animateTrainDepartureRoute = useCallback((trainId: string) => {
-    const arrivalDestination = trainArrivalDestinations[trainId]
-    const currentTrain = session.trains.find((train) => train.id === trainId)
+    const plan = createManualTrainRoutePlan({
+      arrivalDestinations: trainArrivalDestinations,
+      fallbackStepIndex: trainId === '314' ? train314RouteStepIndexRef.current : undefined,
+      lineMap: session.lineMap,
+      trainId,
+      trains: session.trains,
+    })
 
-    if (!hasTrainMovementDestination(arrivalDestination)) {
+    if (!plan.allowed) {
       updateSession((current) => ({
         ...current,
         scenarioNotice: {
-          text: `Train ${trainId} departure rejected. Set Arrival Time Station and Platform / Siding first.`,
+          text: plan.reason,
           tone: 'warning',
         },
         selectedTrainId: trainId,
       }))
-      return
-    }
-
-    const isRt2DepotMove = isRt2DepotArrivalDestination(arrivalDestination)
-    const rt2DepotStartIndex = getVisibleTrainRoutePointIndex(
-      currentTrain,
-      TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map((step) => step.point),
-    )
-
-    if (isRt2DepotMove && rt2DepotStartIndex !== 0) {
-      updateSession((current) => ({
-        ...current,
-        scenarioNotice: {
-          text: `Train ${trainId} must be waiting at S608 before it can move to NED / RT2D.`,
-          tone: 'warning',
-        },
-        selectedTrainId: trainId,
-      }))
-      return
-    }
-
-    const routeSteps = isRt2DepotMove
-      ? TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS
-      : trainId === '314'
-        ? TRAIN_314_S610_TO_RT2_ROUTE_STEPS
-        : trainId === '312'
-          ? TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS
-        : undefined
-    const routeLabel = isRt2DepotMove
-      ? 'Route R608_803'
-      : trainId === '312'
-        ? 'Route R1104_704 / R704_700 / R700_608'
-        : 'Route R610_652'
-
-    if (!routeSteps) {
       return
     }
 
     cancelTrainRouteAnimation()
     setLineMapRouteSegmentOverrides((current) => {
-      const next = { ...current }
-
-      routeSteps.forEach((step) => {
-        delete next[step.segmentId]
-      })
-
-      if (isRt2DepotMove) {
-        S608_R608_803_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-          delete next[segmentId]
-        })
-      } else {
-        S610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-          delete next[segmentId]
-        })
-      }
-
-      return withLineMapRouteSegmentExclusivity(next)
+      return clearManualTrainRouteSegmentOverrides(current, plan.authority)
     })
 
-    const routePoints = routeSteps.map((step) => step.point)
-    const lastStepIndex = routeSteps.length - 1
-    const visibleStepIndex = getVisibleTrainRoutePointIndex(currentTrain, routePoints)
-    const currentStepIndex = visibleStepIndex
-      ?? getTrainRouteStepIndexFromLineMap(session.lineMap, trainId, routeSteps)
-      ?? (trainId === '314' ? train314RouteStepIndexRef.current : undefined)
-      ?? getClosestTrainRoutePointIndex(currentTrain, routePoints)
-    const currentPoint = routeSteps[currentStepIndex].point
+    const { authority, currentStepIndex, lastStepIndex } = plan
     const eventRow = createMonitorEvent(
       trainId,
-      `Train ${trainId}: Departure time set, stepping on ${routeLabel}`,
+      `Train ${trainId}: Departure time set, stepping on ${authority.routeLabel}`,
       'RUN',
       'yellow',
     )
@@ -5751,56 +3234,22 @@ function MonitorCanvas({
     }
 
     updateSession((current) => ({
-      ...current,
+      ...applyManualTrainRouteStepState(current, trainId, authority, currentStepIndex),
       alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
       eventRows: [eventRow, ...current.eventRows].slice(0, 4),
       scenarioNotice: {
-        text: `Train ${trainId} departure confirmed. Stepping rail-by-rail on ${routeLabel}.`,
+        text: `Train ${trainId} departure confirmed. Stepping rail-by-rail on ${authority.routeLabel}.`,
         tone: 'info',
       },
-      lineMap: updateTrainRouteStepState(current.lineMap, trainId, routeSteps, currentStepIndex),
-      selectedTrainId: trainId,
       timetableRows: upsertTimetableRow(current.timetableRows, trainId, '>'),
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              direction: 'left',
-              isMoving: currentStepIndex < lastStepIndex,
-              service: 'SB',
-              status: 'RUN',
-              x: currentPoint.x,
-              y: currentPoint.y,
-            }
-          : train
-      )),
     }))
 
     const setTrainAtRouteStep = (stepIndex: number) => {
-      const point = routeSteps[stepIndex].point
-
       if (trainId === '314') {
         train314RouteStepIndexRef.current = stepIndex
       }
 
-      updateSession((current) => ({
-        ...current,
-        lineMap: updateTrainRouteStepState(current.lineMap, trainId, routeSteps, stepIndex),
-        selectedTrainId: trainId,
-        trains: current.trains.map((train) => (
-          train.id === trainId
-            ? {
-                ...train,
-                direction: 'left',
-                isMoving: stepIndex < lastStepIndex,
-                service: 'SB',
-                status: 'RUN',
-                x: point.x,
-                y: point.y,
-              }
-            : train
-        )),
-      }))
+      updateSession((current) => applyManualTrainRouteStepState(current, trainId, authority, stepIndex))
     }
 
     const scheduleRouteStep = (stepIndex: number, delay: number) => {
@@ -5873,6 +3322,11 @@ function MonitorCanvas({
   }
 
   const openSignalDefineRoute = (signal: LineMapSignalData) => {
+    if (getSignalRouteLabels(signal).length === 0) {
+      setSignalMenu(null)
+      return
+    }
+
     setSignalMenu(null)
     setDefineRouteSignal(signal)
     updateSession((current) => ({
@@ -5884,153 +3338,35 @@ function MonitorCanvas({
     }))
   }
 
-  const setRouteFromSignal = (signal: LineMapSignalData, routeLabel = getSignalRouteLabel(signal)) => {
+  const setRouteFromSignal = (signal: LineMapSignalData, routeLabel: string) => {
     const visibleTargetTrain = getSignalRouteTargetTrain(session.trains, session.selectedTrainId)
 
-    if (signal.label === 'S608' && visibleTargetTrain) {
-      const routeSegmentIds = getSignalRuntimeRouteSegmentIdsForRoute(signal, routeLabel)
-
-      setLineMapRouteSegmentOverrides((current) => withLineMapRouteSegmentExclusivity({
-        ...current,
-        ...createRouteCommandSegmentStates(routeSegmentIds, visibleTargetTrain, 'SET'),
-      }, routeSegmentIds))
+    if (!hasSignalRouteCommand(signal, routeLabel)) {
+      return
     }
-    if (signal.label === 'S610' && visibleTargetTrain) {
+
+    if (shouldResetTrainRouteIndexForSignal(signal)) {
       train314RouteStepIndexRef.current = null
-      setLineMapRouteSegmentOverrides((current) => withLineMapRouteSegmentExclusivity({
-        ...current,
-        ...createRouteCommandSegmentStates(S610_REAL_ROUTE_SEGMENT_IDS, visibleTargetTrain, 'SET'),
-      }, S610_REAL_ROUTE_SEGMENT_IDS))
-    }
-    if (signal.label === 'S700' && visibleTargetTrain) {
-      setLineMapRouteSegmentOverrides((current) => withLineMapRouteSegmentExclusivity({
-        ...current,
-        ...createRouteCommandSegmentStates(S700_REAL_ROUTE_SEGMENT_IDS, visibleTargetTrain, 'SET'),
-      }, S700_REAL_ROUTE_SEGMENT_IDS))
-    }
-    if (signal.label === 'S704' && visibleTargetTrain) {
-      setLineMapRouteSegmentOverrides((current) => withLineMapRouteSegmentExclusivity({
-        ...current,
-        ...createRouteCommandSegmentStates(S704_REAL_ROUTE_SEGMENT_IDS, visibleTargetTrain, 'SET'),
-      }, S704_REAL_ROUTE_SEGMENT_IDS))
-    }
-    if (signal.label === 'S1104' && visibleTargetTrain) {
-      setLineMapRouteSegmentOverrides((current) => withLineMapRouteSegmentExclusivity({
-        ...current,
-        ...createRouteCommandSegmentStates(S1104_REAL_ROUTE_SEGMENT_IDS, visibleTargetTrain, 'SET'),
-      }, S1104_REAL_ROUTE_SEGMENT_IDS))
     }
 
-    updateSession((current) => {
-      const targetTrain = getSignalRouteTargetTrain(current.trains, current.selectedTrainId)
+    const routeOwner = visibleTargetTrain ?? { id: '' }
 
-      if (!targetTrain) {
-        return current
-      }
-
-      const event = createMonitorEvent(
-        targetTrain.id,
-        `${routeLabel} set from ${signal.label}`,
-        'SET',
-        'yellow',
-      )
-
-      return {
-        ...current,
-        alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [event, ...current.eventRows].slice(0, 4),
-        lineMap: updateLineMapSignalTrackState(
-          current.lineMap,
-          signal,
-          targetTrain,
-          'SET',
-          routeLabel,
-        ),
-        scenarioNotice: {
-          text: `${routeLabel} set from ${getSignalEquipmentLabel(signal)} for Train ${targetTrain.id}.`,
-          tone: 'info',
-        },
-        selectedTrainId: targetTrain.id,
-        timetableRows: upsertTimetableRow(current.timetableRows, targetTrain.id, 'R'),
-      }
-    })
+    setLineMapRouteSegmentOverrides((current) => createSignalRouteSetOverrideSegments(current, signal, routeLabel, routeOwner))
+    updateSession((current) => applySignalRouteSetSession(current, signal, routeLabel))
   }
 
-  const unsetRouteFromSignal = (signal: LineMapSignalData, routeLabel = getSignalRouteLabel(signal)) => {
-    if (signal.label === 'S608') {
-      setLineMapRouteSegmentOverrides((current) => {
-        const next = { ...current }
-
-        getSignalRuntimeRouteSegmentIdsForRoute(signal, routeLabel).forEach((segmentId) => {
-          delete next[segmentId]
-        })
-
-        return withLineMapRouteSegmentExclusivity(next)
-      })
+  const unsetRouteFromSignal = (signal: LineMapSignalData, routeLabel: string) => {
+    if (!hasSignalRouteCommand(signal, routeLabel)) {
+      return
     }
-    if (signal.label === 'S610') {
+
+    if (shouldResetTrainRouteIndexForSignal(signal)) {
       cancelTrainRouteAnimation()
       train314RouteStepIndexRef.current = null
-      setLineMapRouteSegmentOverrides((current) => {
-        const next = { ...current }
-
-        S610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-          delete next[segmentId]
-        })
-
-        return withLineMapRouteSegmentExclusivity(next)
-      })
-    }
-    if (signal.label === 'S700') {
-      setLineMapRouteSegmentOverrides((current) => {
-        const next = { ...current }
-
-        S700_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-          delete next[segmentId]
-        })
-
-        return withLineMapRouteSegmentExclusivity(next)
-      })
-    }
-    if (signal.label === 'S704') {
-      setLineMapRouteSegmentOverrides((current) => {
-        const next = { ...current }
-
-        S704_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-          delete next[segmentId]
-        })
-
-        return withLineMapRouteSegmentExclusivity(next)
-      })
-    }
-    if (signal.label === 'S1104') {
-      setLineMapRouteSegmentOverrides((current) => {
-        const next = { ...current }
-
-        S1104_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
-          delete next[segmentId]
-        })
-
-        return withLineMapRouteSegmentExclusivity(next)
-      })
     }
 
-    updateSession((current) => {
-      const targetTrain = getSignalRouteTargetTrain(current.trains, current.selectedTrainId)
-
-      if (!targetTrain) {
-        return current
-      }
-
-      return {
-        ...current,
-        lineMap: clearLineMapSignalTrackState(clearLineMapRouteState(current.lineMap, targetTrain), signal),
-        scenarioNotice: {
-          text: `${routeLabel} unset from ${getSignalEquipmentLabel(signal)}.`,
-          tone: 'info',
-        },
-      }
-    })
+    setLineMapRouteSegmentOverrides((current) => createSignalRouteUnsetOverrideSegments(current, signal, routeLabel))
+    updateSession((current) => applySignalRouteUnsetSession(current, signal, routeLabel))
   }
 
   const requestTrainCommand = (command: TrainCommand) => {
@@ -6221,19 +3557,46 @@ function MonitorCanvas({
   }, [panBy, panTo])
 
   useEffect(() => {
-    if (session.cycleMode === 'NONE') {
+    const intervalId = window.setInterval(() => {
+      setTimetablePlaybackTick((current) => current + 1)
+    }, TIMETABLE_PLAYBACK_REFRESH_MS)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
+
+  useEffect(() => {
+    const runKey = createTimetablePlaybackRunKey(
+      session.sessionMeta.createdAt,
+      routeControlModes,
+      timetablePlaybackTick,
+    )
+
+    if (timetablePlaybackRunKeyRef.current === runKey) {
       return undefined
     }
 
-    const intervalId = window.setInterval(() => {
-      updateSession((current) => ({
-        ...current,
-        trains: current.trains.map((train) => (train.id === '314' ? train : advanceTrain(train))),
-      }))
-    }, 850)
+    cancelTimetablePlayback()
+    timetablePlaybackRunKeyRef.current = runKey
 
-    return () => window.clearInterval(intervalId)
-  }, [session.cycleMode, updateSession])
+    const timeoutIds = scheduleTimetablePlaybackRun({
+      now: new Date(),
+      routeControlModes,
+      scheduleTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      session: latestLineMapSessionRef.current,
+      updateSession,
+    })
+    timetablePlaybackTimeoutsRef.current.push(...timeoutIds)
+
+    return () => {
+      cancelTimetablePlayback()
+    }
+  }, [
+    cancelTimetablePlayback,
+    routeControlModes,
+    session.sessionMeta.createdAt,
+    timetablePlaybackTick,
+    updateSession,
+  ])
 
   return (
     <div className="occ-monitor-canvas">
@@ -6251,7 +3614,6 @@ function MonitorCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onToggleRouteControlMode={toggleRouteControlMode}
-        onToggleCycle={toggleCycleMode}
         onWheel={(event) => {
           const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0
 
@@ -6261,9 +3623,11 @@ function MonitorCanvas({
           }
         }}
         panX={panX}
+        routeAutomationStatus={routeAutomationSummary.text}
         routeControlModes={routeControlModes}
         selectedTrain={selectedTrain}
         selectedTrainId={session.selectedTrainId}
+        trainOccupancyRouteSegments={trainOccupancyRouteSegments}
         trains={renderedTrains}
       >
         {trainMenu && menuTrain && (
@@ -6292,6 +3656,7 @@ function MonitorCanvas({
                 openTrainInspector(selectedTrain.id, 'information')
               }
             }}
+            routeAvailable={getSignalRouteLabels(signalMenu.signal).length > 0}
             title={getSignalEquipmentLabel(signalMenu.signal)}
             x={signalMenu.x}
             y={signalMenu.y}
@@ -6304,6 +3669,7 @@ function MonitorCanvas({
             onClose={() => setDefineRouteSignal(null)}
             onSet={(routeLabel) => setRouteFromSignal(defineRouteSignal, routeLabel)}
             onUnset={(routeLabel) => unsetRouteFromSignal(defineRouteSignal, routeLabel)}
+            routeCommandLabels={getSignalRouteCommandLabels(defineRouteSignal.label)}
             routeLabels={getSignalRouteLabels(defineRouteSignal)}
             routeSetLabels={defineRouteSetLabels}
             signalLabel={defineRouteSignal.label}

@@ -7,6 +7,7 @@ type SignalRouteDefinitionWindowProps = {
   onClose: () => void
   onSet: (routeLabel: string) => void
   onUnset: (routeLabel: string) => void
+  routeCommandLabels: readonly string[]
   routeLabels: readonly string[]
   routeSetLabels: readonly string[]
   signalLabel: string
@@ -21,6 +22,7 @@ function SignalRouteDefinitionWindow({
   onClose,
   onSet,
   onUnset,
+  routeCommandLabels,
   routeLabels,
   routeSetLabels,
   signalLabel,
@@ -30,13 +32,15 @@ function SignalRouteDefinitionWindow({
   const confirmationDrag = usePopupDrag()
   const routeTableRef = useRef<HTMLDivElement>(null)
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0)
+  const [hasSelectedRouteRow, setHasSelectedRouteRow] = useState(false)
   const [routeScroll, setRouteScroll] = useState({ max: 1, top: 0 })
   const [routeScrollDrag, setRouteScrollDrag] = useState<{ startScrollTop: number; startY: number } | null>(null)
   const [pendingSetRouteLabel, setPendingSetRouteLabel] = useState<string | null>(null)
   const selectedRouteLabel = routeLabels[selectedRouteIndex] ?? routeLabels[0] ?? ''
   const confirmationRouteLabel = pendingSetRouteLabel ?? selectedRouteLabel
   const selectedRouteSet = routeSetLabels.includes(selectedRouteLabel)
-  const canSetRoute = selectedRouteLabel.length > 0 && !selectedRouteSet && pendingSetRouteLabel === null
+  const selectedRouteCommandAvailable = routeCommandLabels.includes(selectedRouteLabel)
+  const canSetRoute = selectedRouteLabel.length > 0 && selectedRouteCommandAvailable && !selectedRouteSet && pendingSetRouteLabel === null
   const canUnsetRoute = selectedRouteSet
   const showRouteSetConfirmation = pendingSetRouteLabel !== null
 
@@ -115,19 +119,27 @@ function SignalRouteDefinitionWindow({
           </div>
           <div className="sig-route-table-frame">
             <div className="sig-route-table" ref={routeTableRef} role="table" aria-label="Available routes" onScroll={updateRouteScroll}>
-              {routeLabels.map((routeLabel, index) => (
-                <button
-                  className={`sig-route-row ${selectedRouteIndex === index ? 'is-selected' : ''}`}
-                  key={routeLabel}
-                  onClick={() => setSelectedRouteIndex(index)}
-                  role="row"
-                  type="button"
-                >
-                  <span>{routeLabel}</span>
-                  <span>{routeSetLabels.includes(routeLabel) ? 'Set' : 'Not Set'}<i /></span>
-                  <span>Not Fleet<i /></span>
-                </button>
-              ))}
+              {routeLabels.map((routeLabel, index) => {
+                const isRouteSet = routeSetLabels.includes(routeLabel)
+                const isRouteRowSelected = hasSelectedRouteRow && selectedRouteIndex === index
+
+                return (
+                  <button
+                    className={`sig-route-row ${isRouteSet || isRouteRowSelected ? 'is-selected' : ''}`}
+                    key={routeLabel}
+                    onClick={() => {
+                      setSelectedRouteIndex(index)
+                      setHasSelectedRouteRow(true)
+                    }}
+                    role="row"
+                    type="button"
+                  >
+                    <span>{routeLabel}</span>
+                    <span>{isRouteSet ? 'Set' : 'Not Set'}<i /></span>
+                    <span>Not Fleet<i /></span>
+                  </button>
+                )
+              })}
               {Array.from({ length: Math.max(0, 9 - routeLabels.length) }, (_, index) => (
                 <div className="sig-route-row" key={`blank-${index}`} role="row">
                   <span />
@@ -204,7 +216,7 @@ function SignalRouteDefinitionWindow({
         </div>
         <label className="sig-route-status">
           <span>Status</span>
-          <output>{selectedRouteSet ? 'Route set successful' : statusText}</output>
+          <output>{selectedRouteSet ? 'Route set successful' : selectedRouteCommandAvailable ? statusText : 'Route command unavailable'}</output>
         </label>
         <div className="sig-route-footer">
           <button type="button">Help</button>

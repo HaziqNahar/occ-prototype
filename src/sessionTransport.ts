@@ -167,7 +167,7 @@ export function createOccSessionTransport({
   })
 
   // Publish full session snapshots to the backend first. If the backend is
-  // unavailable, the worker/channel/storage fallbacks still keep the demo alive.
+  // unavailable, the worker/channel/storage fallbacks keep the session alive.
   const publishToBackend = (session: OccSessionState) => {
     if (backendBaseUrl === null) {
       return
@@ -192,7 +192,7 @@ export function createOccSessionTransport({
         }
       })
       .catch(() => {
-        // The local browser transports keep the demo running if the backend is offline.
+        // The local browser transports keep the session running if the backend is offline.
       })
   }
 
@@ -235,7 +235,7 @@ export function createOccSessionTransport({
         publishToBackend(initialSession)
       })
       .catch(() => {
-        // Backend sync is opportunistic during the prototype demo.
+        // Backend sync is opportunistic when running in local browser mode.
       })
   }
 
@@ -277,7 +277,7 @@ export function createOccSessionTransport({
   }
 
   // SharedWorker keeps multiple windows in the same browser profile aligned and
-  // carries the monitor launch request for the three-screen demo layout.
+  // carries the monitor launch request for the three-screen layout.
   const connectSharedWorker = () => {
     if (!('SharedWorker' in window)) {
       sharedWorker = 'UNAVAILABLE'
@@ -382,7 +382,7 @@ export function createOccSessionTransport({
       })
     },
     // Screen registration is how the backend proves Monitor 01/02/03 joined
-    // OCC-DEMO-001, which is useful during first-round vetting.
+    // the same OCC training session.
     registerScreen: (screen: ScreenRegistration, session: OccSessionState) => {
       if (backendBaseUrl === null) {
         return

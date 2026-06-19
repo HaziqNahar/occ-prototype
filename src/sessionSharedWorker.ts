@@ -50,7 +50,7 @@ function shouldAcceptSession(nextSession: OccSessionState) {
 }
 
 // Dead windows throw when messaged; deleting them keeps the worker healthy
-// during repeated demo runs.
+// during repeated local runs.
 function postToPort(port: MessagePort, message: SessionWorkerResponse) {
   try {
     port.postMessage(message)

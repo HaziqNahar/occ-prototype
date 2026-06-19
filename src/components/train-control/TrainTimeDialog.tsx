@@ -226,8 +226,9 @@ function TrainTimeDialog({
 
     if (kind === 'departure') {
       onConfirmDeparture?.()
-      onClose()
     }
+
+    onClose()
   }
 
   return (

@@ -313,7 +313,6 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
           <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario Builder</button>
           <button type="button" onClick={() => onNavigate('/ios/assessment')}>Rubric</button>
           <button type="button" onClick={() => onNavigate('/session/join')}>Trainee Lobby</button>
-          <button type="button" onClick={() => onNavigate('/guide')}>Demo Guide</button>
           <button type="button" onClick={() => onNavigate('/ios')}>Open IOS</button>
           <button type="button" onClick={() => onNavigate('/')}>Back to Launch</button>
         </div>
@@ -340,7 +339,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <ModuleSection
               eyebrow="1. User Management"
               title="Trainer Roster Registration"
-              copy="Prototype view for registering or staging trainee emails before the session."
+              copy="Register or stage trainee emails before the session."
             >
               <div className="module-form-row">
                 <input
@@ -366,7 +365,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <ModuleSection
               eyebrow="2. Session Management"
               title="Create Session for Assessment"
-              copy="Prototype session setup: choose the mode, session time, and enrolled users."
+              copy="Choose the mode, session time, and enrolled users."
             >
               <div className="module-session-grid">
                 <label>
@@ -395,7 +394,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <ModuleSection
               eyebrow="3. Scenario Management"
               title="Scenario Library and Incident Setup"
-              copy="A prototype CRUD view for available OCC scenarios and incident lists."
+              copy="Manage available OCC scenarios and incident lists."
             >
               <div className="module-scenario-grid">
                 {scenarioLibrary.map((scenario) => (
@@ -488,12 +487,12 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <ModuleSection
               eyebrow="6. Player Mode"
               title="Single Crew Now, Multi Crew Future"
-              copy="Prototype player mode supports one operator flow. Multi-crew joining is shown as future provisioning."
+              copy="Player mode supports one operator flow. Multi-crew joining is shown as future provisioning."
             >
               <div className="module-player-grid">
                 <div>
                   <strong>Single Crew</strong>
-                  <span>Current prototype mode for one trainee/operator at the OCC workstation.</span>
+                  <span>Current mode for one trainee/operator at the OCC workstation.</span>
                 </div>
                 <div>
                   <strong>Multi Crew</strong>

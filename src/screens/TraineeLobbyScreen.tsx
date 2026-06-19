@@ -28,7 +28,7 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
   const [name, setName] = useState('Trainee Controller')
   const [email, setEmail] = useState('trainee.controller@sbs.local')
   const [role, setRole] = useState<TraineeRole>('Traffic Controller')
-  const [joinNote, setJoinNote] = useState('Enter session details and join the mock training roster.')
+  const [joinNote, setJoinNote] = useState('Enter session details and join the training roster.')
   const selectedAssignment = roleMonitorMap[role]
 
   const joinSession = () => {
@@ -62,11 +62,11 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
 
   return (
     <main
-      className="prototype-tool-shell"
+      className="module-tool-shell"
       style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
     >
-      <header className="prototype-tool-header">
-        <div className="prototype-tool-brand">
+      <header className="module-tool-header">
+        <div className="module-tool-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
             <p>Trainee Access</p>
@@ -74,7 +74,7 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
             <span>{sessionCode} | {session.trainingMode}</span>
           </div>
         </div>
-        <div className="prototype-tool-actions">
+        <div className="module-tool-actions">
           <button type="button" onClick={() => onNavigate('/ios/modules')}>IOS Modules</button>
           <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario Builder</button>
           <button type="button" onClick={() => onNavigate(selectedAssignment.route)}>Open Assigned Screen</button>
@@ -88,8 +88,8 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
           <p className="module-eyebrow">Join Session</p>
           <h2>{session.activeScenario.title}</h2>
           <p className="module-copy">
-            Prototype lobby for showing session enrolment, role assignment, and
-            future multi-crew provisioning without real multiplayer infrastructure.
+            Session lobby for showing session enrolment, role assignment, and
+            future multi-crew provisioning.
           </p>
 
           <div className="lobby-form-grid">

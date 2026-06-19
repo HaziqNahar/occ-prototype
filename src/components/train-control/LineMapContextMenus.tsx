@@ -9,6 +9,7 @@ type SignalContextMenuProps = {
   onDefineRoute: () => void
   onOpenDetails: () => void
   onOpenInspector: () => void
+  routeAvailable?: boolean
   title: string
   x: number
   y: number
@@ -19,6 +20,7 @@ export function SignalContextMenu({
   onDefineRoute,
   onOpenDetails,
   onOpenInspector,
+  routeAvailable = true,
   title,
   x,
   y,
@@ -39,7 +41,7 @@ export function SignalContextMenu({
         <span>Open details...</span>
         <span>&gt;</span>
       </button>
-      <button className="has-divider" type="button" onClick={onDefineRoute}>Define Route</button>
+      <button className="has-divider" disabled={!routeAvailable} type="button" onClick={onDefineRoute}>Define Route</button>
       <button type="button" onClick={onClose}>Define Beginning of Route</button>
       <button className="has-divider" type="button" onClick={onClose}>Work request</button>
     </div>
@@ -102,7 +104,7 @@ export function TrainAuxiliaryPanel({
     'pec-reset': {
       title: `PEC Reset: ${trainRef}`,
       heading: 'PEC Reset All',
-      status: 'PEC reset request prepared. No reset applied in prototype.',
+      status: 'PEC reset request prepared. No reset applied.',
       rows: [
         ['Equipment', trainRef],
         ['Command', 'PEC RESET ALL'],

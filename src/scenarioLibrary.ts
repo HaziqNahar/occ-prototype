@@ -1,4 +1,4 @@
-export type PrototypeScenario = {
+export type ScenarioTemplate = {
   affectedMonitors: string[]
   duration: string
   expectedSteps: string[]
@@ -6,7 +6,7 @@ export type PrototypeScenario = {
   incidents: string[]
   objective: string
   passCondition: string
-  status: 'Active Prototype' | 'Prepared Template' | 'Future Template'
+  status: 'Active' | 'Prepared' | 'Future'
   target: string
   title: string
 }
@@ -18,7 +18,7 @@ export type AssessmentCriterion = {
   weight: number
 }
 
-export const prototypeScenarios: PrototypeScenario[] = [
+export const scenarioTemplates: ScenarioTemplate[] = [
   {
     affectedMonitors: ['Alarms', 'Line Map', 'Timetable', 'IOS'],
     duration: '05:00',
@@ -33,7 +33,7 @@ export const prototypeScenarios: PrototypeScenario[] = [
     incidents: ['Door fault', 'Train hold', 'Timetable deviation'],
     objective: 'Handle a controlled train launch / withdrawal drill across all three OCC monitors.',
     passCondition: 'All required steps complete with no unresolved rejected action.',
-    status: 'Active Prototype',
+    status: 'Active',
     target: 'Train 317 at SKG/BGK section',
     title: 'Train Launch / Withdrawal',
   },
@@ -50,7 +50,7 @@ export const prototypeScenarios: PrototypeScenario[] = [
     incidents: ['High train occupancy', 'Station coordination', 'Service regulation'],
     objective: 'Practice controller decision-making for crowded train and station loading response.',
     passCondition: 'Correct service regulation action selected and timetable impact explained.',
-    status: 'Prepared Template',
+    status: 'Prepared',
     target: 'Train service at SKG / PGL',
     title: 'High Train Occupancy',
   },
@@ -67,7 +67,7 @@ export const prototypeScenarios: PrototypeScenario[] = [
     incidents: ['Train system malfunction', 'Recovery command', 'Engineering escalation'],
     objective: 'Train the operator to classify a train fault and coordinate recovery safely.',
     passCondition: 'Train isolated, correct recovery action selected, escalation recorded.',
-    status: 'Prepared Template',
+    status: 'Prepared',
     target: 'Faulted train on mainline',
     title: 'Train System Malfunction',
   },
@@ -84,7 +84,7 @@ export const prototypeScenarios: PrototypeScenario[] = [
     incidents: ['PA system malfunction', 'Passenger information failure'],
     objective: 'Assess whether trainee can manage communications-related incident flow.',
     passCondition: 'Alarm acknowledged and passenger communication mitigation recorded.',
-    status: 'Prepared Template',
+    status: 'Prepared',
     target: 'Station/train PA subsystem',
     title: 'PA System Malfunction',
   },
@@ -99,9 +99,9 @@ export const prototypeScenarios: PrototypeScenario[] = [
     ],
     id: 'train-insertion',
     incidents: ['Insertion of train', 'Route allocation', 'Headway adjustment'],
-    objective: 'Demonstrate train insertion procedure and timetable coordination.',
+    objective: 'Practice train insertion procedure and timetable coordination.',
     passCondition: 'Inserted train is dispatched without unresolved route conflict.',
-    status: 'Future Template',
+    status: 'Future',
     target: 'Additional train from depot/mainline',
     title: 'Insertion of Train',
   },

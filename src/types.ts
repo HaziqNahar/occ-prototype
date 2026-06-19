@@ -9,7 +9,6 @@ export type AppRoute =
   | '/ios/scenarios'
   | '/ios/assessment'
   | '/session/join'
-  | '/guide'
   | '/report'
 
 export type ScreenRole = {
@@ -64,9 +63,11 @@ export type TrainState = {
   status: TrainStatus
   service: string
   isMoving?: boolean
+  lineMapVisible?: boolean
   occupancySegmentId?: string
   readinessMode?: TrainReadinessMode
   scheduleNumber?: string
+  timetablePlayback?: boolean
   trainNumber?: string
   itamaAuthorisedPreparationConfirmed?: boolean
   itamaGranted?: boolean
@@ -101,6 +102,7 @@ export type TimetableRow = {
   sched: string
   originPoint: string
   originTime: string
+  selectedStation?: string
   stationPoint: string
   stationTime: string
   dwell: string

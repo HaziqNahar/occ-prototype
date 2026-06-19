@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import { scenarioTaskList } from '../scenario'
 import type { AppRoute, OccSessionState } from '../types'
 
 type MonitorWorkspaceProps = {
@@ -20,7 +19,6 @@ function MonitorWorkspace({
   monitorLabel,
   onNavigate,
   scadaFirst = false,
-  session,
   title,
 }: MonitorWorkspaceProps) {
   const [isMaximized, setIsMaximized] = useState(false)
@@ -45,12 +43,9 @@ function MonitorWorkspace({
           <button type="button" onClick={() => onNavigate('/session/join')}>Trainee Lobby</button>
           <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario Builder</button>
           <button type="button" onClick={() => onNavigate('/ios/assessment')}>Rubric</button>
-          <button type="button" onClick={() => onNavigate('/guide')}>Demo Guide</button>
           <button type="button" onClick={() => onNavigate('/')}>Back to Launch</button>
         </div>
       </header>
-
-      {session && !scadaFirst ? <MonitorDemoStrip onNavigate={onNavigate} session={session} /> : null}
 
       <section className="occ-monitor-frame" aria-label="Line map monitor frame">
         <div className={`win98-window ${isMaximized ? 'is-maximized' : ''}`} role="group" aria-label={`${title} Windows 98 SCADA window`}>
@@ -72,7 +67,7 @@ function MonitorWorkspace({
                 title={isMaximized ? 'Restore size' : 'Maximize window'}
                 onClick={() => {
                   setIsMaximized((value) => !value)
-                  setWindowNote(isMaximized ? 'Window restored to training frame' : 'Window maximized inside prototype shell')
+                  setWindowNote(isMaximized ? 'Window restored to training frame' : 'Window maximized inside OCC shell')
                 }}
               >
                 []
@@ -105,50 +100,6 @@ function MonitorWorkspace({
         </div>
       </section>
     </main>
-  )
-}
-
-function MonitorDemoStrip({
-  onNavigate,
-  session,
-}: {
-  onNavigate: (route: AppRoute) => void
-  session: OccSessionState
-}) {
-  const completedTasks = scenarioTaskList.filter((task) => session.scenarioTasks[task.id]).length
-  const nextTask = scenarioTaskList.find((task) => !session.scenarioTasks[task.id])
-  const progress = Math.round((completedTasks / scenarioTaskList.length) * 100)
-  const latestEvidence = session.evidenceLog[0]
-
-  return (
-    <aside className={`monitor-demo-strip monitor-demo-strip--${session.scenarioNotice.tone}`} aria-label="Demo scenario status">
-      <div className="monitor-demo-strip__item">
-        <span>Scenario</span>
-        <strong>{session.activeScenario.title}</strong>
-      </div>
-      <div className="monitor-demo-strip__item">
-        <span>Mode</span>
-        <strong>{session.trainingMode} / {session.scenarioMode}</strong>
-      </div>
-      <div className="monitor-demo-strip__item monitor-demo-strip__item--wide">
-        <span>Next Action</span>
-        <strong>{nextTask ? `${nextTask.label} · ${nextTask.monitor}` : 'Scenario evidence ready for report'}</strong>
-      </div>
-      <div className="monitor-demo-strip__progress" aria-label={`Scenario progress ${completedTasks} of ${scenarioTaskList.length}`}>
-        <span>{completedTasks}/{scenarioTaskList.length}</span>
-        <div>
-          <i style={{ width: `${progress}%` }} />
-        </div>
-      </div>
-      <div className="monitor-demo-strip__notice">
-        <span>{session.scenarioNotice.text}</span>
-        {latestEvidence ? <small>{latestEvidence.time} · {latestEvidence.source}: {latestEvidence.action}</small> : null}
-      </div>
-      <div className="monitor-demo-strip__actions">
-        <button type="button" onClick={() => onNavigate('/ios')}>Open IOS</button>
-        <button type="button" onClick={() => onNavigate('/report')}>Report</button>
-      </div>
-    </aside>
   )
 }
 

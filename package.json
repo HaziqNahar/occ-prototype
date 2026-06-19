@@ -1,5 +1,5 @@
 {
-  "name": "occ-prototype",
+  "name": "occ-training-simulator",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node scripts/run-tests.mjs",
+    "reset:runtime": "node scripts/reset-runtime-state.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

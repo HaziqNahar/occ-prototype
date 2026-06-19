@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -10,7 +10,7 @@ import ScadaFooter from '../../components/ScadaFooter'
 import {
   MAP_PAN_MAX,
   MAP_PAN_STEP,
-  LINE_SECTION_OFFSETS,
+  MAP_SECTION_OFFSETS,
   MAP_WORLD_WIDTH,
   MONITOR_HEIGHT,
   MONITOR_WIDTH,
@@ -30,7 +30,6 @@ import {
   shapedUpperTrackPieces,
   stationRibbonItems,
   staticTrackBoundaries,
-  staticTrackLabels,
   staticTrackPaths,
   staticTrackPieces,
   translucentTrackGuides,
@@ -42,6 +41,28 @@ import {
   lowerTrackEdgeStrips,
 } from './model'
 import type { LineMapSignalData } from './model'
+import {
+  getBranchGuideRailId,
+  getRailSection,
+  getRouteSegmentRailId,
+  getRouteSegmentRailPartId,
+  getShapedTrackRailId,
+  getStaticTrackPathRailId,
+  getStaticTrackPieceRailId,
+  getTrackGuideRailId,
+  getTrackGuideRouteRailId,
+  getTrackPieceRailId,
+  normalizeRailLabel,
+} from './railIds'
+import {
+  DEFAULT_RAIL_VISUAL_PAINT,
+  getBlockedStraightRailPaint,
+  isRouteRailDisplaySuppressed,
+  resolveRailVisualPaint,
+  resolveRouteRailVisualPaint,
+} from './railVisualState'
+import { getLineMapBaseRailVisualState } from './lineMapBaseRailVisualState'
+import { getSignalRouteLampTone } from './signalRouteState'
 import type { AppRoute, LineMapRuntimeState, RouteControlMode, TrainCommand, TrainState } from '../../types'
 
 const BODY_TOP = 172
@@ -49,129 +70,14 @@ const MAIN_UPPER_TRACK_Y = 215
 const MAIN_LOWER_TRACK_Y = 455
 const LEFT_STRIP_OFFSET = 8.5
 const LEFT_STRIP_WIDTH = 3
+const MAP_ARROW_TRAIN_DIRECTION_RADIUS = 120
+const TRAIN_MARKER_SAME_RAIL_STACK_STEP_PX = 28
 const TRACK_Y_BY_SECTION = [
-  { start: LINE_SECTION_OFFSETS.line01, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
-  { start: LINE_SECTION_OFFSETS.line02, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
-  { start: LINE_SECTION_OFFSETS.line03, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
-  { start: LINE_SECTION_OFFSETS.line04, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
+  { start: MAP_SECTION_OFFSETS.section01, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
+  { start: MAP_SECTION_OFFSETS.section02, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
+  { start: MAP_SECTION_OFFSETS.section03, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
+  { start: MAP_SECTION_OFFSETS.section04, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
 ] as const
-
-const TRACK_GUIDE_RAIL_IDS: Record<string, readonly string[]> = {
-  'hbf-102-to-103-guide': ['rail-P103'],
-  'hbf-110-to-109-guide': ['rail-P105', 'rail-P102'],
-  'hbf-204-to-205-guide': ['rail-P201', 'rail-P200'],
-  'frp-p301-p300-guide': ['rail-P301', 'rail-P300'],
-  'frp-p304-p302-guide': ['rail-P304', 'rail-P302'],
-  'frp-p305-p303-guide': ['rail-P305', 'rail-P303'],
-  'frp-p307-p306-guide': ['rail-P307', 'rail-P306'],
-  'bgk-p611-p609-guide': ['rail-P611', 'rail-P609'],
-  'wlh-p401-p400-guide': ['rail-P401', 'rail-P400'],
-  'wlh-p403-p402-guide': ['rail-P403', 'rail-P402'],
-  'pgl-p701-p700-guide': ['rail-P701', 'rail-P700'],
-  'pgl-p703-p702-guide': ['rail-P703', 'rail-P702'],
-  'pgc-1105-to-1106-guide': ['rail-1105-1106-guide'],
-  'pgc-1107-to-1104-guide': ['rail-1107-to-1115-background', 'rail-1115', 'rail-1115-to-1104-background'],
-  'pgc-p1100-to-1115-guide': ['rail-P1100'],
-  'pgc-p1101-to-1115-guide': ['rail-P1101'],
-  'pgc-p1102-to-1115-guide': ['rail-P1102'],
-  'pgc-p1103-to-1115-guide': ['rail-P1103'],
-  'skg-605-to-604-lower-guide': ['rail-P600'],
-  'skg-605-to-604-upper-guide': ['rail-P601', 'rail-P601-2'],
-  'skg-613-to-614-guide': ['rail-P613'],
-  'skg-p606-guide': ['rail-P606'],
-  'skg-p608-guide': ['rail-P608'],
-  'skg-p610-guide': ['rail-P610'],
-  'skg-p615-guide': ['rail-P615'],
-}
-
-const TRACK_GUIDE_ROUTE_RAIL_IDS: Record<string, string> = {
-  'rail-P601-2': 'rail-P601',
-}
-
-const ROUTE_SEGMENT_RAIL_IDS: Record<string, string> = {
-  'bgk-651': 'rail-651',
-  'bgk-p602': 'rail-P602',
-  'bgk-p603': 'rail-P603',
-  'bgk-rt1': 'rail-RT1',
-  'bgk-rt2': 'rail-650',
-  'bgk-rt2-652': 'rail-652',
-  'bgk-rt3': 'rail-RT3',
-  'bgk-rt3-661': 'rail-661',
-  'line02-middle-turnback': 'rail-middle-turnback',
-}
-
-const S610_SIGNAL_ROUTE_RAIL_IDS = [
-  'rail-652',
-  'rail-650',
-  'rail-P606',
-  'rail-614',
-  'rail-P610',
-  'rail-P615',
-  'rail-617',
-  'rail-619',
-  'rail-621',
-  'rail-705',
-  'rail-701',
-  'rail-703',
-] as const
-
-const S608_SIGNAL_ROUTE_RAIL_IDS = [
-  'rail-618',
-  'rail-616',
-  'rail-614',
-  'rail-P606',
-  'rail-650',
-  'rail-652',
-] as const
-
-const S700_SIGNAL_ROUTE_RAIL_IDS = [
-  'rail-710',
-  'rail-708',
-  'rail-706',
-  'rail-704',
-  'rail-702',
-  'rail-700',
-  'rail-622',
-  'rail-620',
-] as const
-
-const S704_SIGNAL_ROUTE_RAIL_IDS = [
-  'rail-712',
-  'rail-710',
-] as const
-
-const S1104_SIGNAL_ROUTE_RAIL_IDS = [
-  'rail-1109',
-  'rail-P1103',
-  'rail-1115',
-  'rail-P1100',
-  'rail-1102',
-  'rail-716',
-  'rail-714',
-] as const
-
-const ROUTE_SEGMENT_RAIL_PART_IDS: Record<string, readonly string[]> = {
-  'line02-middle-turnback': ['rail-314', 'rail-318', 'rail-320'],
-  'bgk-rt1': ['rail-655', 'rail-653'],
-  'wlh-turnback': ['rail-416', 'rail-418', 'rail-420'],
-}
-
-const SHAPED_TRACK_RAIL_IDS: Record<string, string> = {
-  'bgk-rt2-right-edge': 'rail-RT2-edge',
-  'bgk-rt1-left-edge': 'rail-RT1',
-  'bgk-rt1-right-edge': 'rail-611',
-}
-
-const STATIC_TRACK_PIECE_RAIL_IDS: Record<string, string> = {
-  'hbf-p101-approach-100': 'rail-100',
-  'hbf-p101-approach-102': 'rail-102',
-}
-
-const STATIC_TRACK_PATH_RAIL_IDS: Record<string, string> = {
-  'hbf-p101-track-102': 'rail-102',
-  'hbf-p101-track-106': 'rail-106',
-}
-
 type LineMapMonitorDomProps = {
   children?: ReactNode
   lineMap: LineMapRuntimeState
@@ -187,12 +93,13 @@ type LineMapMonitorDomProps = {
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void
   onToggleRouteControlMode: (panelCode: string) => void
-  onToggleCycle: () => void
   onWheel: (event: ReactWheelEvent<HTMLDivElement>) => void
   panX: number
+  routeAutomationStatus: string
   routeControlModes: Record<string, RouteControlMode>
   selectedTrain?: TrainState
   selectedTrainId: string
+  trainOccupancyRouteSegments?: LineMapRuntimeState['routeSegments']
   trains: TrainState[]
 }
 
@@ -208,148 +115,148 @@ function getTrackY(x: number, line: 'lower' | 'upper') {
 
 type SchematicAnnotation = (typeof schematicAnnotations)[number]
 
-const LINE02_PRE_JOIN_START = MONITOR_WIDTH
-const LINE03_PRE_JOIN_START = LINE_SECTION_OFFSETS.line03 + 70
+const section02_PRE_JOIN_START = MONITOR_WIDTH
+const section03_PRE_JOIN_START = MAP_SECTION_OFFSETS.section03 + 70
 
 const seamRouteNumberOverlaps = [
   {
     label: '309',
-    nextX: LINE_SECTION_OFFSETS.line02 + 14,
-    nextStart: LINE02_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line02 - 80,
+    nextX: MAP_SECTION_OFFSETS.section02 + 14,
+    nextStart: section02_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section02 - 80,
     y: 211,
   },
   {
     label: '311',
-    nextX: LINE_SECTION_OFFSETS.line02 + 58,
-    nextStart: LINE02_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line02 - 80,
+    nextX: MAP_SECTION_OFFSETS.section02 + 58,
+    nextStart: section02_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section02 - 80,
     y: 211,
   },
   {
     label: '308',
-    nextX: LINE_SECTION_OFFSETS.line02 + 14,
-    nextStart: LINE02_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line02 - 80,
+    nextX: MAP_SECTION_OFFSETS.section02 + 14,
+    nextStart: section02_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section02 - 80,
     y: 478,
   },
   {
     label: '310',
-    nextX: LINE_SECTION_OFFSETS.line02 + 58,
-    nextStart: LINE02_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line02 - 80,
+    nextX: MAP_SECTION_OFFSETS.section02 + 58,
+    nextStart: section02_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section02 - 80,
     y: 478,
   },
   {
     label: '501',
-    nextX: LINE_SECTION_OFFSETS.line03 + 2,
-    nextStart: LINE03_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line03 - 80,
+    nextX: MAP_SECTION_OFFSETS.section03 + 2,
+    nextStart: section03_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section03 - 80,
     y: 211,
   },
   {
     label: '503',
-    nextX: LINE_SECTION_OFFSETS.line03 + 34,
-    nextStart: LINE03_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line03 - 80,
+    nextX: MAP_SECTION_OFFSETS.section03 + 34,
+    nextStart: section03_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section03 - 80,
     y: 211,
   },
   {
     label: '505',
-    nextX: LINE_SECTION_OFFSETS.line03 + 82,
-    nextStart: LINE03_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line03 - 80,
+    nextX: MAP_SECTION_OFFSETS.section03 + 82,
+    nextStart: section03_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section03 - 80,
     y: 211,
   },
   {
     label: '500',
-    nextX: LINE_SECTION_OFFSETS.line03 + 32,
-    nextStart: LINE03_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line03 - 80,
+    nextX: MAP_SECTION_OFFSETS.section03 + 32,
+    nextStart: section03_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section03 - 80,
     y: 478,
   },
   {
     label: '502',
-    nextX: LINE_SECTION_OFFSETS.line03 + 76,
-    nextStart: LINE03_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line03 - 80,
+    nextX: MAP_SECTION_OFFSETS.section03 + 76,
+    nextStart: section03_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section03 - 80,
     y: 478,
   },
   {
     label: '504',
-    nextX: LINE_SECTION_OFFSETS.line03 + 121,
-    nextStart: LINE03_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line03 - 80,
+    nextX: MAP_SECTION_OFFSETS.section03 + 121,
+    nextStart: section03_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section03 - 80,
     y: 478,
   },
   {
     label: '613',
-    nextX: LINE_SECTION_OFFSETS.line04 + 42,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 300,
+    nextX: MAP_SECTION_OFFSETS.section04 + 42,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 300,
     y: 211,
   },
   {
     label: '615',
-    nextX: LINE_SECTION_OFFSETS.line04 + 106,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 300,
+    nextX: MAP_SECTION_OFFSETS.section04 + 106,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 300,
     y: 211,
   },
   {
     label: '617',
-    nextX: LINE_SECTION_OFFSETS.line04 + 176,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 300,
+    nextX: MAP_SECTION_OFFSETS.section04 + 176,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 300,
     y: 211,
   },
   {
     label: '619',
-    nextX: LINE_SECTION_OFFSETS.line04 + 236,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 300,
+    nextX: MAP_SECTION_OFFSETS.section04 + 236,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 300,
     y: 211,
   },
   {
     label: '621',
-    nextX: LINE_SECTION_OFFSETS.line04 + 304,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 300,
+    nextX: MAP_SECTION_OFFSETS.section04 + 304,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 300,
     y: 211,
   },
   {
     label: '614',
-    nextX: LINE_SECTION_OFFSETS.line04 + 42,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 360,
+    nextX: MAP_SECTION_OFFSETS.section04 + 42,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 360,
     y: 478,
   },
   {
     label: '616',
-    nextX: LINE_SECTION_OFFSETS.line04 + 116,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 360,
+    nextX: MAP_SECTION_OFFSETS.section04 + 116,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 360,
     y: 478,
   },
   {
     label: '618',
-    nextX: LINE_SECTION_OFFSETS.line04 + 190,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 360,
+    nextX: MAP_SECTION_OFFSETS.section04 + 190,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 360,
     y: 478,
   },
   {
     label: '620',
-    nextX: LINE_SECTION_OFFSETS.line04 + 246,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 360,
+    nextX: MAP_SECTION_OFFSETS.section04 + 246,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 360,
     y: 478,
   },
   {
     label: '622',
-    nextX: LINE_SECTION_OFFSETS.line04 + 308,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 360,
+    nextX: MAP_SECTION_OFFSETS.section04 + 308,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 360,
     y: 478,
   },
 ] as const
@@ -357,26 +264,29 @@ const seamRouteNumberOverlaps = [
 const seamSignalOverlaps = [
   {
     labels: ['S309', 'S310'],
-    nextFirstX: LINE_SECTION_OFFSETS.line02 + 30,
-    nextStart: LINE02_PRE_JOIN_START,
-    previousMinX: LINE_SECTION_OFFSETS.line02 - 80,
+    nextFirstX: MAP_SECTION_OFFSETS.section02 + 30,
+    nextStart: section02_PRE_JOIN_START,
+    previousMinX: MAP_SECTION_OFFSETS.section02 - 80,
   },
   {
     labels: ['S617', 'S619'],
-    nextFirstX: LINE_SECTION_OFFSETS.line04 + 126,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 220,
+    nextFirstX: MAP_SECTION_OFFSETS.section04 + 126,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 220,
   },
   {
     labels: ['S608', 'S610'],
-    nextFirstX: LINE_SECTION_OFFSETS.line04 + 176,
-    nextStart: LINE_SECTION_OFFSETS.line04,
-    previousMinX: LINE_SECTION_OFFSETS.line04 - 140,
+    nextFirstX: MAP_SECTION_OFFSETS.section04 + 176,
+    nextStart: MAP_SECTION_OFFSETS.section04,
+    previousMinX: MAP_SECTION_OFFSETS.section04 - 140,
   },
 ] as const
 
 function isRouteNumberAnnotation(annotation: SchematicAnnotation) {
-  return !('tone' in annotation) && !('rotate' in annotation) && (annotation.y === 211 || annotation.y === 478)
+  return (
+    ('routeNumber' in annotation && annotation.routeNumber)
+    || (!('tone' in annotation) && !('rotate' in annotation) && (annotation.y === 211 || annotation.y === 478))
+  )
 }
 
 function shouldHideSeamRouteNumber(annotation: SchematicAnnotation, panX: number) {
@@ -394,7 +304,7 @@ function shouldHideSeamRouteNumber(annotation: SchematicAnnotation, panX: number
     const numberLabel = Number.parseInt(label, 10)
     const preferLeftSegment = Number.isFinite(numberLabel) && numberLabel >= 500
 
-    if (overlap.nextStart === LINE02_PRE_JOIN_START) {
+    if (overlap.nextStart === section02_PRE_JOIN_START) {
       return (
         Math.abs(annotation.x - overlap.nextX) > 0.5
         && annotation.x >= overlap.previousMinX
@@ -445,6 +355,10 @@ function getAnnotationTop(annotation: SchematicAnnotation) {
     return annotation.y
   }
 
+  if ('routeNumber' in annotation && annotation.routeNumber) {
+    return annotation.y
+  }
+
   if (annotation.y === 211) {
     const top = getTrackY(annotation.x, 'upper') - 15
 
@@ -469,12 +383,13 @@ export default function LineMapMonitorDom({
   onPointerMove,
   onPointerUp,
   onToggleRouteControlMode,
-  onToggleCycle,
   onWheel,
   panX,
+  routeAutomationStatus,
   routeControlModes,
   selectedTrain,
   selectedTrainId,
+  trainOccupancyRouteSegments = {},
   trains,
 }: LineMapMonitorDomProps) {
   const [scale, setScale] = useState(1)
@@ -547,8 +462,8 @@ export default function LineMapMonitorDom({
     '--line-map-scale': String(scale),
     '--line-map-pan': `${Math.round(panX)}px`,
   } as CSSProperties
-  const upperTrainReferenceTop = (trains.find((train) => train.id === '047')?.y ?? 205) - 44
-
+  const visibleTrains = trains.filter((train) => train.lineMapVisible !== false)
+  const trainMarkerOffsets = createTrainMarkerOffsets(visibleTrains)
   return (
     <div
       aria-label="OCC line map monitor"
@@ -574,12 +489,15 @@ export default function LineMapMonitorDom({
               onOpenSignalMenu={openSignalMenuAtPointer}
               panX={panX}
               routeControlModes={routeControlModes}
+              trainOccupancyRouteSegments={trainOccupancyRouteSegments}
               onToggleRouteControlMode={onToggleRouteControlMode}
-              onToggleCycle={onToggleCycle}
+              trains={visibleTrains}
             />
-            {trains.map((train) => (
+            <div className="line-map-route-automation-status">{routeAutomationStatus}</div>
+            {visibleTrains.map((train) => (
               <TrainHotspot
                 key={train.id}
+                markerOffset={trainMarkerOffsets.get(train.id)}
                 onContextMenu={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -592,7 +510,6 @@ export default function LineMapMonitorDom({
                 }}
                 selected={train.id === selectedTrainId}
                 train={train}
-                upperTrainReferenceTop={upperTrainReferenceTop}
               />
             ))}
           </div>
@@ -699,23 +616,25 @@ function LineMapSchematicBase({
   onOpenSignalMenu,
   panX,
   routeControlModes,
+  trainOccupancyRouteSegments,
   onToggleRouteControlMode,
-  onToggleCycle,
+  trains,
 }: {
   lineMap: LineMapRuntimeState
   onCommand: (command: TrainCommand) => void
   onOpenSignalMenu: (event: ReactMouseEvent<HTMLElement>, signal: LineMapSignalData) => void
   panX: number
   routeControlModes: Record<string, RouteControlMode>
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
   onToggleRouteControlMode: (panelCode: string) => void
-  onToggleCycle: () => void
+  trains: readonly TrainState[]
 }) {
   return (
     <div className="line-map-schematic-base">
       {sectionDividers.map((x) => <span className="line-map-section-divider" key={x} style={{ left: x }} />)}
       {mapTitleData.map((title) => <MapTitle key={`${title.x}-${title.y}`} title={title} />)}
       {branchData.map((x) => <BranchGuide key={x} x={x} />)}
-      <TranslucentTrackGuides lineMap={lineMap} />
+      <TranslucentTrackGuides lineMap={lineMap} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       {staticTrackPieces.map((piece) => (
         <StaticTrackPiece key={piece.id} piece={piece} />
       ))}
@@ -723,49 +642,40 @@ function LineMapSchematicBase({
       {staticTrackBoundaries.map((boundary) => (
         <StaticTrackBoundary boundary={boundary} key={boundary.id} />
       ))}
-      {staticTrackLabels.map((label) => (
-        <span
-          className="line-map-annotation line-map-annotation--route-number line-map-static-track-label"
-          key={`${label.x}-${label.y}-${label.label}`}
-          style={{ left: label.x, top: label.y }}
-        >
-          {label.label}
-        </span>
-      ))}
       {routeSegmentData.filter((segment) => segment.id === 'bgk-p603').map((segment) => (
-        <RouteSegmentBase bodyOnly key={segment.id} lineMap={lineMap} segment={segment} state={getRouteSegmentState(segment, lineMap)} />
+        <RouteSegmentBase bodyOnly key={segment.id} lineMap={lineMap} segment={segment} state={getRouteSegmentState(segment, lineMap)} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       ))}
       {routeSegmentData.filter((segment) => (
-        segment.id === 'line02-middle-turnback'
+        segment.id === 'section02-middle-turnback'
         || segment.id === 'wlh-turnback'
         || segment.id === 'bgk-rt1'
         || segment.id === 'bgk-651'
       )).map((segment) => (
-        <RouteSegmentBase key={segment.id} lineMap={lineMap} segment={segment} state={getRouteSegmentState(segment, lineMap)} />
+        <RouteSegmentBase key={segment.id} lineMap={lineMap} segment={segment} state={getRouteSegmentState(segment, lineMap)} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       ))}
       {upperTrackPieces.map((piece, index) => (
-        <TrackPiece key={`upper-${index}`} lineMap={lineMap} piece={piece} track="upper" y={getTrackY(piece.x, 'upper')} />
+        <TrackPiece key={`upper-${index}`} lineMap={lineMap} piece={piece} track="upper" trainOccupancyRouteSegments={trainOccupancyRouteSegments} y={getTrackY(piece.x, 'upper')} />
       ))}
       <ShapedUpperTrackPieces />
       <UpperTrackCrossingMasks />
       <UpperTrackEdgeStrips />
       {lowerTrackPieces.map((piece, index) => (
-        <TrackPiece key={`lower-${index}`} lineMap={lineMap} piece={piece} track="lower" y={getTrackY(piece.x, 'lower')} />
+        <TrackPiece key={`lower-${index}`} lineMap={lineMap} piece={piece} track="lower" trainOccupancyRouteSegments={trainOccupancyRouteSegments} y={getTrackY(piece.x, 'lower')} />
       ))}
       <LowerTrackEdgeStrips />
-      <OverlayTrackGuides lineMap={lineMap} />
+      <OverlayTrackGuides lineMap={lineMap} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       {routeSegmentData.filter((segment) => (
         segment.id !== 'bgk-p603'
-        && segment.id !== 'line02-middle-turnback'
+        && segment.id !== 'section02-middle-turnback'
         && segment.id !== 'wlh-turnback'
         && segment.id !== 'bgk-rt1'
         && segment.id !== 'bgk-651'
       )).map((segment) => (
-        <RouteSegmentBase key={segment.id} lineMap={lineMap} segment={segment} state={getRouteSegmentState(segment, lineMap)} />
+        <RouteSegmentBase key={segment.id} lineMap={lineMap} segment={segment} state={getRouteSegmentState(segment, lineMap)} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       ))}
       {atcData.map((atc) => <AtcPanel key={atc.label} atc={atc} />)}
       {cycleData.map((cycle) => (
-        <CycleControl key={`${cycle.x}-${cycle.y}`} onToggleCycle={onToggleCycle} x={cycle.x} y={cycle.y} />
+        <CycleControl key={`${cycle.x}-${cycle.y}`} x={cycle.x} y={cycle.y} />
       ))}
       {platformData.map((platform) => <PlatformPanel key={platform.code} platform={platform} />)}
       {commandData.map((command) => (
@@ -857,15 +767,19 @@ function LineMapSchematicBase({
           </span>
         )
       })}
-      {mapArrowData.map((arrow, index) => (
-        <MapArrow
-          direction={arrow.direction}
-          key={`${arrow.direction}-${arrow.x}-${index}`}
-          tone={arrow.tone}
-          x={arrow.x}
-          y={arrow.y}
-        />
-      ))}
+      {mapArrowData.map((arrow, index) => {
+        const arrowVisual = getMapArrowVisual(arrow, trains)
+
+        return (
+          <MapArrow
+            direction={arrowVisual.direction}
+            key={`${arrow.direction}-${arrow.x}-${index}`}
+            tone={arrowVisual.tone}
+            x={arrow.x}
+            y={arrow.y}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -895,26 +809,40 @@ function BranchGuide({ x }: { x: number }) {
   )
 }
 
-function TranslucentTrackGuides({ lineMap }: { lineMap: LineMapRuntimeState }) {
+function TranslucentTrackGuides({
+  lineMap,
+  trainOccupancyRouteSegments,
+}: {
+  lineMap: LineMapRuntimeState
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
+}) {
   const guides = translucentTrackGuides.filter((guide) => !isOverlayTrackGuide(guide))
 
-  return <TrackGuideSvg className="line-map-translucent-track-svg" guides={guides} lineMap={lineMap} />
+  return <TrackGuideSvg className="line-map-translucent-track-svg" guides={guides} lineMap={lineMap} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
 }
 
-function OverlayTrackGuides({ lineMap }: { lineMap: LineMapRuntimeState }) {
+function OverlayTrackGuides({
+  lineMap,
+  trainOccupancyRouteSegments,
+}: {
+  lineMap: LineMapRuntimeState
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
+}) {
   const guides = translucentTrackGuides.filter(isOverlayTrackGuide)
 
-  return <TrackGuideSvg className="line-map-track-overlay-svg" guides={guides} lineMap={lineMap} />
+  return <TrackGuideSvg className="line-map-track-overlay-svg" guides={guides} lineMap={lineMap} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
 }
 
 function TrackGuideSvg({
   className,
   guides,
   lineMap,
+  trainOccupancyRouteSegments,
 }: {
   className: string
   guides: readonly (typeof translucentTrackGuides)[number][]
   lineMap: LineMapRuntimeState
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
 }) {
   return (
     <svg
@@ -933,14 +861,14 @@ function TrackGuideSvg({
           const branchGuideRailIds = segments.map((_, index) => getTrackGuideRailId(guideId, index))
           const renderInactiveBranchLines = branchGuideRailIds.length > 0
             && branchGuideRailIds.every((railId) => railId.startsWith('rail-P'))
-            && branchGuideRailIds.every((railId) => !isTrackGuideRailActive(guide, railId, lineMap))
+            && branchGuideRailIds.every((railId) => !isTrackGuideRailActive(guide, railId, lineMap, trainOccupancyRouteSegments))
 
           return (
             <g data-guide-id={guideId} key={guideId} opacity={isOverlay ? undefined : 0.28}>
               {'overlayRects' in guide
                 ? (guide.overlayRects as readonly { x: number; y: number; width: number; height: number }[]).map((rect) => (
                   <rect
-                    fill={getTrackGuideBaseColor(guide)}
+                    fill={getTrackGuideBaseColor()}
                     height={rect.height}
                     key={`${rect.x}-${rect.y}`}
                     width={rect.width}
@@ -953,9 +881,9 @@ function TrackGuideSvg({
                 renderInactiveBranchLines ? (
                   segments.map((segment, index) => {
                     const railId = getTrackGuideRailId(guideId, index)
-                    const trackState = getTrackGuideRailState(railId, lineMap)
-                    const trackColor = getTrackGuideRailColor(guide, railId, lineMap)
-                    const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap)
+                    const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
+                    const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
+                    const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap, trainOccupancyRouteSegments)
 
                     return (
                       <g
@@ -981,9 +909,9 @@ function TrackGuideSvg({
                   })
                 ) : guide.segmentPolygons.map((piece, index) => {
                   const railId = getTrackGuideRailId(guideId, index)
-                  const trackState = getTrackGuideRailState(railId, lineMap)
-                  const trackColor = getTrackGuideRailColor(guide, railId, lineMap)
-                  const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap)
+                  const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
+                  const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
+                  const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap, trainOccupancyRouteSegments)
                   const key = 'pathD' in piece ? piece.pathD : piece.polygonPoints.map((point) => point.join(',')).join(' ')
                   const edgeNode = 'edgePolygons' in piece && piece.edgePolygons ? (
                     piece.edgePolygons.map((edgePolygon) => (
@@ -1042,7 +970,7 @@ function TrackGuideSvg({
                         <polygon
                           fill={trackColor}
                           opacity={trackOpacity}
-                          points={getTrackGuidePiecePolygonPoints(piece, guide, railId, lineMap).map((point) => point.join(',')).join(' ')}
+                          points={getTrackGuidePiecePolygonPoints(piece, guide, railId, lineMap, trainOccupancyRouteSegments).map((point) => point.join(',')).join(' ')}
                           shapeRendering="geometricPrecision"
                         />
                       )}
@@ -1059,9 +987,9 @@ function TrackGuideSvg({
               ) : (
                 segments.map((segment, index) => {
                   const railId = getTrackGuideRailId(guideId, index)
-                  const trackState = getTrackGuideRailState(railId, lineMap)
-                  const trackColor = getTrackGuideRailColor(guide, railId, lineMap)
-                  const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap)
+                  const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
+                  const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
+                  const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap, trainOccupancyRouteSegments)
 
                   return (
                     <g
@@ -1091,8 +1019,8 @@ function TrackGuideSvg({
         }
 
         const railId = getTrackGuideRailId(guideId)
-        const trackState = getTrackGuideRailState(railId, lineMap)
-        const trackColor = getTrackGuideRailColor(guide, railId, lineMap)
+        const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
+        const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
 
         return (
           <g
@@ -1134,11 +1062,12 @@ function getTrackGuidePiecePolygonPoints(
   guide: (typeof translucentTrackGuides)[number],
   railId: string,
   lineMap: LineMapRuntimeState,
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
 ) {
   if (
     piece.inactivePolygonPoints
     && railId === 'rail-P608'
-    && !isTrackGuideRailActive(guide, railId, lineMap)
+    && !isTrackGuideRailActive(guide, railId, lineMap, trainOccupancyRouteSegments)
   ) {
     return piece.inactivePolygonPoints
   }
@@ -1147,20 +1076,26 @@ function getTrackGuidePiecePolygonPoints(
 }
 
 function isTrackGuideRailActive(
-  _guide: (typeof translucentTrackGuides)[number],
+  guide: (typeof translucentTrackGuides)[number],
   railId: string,
   lineMap: LineMapRuntimeState,
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
 ) {
-  return Boolean(getTrackGuideRailState(railId, lineMap))
+  return Boolean(getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments))
 }
 
 function getTrackGuideRailState(
+  guide: (typeof translucentTrackGuides)[number],
   railId: string,
   lineMap: LineMapRuntimeState,
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
 ) {
-  const routeRailId = TRACK_GUIDE_ROUTE_RAIL_IDS[railId] ?? railId
-
-  return lineMap.routeSegments[routeRailId]
+  return getTrackGuideRailVisualPaint(
+    guide,
+    railId,
+    lineMap,
+    trainOccupancyRouteSegments,
+  ).displayState
 }
 
 function isOverlayTrackGuide(guide: (typeof translucentTrackGuides)[number]) {
@@ -1169,67 +1104,47 @@ function isOverlayTrackGuide(guide: (typeof translucentTrackGuides)[number]) {
   return tone === 'yellow' || tone === 'white' || tone === 'red' || tone === 'grey'
 }
 
-function getTrackGuideRailId(guideId: string, index?: number) {
-  const mappedIds = TRACK_GUIDE_RAIL_IDS[guideId]
-
-  if (typeof index === 'number') {
-    return mappedIds?.[index] ?? `rail-${normalizeRailLabel(guideId)}-${index + 1}`
-  }
-
-  return mappedIds?.[0] ?? `rail-${normalizeRailLabel(guideId)}`
-}
-
 function getTrackGuideRailColor(
-  _guide: (typeof translucentTrackGuides)[number],
+  guide: (typeof translucentTrackGuides)[number],
   railId: string,
   lineMap: LineMapRuntimeState,
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
 ) {
-  const state = getTrackGuideRailState(railId, lineMap)
-
-  if (state) {
-    return getRouteSegmentPaint(state).color
-  }
-
-  return '#63869a'
+  return getTrackGuideRailVisualPaint(guide, railId, lineMap, trainOccupancyRouteSegments).color
 }
 
 function getTrackGuideRailOpacity(
   guide: (typeof translucentTrackGuides)[number],
   railId: string,
   lineMap: LineMapRuntimeState,
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
 ) {
-  const state = getTrackGuideRailState(railId, lineMap)
-
-  if (state) {
-    return getRouteSegmentPaint(state).opacity
-  }
-
-  if (isOverlayTrackGuide(guide)) {
-    return 0.28
-  }
-
-  return undefined
+  return getTrackGuideRailVisualPaint(guide, railId, lineMap, trainOccupancyRouteSegments).opacity
 }
 
-function getTrackGuideBaseColor(guide: (typeof translucentTrackGuides)[number]) {
-  const tone = 'tone' in guide ? String(guide.tone) : ''
-
-  if (tone === 'yellow') {
-    return '#eedc7f'
+function getTrackGuideRailVisualPaint(
+  guide: (typeof translucentTrackGuides)[number],
+  railId: string,
+  lineMap: LineMapRuntimeState,
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
+) {
+  const routeRailId = getTrackGuideRouteRailId(railId)
+  const modelPaint = {
+    color: DEFAULT_RAIL_VISUAL_PAINT.color,
+    opacity: isOverlayTrackGuide(guide) ? DEFAULT_RAIL_VISUAL_PAINT.opacity : undefined,
   }
 
-  if (tone === 'white') {
-    return '#ffffff'
-  }
+  return resolveRailVisualPaint({
+    lineMap,
+    railId: routeRailId,
+    modelPaint,
+    baseState: getLineMapBaseRailVisualState(routeRailId),
+    occupancyState: trainOccupancyRouteSegments[routeRailId] ?? trainOccupancyRouteSegments[railId],
+    routeState: lineMap.routeSegments[routeRailId],
+  })
+}
 
-  if (tone === 'red') {
-    return '#ff0000'
-  }
-
-  if (tone === 'grey') {
-    return '#4f6f84'
-  }
-
+function getTrackGuideBaseColor() {
   return '#63869a'
 }
 
@@ -1248,35 +1163,48 @@ function TrackPiece({
   lineMap,
   piece,
   track,
+  trainOccupancyRouteSegments,
   y,
 }: {
   lineMap: LineMapRuntimeState
   piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number]
   track: 'lower' | 'upper'
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
   y: number
 }) {
   const railId = getTrackPieceRailId(piece, track)
-  const runtimeState = lineMap.routeSegments[railId]
-  const runtimePaint = runtimeState ? getRouteSegmentPaint(runtimeState) : undefined
-  const state = getRouteTrackPieceState(piece, lineMap, railId)
+  const isBlockedBySlantedRoute = isRouteRailDisplaySuppressed(lineMap, railId)
+  const state = isBlockedBySlantedRoute ? 'unset' : getRouteTrackPieceState(piece, lineMap, railId)
   const fallbackColor = state === 'set'
     ? getStaticTrackPieceColor(state)
     : ('color' in piece ? piece.color : undefined)
   const fallbackOpacity = state === 'set'
     ? 1
     : ('opacity' in piece ? piece.opacity : undefined)
+  const visualPaint = resolveRailVisualPaint({
+    lineMap,
+    railId,
+    modelPaint: {
+      color: fallbackColor,
+      opacity: fallbackOpacity,
+    },
+    baseState: getLineMapBaseRailVisualState(railId),
+    occupancyState: trainOccupancyRouteSegments[railId],
+    routeState: lineMap.routeSegments[railId],
+    suppressedPaint: getBlockedStraightRailPaint(piece),
+  })
 
   return (
     <span
       className={`line-map-track-piece line-map-track-piece--${state} line-map-track-piece--${track}`}
       data-rail-id={railId}
-      data-status={runtimeState?.status ?? state.toUpperCase()}
+      data-status={visualPaint.suppressed ? 'IDLE' : visualPaint.displayState?.status ?? state.toUpperCase()}
       data-testid={railId}
       id={railId}
       style={{
-        background: runtimePaint?.color ?? fallbackColor,
+        background: visualPaint.color,
         left: piece.x,
-        opacity: runtimePaint?.opacity ?? fallbackOpacity,
+        opacity: visualPaint.opacity,
         top: y,
         width: piece.width,
       }}
@@ -1525,20 +1453,12 @@ function isDuplicateSignalLabel(label: string) {
   return [...upperSignals, ...lowerSignals].filter((signal) => signal.label === label).length > 1
 }
 
-function isDefaultActiveStraightRailId(railId: string) {
-  return /^rail-(?!P)([0-9]+[A-Z]?)$/i.test(railId)
-}
-
 function getRouteTrackPieceState(
   piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number],
   lineMap: LineMapRuntimeState,
   railId: string,
 ) {
   if (isRouteStateActive(lineMap.routeSegments[railId])) {
-    return 'set'
-  }
-
-  if (isDefaultActiveStraightRailId(railId)) {
     return 'set'
   }
 
@@ -1553,145 +1473,17 @@ function isRouteStateActive(state?: LineMapRuntimeState['routeSegments'][string]
   return Boolean(state && ['DISPATCHED', 'HELD', 'SET'].includes(state.status))
 }
 
-function isSignalRouteCommandState(state?: LineMapRuntimeState['routeSegments'][string]) {
-  return Boolean(state && isRouteStateActive(state) && (state.trainId || state.updatedAt > 0))
-}
-
-function getSignalRouteStateIds(signal: LineMapSignalData) {
-  const ids = [`track:${Math.round(signal.x)}`]
-
-  if (signal.label === 'S610') {
-    ids.push(...S610_SIGNAL_ROUTE_RAIL_IDS)
-  }
-
-  if (signal.label === 'S608') {
-    ids.push(...S608_SIGNAL_ROUTE_RAIL_IDS)
-  }
-
-  if (signal.label === 'S700') {
-    ids.push(...S700_SIGNAL_ROUTE_RAIL_IDS)
-  }
-
-  if (signal.label === 'S704') {
-    ids.push(...S704_SIGNAL_ROUTE_RAIL_IDS)
-  }
-
-  if (signal.label === 'S1104') {
-    ids.push(...S1104_SIGNAL_ROUTE_RAIL_IDS)
-  }
-
-  return ids
-}
-
-function getSignalLampTone(signal: LineMapSignalData, lineMap: LineMapRuntimeState): 'red' | 'white' {
-  return getSignalRouteStateIds(signal).some((segmentId) => (
-    isSignalRouteCommandState(lineMap.routeSegments[segmentId])
-  ))
-    ? 'white'
-    : 'red'
-}
-
-function getTrackPieceRailId(
-  piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number],
-  track: 'lower' | 'upper',
-) {
-  const section = getRailSection(piece.x)
-  const label = getTrackPieceLabel(piece, track, section.name)
-
-  if (label) {
-    return `rail-${normalizeRailLabel(label)}`
-  }
-
-  return `rail-unlabelled-${track}-${section.name}-${Math.round(piece.x - section.start)}-${Math.round(piece.width)}`
-}
-
-function getBranchGuideRailId(x: number) {
-  const section = getRailSection(x)
-  const relativeX = Math.round(x - section.start)
-
-  return `rail-branch-${section.name}-${relativeX}`
-}
-
-function getRailSection(x: number) {
-  const sections = [
-    { name: 'line01', start: LINE_SECTION_OFFSETS.line01 },
-    { name: 'line02', start: LINE_SECTION_OFFSETS.line02 },
-    { name: 'line03', start: LINE_SECTION_OFFSETS.line03 },
-    { name: 'line04', start: LINE_SECTION_OFFSETS.line04 },
-  ] as const
-
-  return sections.reduce((current, section) => (
-    x >= section.start ? section : current
-  ), sections[0])
-}
-
-function getTrackPieceLabel(
-  piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number],
-  track: 'lower' | 'upper',
-  sectionName: ReturnType<typeof getRailSection>['name'],
-) {
-  const labelY = track === 'upper' ? 211 : 478
-  const centerX = piece.x + piece.width / 2
-
-  const candidates = schematicAnnotations.filter((annotation) => (
-    annotation.y === labelY
-    && getRailSection(annotation.x).name === sectionName
-  ))
-  const labelsOnPiece = candidates.filter((annotation) => (
-    annotation.x >= piece.x - 4 && annotation.x <= piece.x + piece.width + 4
-  ))
-  const labelsToCompare = labelsOnPiece.length ? labelsOnPiece : candidates
-
-  const closest = labelsToCompare.reduce<(typeof labelsToCompare)[number] | undefined>((current, annotation) => {
-    if (!current) {
-      return annotation
-    }
-
-    return Math.abs(annotation.x - centerX) < Math.abs(current.x - centerX) ? annotation : current
-  }, undefined)
-
-  return closest && Math.abs(closest.x - centerX) <= 96 ? closest.label : undefined
-}
-
-function normalizeRailLabel(label: string) {
-  return label.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
-
 function getRouteSegmentState(
   segment: (typeof routeSegmentData)[number],
   lineMap: LineMapRuntimeState,
 ) {
   const railId = getRouteSegmentRailId(segment.id)
 
-  return lineMap.routeSegments[railId] ?? lineMap.routeSegments[segment.id]
-}
-
-function getRouteSegmentRailId(segmentId: string) {
-  return ROUTE_SEGMENT_RAIL_IDS[segmentId] ?? `rail-${normalizeRailLabel(segmentId)}`
-}
-
-function getRouteSegmentRailPartId(segmentId: string, index: number) {
-  const mappedIds = ROUTE_SEGMENT_RAIL_PART_IDS[segmentId]
-
-  if (mappedIds?.[index]) {
-    return mappedIds[index]
+  if (isRouteRailDisplaySuppressed(lineMap, railId)) {
+    return undefined
   }
 
-  const railId = getRouteSegmentRailId(segmentId)
-
-  return index === 0 ? railId : `${railId}-${index + 1}`
-}
-
-function getShapedTrackRailId(pieceId: string) {
-  return SHAPED_TRACK_RAIL_IDS[pieceId] ?? `rail-${normalizeRailLabel(pieceId)}`
-}
-
-function getStaticTrackPieceRailId(pieceId: string) {
-  return STATIC_TRACK_PIECE_RAIL_IDS[pieceId] ?? `rail-${normalizeRailLabel(pieceId)}`
-}
-
-function getStaticTrackPathRailId(pathId: string) {
-  return STATIC_TRACK_PATH_RAIL_IDS[pathId] ?? `rail-${normalizeRailLabel(pathId)}`
+  return lineMap.routeSegments[railId] ?? lineMap.routeSegments[segment.id]
 }
 
 function RouteSegmentBase({
@@ -1699,55 +1491,80 @@ function RouteSegmentBase({
   lineMap,
   segment,
   state,
+  trainOccupancyRouteSegments,
 }: {
   bodyOnly?: boolean
   lineMap: LineMapRuntimeState
   segment: (typeof routeSegmentData)[number]
   state?: LineMapRuntimeState['routeSegments'][string]
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
 }) {
-  if (!state && 'hideWhenIdle' in segment && segment.hideWhenIdle) {
-    return null
-  }
-
+  const railId = getRouteSegmentRailId(segment.id)
   const idlePaint = 'idleColor' in segment && typeof segment.idleColor === 'string'
     ? {
         color: segment.idleColor,
         opacity: 'idleOpacity' in segment && typeof segment.idleOpacity === 'number' ? segment.idleOpacity : 1,
       }
     : undefined
-  const paint = idlePaint
-    ? state ? getRouteSegmentPaint(state) : idlePaint
-    : 'color' in segment && typeof segment.color === 'string'
-      ? { color: segment.color, opacity: 1 }
-      : getRouteSegmentPaint(state)
-  const opacity = idlePaint && !state
-    ? idlePaint.opacity
-    : 'opacity' in segment && typeof segment.opacity === 'number' ? segment.opacity : paint.opacity
+  const modelPaint = idlePaint
+    ?? ('color' in segment && typeof segment.color === 'string'
+      ? {
+          color: segment.color,
+          opacity: 'opacity' in segment && typeof segment.opacity === 'number' ? segment.opacity : 1,
+        }
+      : DEFAULT_RAIL_VISUAL_PAINT)
+  const visualPaint = resolveRouteRailVisualPaint({
+    fallbackRouteState: state,
+    lineMap,
+    modelPaint,
+    railId,
+    segmentRailId: railId,
+    trainOccupancyRouteSegments,
+  })
+  const displayState = visualPaint.displayState
+  const color = visualPaint.color ?? DEFAULT_RAIL_VISUAL_PAINT.color
+  const opacity = visualPaint.opacity ?? DEFAULT_RAIL_VISUAL_PAINT.opacity
+
+  if (!displayState && 'hideWhenIdle' in segment && segment.hideWhenIdle) {
+    return null
+  }
+
   const rounded = !('rounded' in segment) || segment.rounded !== false
-  const railId = getRouteSegmentRailId(segment.id)
 
   return (
     <div
       className="line-map-route-segment"
       data-rail-id={railId}
-      data-status={state?.status ?? 'IDLE'}
+      data-status={displayState?.status ?? 'IDLE'}
       data-testid={`${railId}-container`}
-      data-train-id={state?.trainId ?? ''}
+      data-train-id={displayState?.trainId ?? ''}
       id={`${railId}-container`}
     >
       {'joined' in segment && segment.joined ? (
-        <RouteSegmentPath bodyOnly={bodyOnly} color={paint.color} lineMap={lineMap} opacity={opacity} segment={segment} state={state} />
+        <RouteSegmentPath bodyOnly={bodyOnly} color={color} lineMap={lineMap} opacity={opacity} segment={segment} state={state} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       ) : (
         segment.points.slice(1).map((point, index) => {
           const from = segment.points[index]
+          const partRailId = getRouteSegmentRailPartId(segment.id, index)
+          const segmentPaint = resolveRouteRailVisualPaint({
+            fallbackRouteState: state,
+            lineMap,
+            modelPaint: {
+              color,
+              opacity,
+            },
+            railId: partRailId,
+            segmentRailId: railId,
+            trainOccupancyRouteSegments,
+          })
 
           return (
             <LineSegment
-                color={paint.color}
+                color={segmentPaint.color ?? color}
                 from={from}
                 key={`${segment.id}-base-${index}`}
-                opacity={opacity}
-                railId={getRouteSegmentRailPartId(segment.id, index)}
+                opacity={segmentPaint.opacity ?? opacity}
+                railId={partRailId}
                 rounded={rounded}
               to={point}
               width={segment.width}
@@ -1755,7 +1572,7 @@ function RouteSegmentBase({
           )
         })
       )}
-      {'caps' in segment && segment.caps ? <RouteSegmentCaps color={paint.color} segment={segment} /> : null}
+      {'caps' in segment && segment.caps ? <RouteSegmentCaps color={color} segment={segment} /> : null}
     </div>
   )
 }
@@ -1767,6 +1584,7 @@ function RouteSegmentPath({
   opacity,
   segment,
   state,
+  trainOccupancyRouteSegments,
 }: {
   bodyOnly?: boolean
   color: string
@@ -1774,6 +1592,7 @@ function RouteSegmentPath({
   opacity: number
   segment: (typeof routeSegmentData)[number]
   state?: LineMapRuntimeState['routeSegments'][string]
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
 }) {
   return (
     <svg
@@ -1788,8 +1607,14 @@ function RouteSegmentPath({
           {segment.segmentPolygons.map((piece, index) => {
             const railId = getRouteSegmentRailPartId(segment.id, index)
             const segmentRailId = getRouteSegmentRailId(segment.id)
-            const pieceState = railId === segmentRailId ? state : lineMap.routeSegments[railId] ?? state
-            const piecePaint = pieceState ? getRouteSegmentPaint(pieceState) : { color, opacity }
+            const piecePaint = resolveRouteRailVisualPaint({
+              fallbackRouteState: state,
+              lineMap,
+              modelPaint: { color, opacity },
+              railId,
+              segmentRailId,
+              trainOccupancyRouteSegments,
+            })
             const key = 'pathD' in piece ? piece.pathD : piece.polygonPoints.map((point) => point.join(',')).join(' ')
             const edgeNode = bodyOnly ? null : 'edgePathD' in piece ? (
               <path
@@ -1828,14 +1653,14 @@ function RouteSegmentPath({
                 {'pathD' in piece ? (
                   <path
                     d={piece.pathD}
-                    fill={piecePaint.color}
-                    opacity={piecePaint.opacity}
+                    fill={piecePaint.color ?? color}
+                    opacity={piecePaint.opacity ?? opacity}
                     shapeRendering="geometricPrecision"
                   />
                 ) : (
                   <polygon
-                    fill={piecePaint.color}
-                    opacity={piecePaint.opacity}
+                    fill={piecePaint.color ?? color}
+                    opacity={piecePaint.opacity ?? opacity}
                     points={piece.polygonPoints.map((point) => point.join(',')).join(' ')}
                     shapeRendering="geometricPrecision"
                   />
@@ -1855,14 +1680,22 @@ function RouteSegmentPath({
         <>
           {(() => {
             const railId = getRouteSegmentRailPartId(segment.id, 0)
+            const piecePaint = resolveRouteRailVisualPaint({
+              fallbackRouteState: state,
+              lineMap,
+              modelPaint: { color, opacity },
+              railId,
+              segmentRailId: getRouteSegmentRailId(segment.id),
+              trainOccupancyRouteSegments,
+            })
 
             return (
           <polygon
             data-rail-id={railId}
             data-testid={railId}
-            fill={color}
+            fill={piecePaint.color ?? color}
             id={railId}
-            opacity={opacity}
+            opacity={piecePaint.opacity ?? opacity}
             points={segment.polygonPoints.map((point) => point.join(',')).join(' ')}
             shapeRendering="geometricPrecision"
           />
@@ -1880,6 +1713,14 @@ function RouteSegmentPath({
       ) : (
         (() => {
           const railId = getRouteSegmentRailPartId(segment.id, 0)
+          const piecePaint = resolveRouteRailVisualPaint({
+            fallbackRouteState: state,
+            lineMap,
+            modelPaint: { color, opacity },
+            railId,
+            segmentRailId: getRouteSegmentRailId(segment.id),
+            trainOccupancyRouteSegments,
+          })
 
           return (
             <path
@@ -1889,11 +1730,11 @@ function RouteSegmentPath({
               fill="none"
               id={railId}
               shapeRendering="geometricPrecision"
-              stroke={color}
+              stroke={piecePaint.color ?? color}
               strokeLinecap="butt"
               strokeLinejoin="miter"
               strokeWidth={segment.width}
-              opacity={opacity}
+              opacity={piecePaint.opacity ?? opacity}
             />
           )
         })()
@@ -1964,20 +1805,15 @@ function AtcPanel({ atc }: { atc: (typeof atcData)[number] }) {
   )
 }
 
-function CycleControl({ onToggleCycle, x, y }: { onToggleCycle: () => void; x: number; y: number }) {
+function CycleControl({ x, y }: { x: number; y: number }) {
   return (
-    <button
+    <div
       className="line-map-cycle-control"
-      onClick={(event) => {
-        event.stopPropagation()
-        onToggleCycle()
-      }}
-      type="button"
       style={{ left: x, top: y }}
     >
       <span>CYCLE</span>
       <span>NONE</span>
-    </button>
+    </div>
   )
 }
 
@@ -2049,6 +1885,9 @@ function CommandPanel({
             onCommand(item.command)
           }}
           onPointerDown={(event) => event.stopPropagation()}
+          title={item.command === 'ROUTE'
+            ? `${panelCode} route mode: ${routeMode === 'OCCA' ? 'automatic timetable running' : 'manual route control'}`
+            : undefined}
           type="button"
         >
           <span>{item.label}</span>
@@ -2081,7 +1920,18 @@ function SignalMarker({
   const orientationClass = signal.label === 'S653' || signal.label === 'S655' ? 'line-map-signal--s653-orientation' : ''
   const lineFlipClass = signal.label === 'S655' ? 'line-map-signal--s655-flipped-line' : ''
   const signalId = getSignalDomId(signal)
-  const lampTone = getSignalLampTone(signal, lineMap)
+  const lampTone = getSignalRouteLampTone(signal, lineMap)
+  const handleContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenSignalMenu(event, signal)
+  }
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+    if (event.button === 2) {
+      event.preventDefault()
+    }
+  }
 
   return (
     <button
@@ -2090,20 +1940,17 @@ function SignalMarker({
       data-signal-id={signal.label}
       data-testid={signalId}
       id={signalId}
-      onContextMenu={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        onOpenSignalMenu(event, signal)
-      }}
-      onPointerDown={(event) => {
-        event.stopPropagation()
-        if (event.button === 2) {
-          event.preventDefault()
-        }
-      }}
-      style={{ left: signal.x - 20, top: y }}
+      onContextMenu={handleContextMenu}
+      onPointerDown={handlePointerDown}
+      style={{ left: signal.x - 10, top: y }}
       type="button"
     >
+      <span
+        aria-hidden="true"
+        className="line-map-signal-hitbox"
+        onContextMenu={handleContextMenu}
+        onPointerDown={handlePointerDown}
+      />
       <span className={`line-map-signal-lamp line-map-signal-lamp--${lampTone}`} />
       {hideText ? null : <b>{signal.label}</b>}
     </button>
@@ -2129,6 +1976,53 @@ function MapArrow({
       <span className={`line-map-arrow line-map-arrow--${direction} line-map-arrow--${tone}`} />
     </span>
   )
+}
+
+function getMapArrowVisual(
+  arrow: (typeof mapArrowData)[number],
+  trains: readonly TrainState[],
+) {
+  const nearbyTrain = findNearbyTrainForMapArrow(arrow, trains)
+
+  return {
+    direction: nearbyTrain?.direction ?? arrow.direction,
+    tone: nearbyTrain ? 'strong' as const : arrow.tone,
+  }
+}
+
+function findNearbyTrainForMapArrow(
+  arrow: (typeof mapArrowData)[number],
+  trains: readonly TrainState[],
+) {
+  const arrowCenterX = arrow.x + 22.5
+  const arrowLane = getMapArrowLane(arrow.y)
+
+  return trains.reduce<TrainState | undefined>((nearestTrain, train) => {
+    if (train.lineMapVisible === false || getTrainMapArrowLane(train) !== arrowLane) {
+      return nearestTrain
+    }
+
+    const distance = Math.abs(train.x - arrowCenterX)
+    if (distance > MAP_ARROW_TRAIN_DIRECTION_RADIUS) {
+      return nearestTrain
+    }
+
+    if (!nearestTrain) {
+      return train
+    }
+
+    const nearestDistance = Math.abs(nearestTrain.x - arrowCenterX)
+
+    return distance < nearestDistance ? train : nearestTrain
+  }, undefined)
+}
+
+function getMapArrowLane(y: number) {
+  return y < (MAIN_UPPER_TRACK_Y + MAIN_LOWER_TRACK_Y) / 2 ? 'upper' : 'lower'
+}
+
+function getTrainMapArrowLane(train: TrainState) {
+  return train.y < (MAIN_UPPER_TRACK_Y + MAIN_LOWER_TRACK_Y) / 2 ? 'upper' : 'lower'
 }
 
 function LineSegment({
@@ -2174,29 +2068,29 @@ function LineSegment({
 }
 
 function TrainHotspot({
+  markerOffset,
   onContextMenu,
   onDoubleClick,
   selected,
   train,
-  upperTrainReferenceTop,
 }: {
+  markerOffset?: { x: number; y: number }
   onContextMenu: (event: ReactPointerEvent<HTMLButtonElement>) => void
   onDoubleClick: (event: ReactPointerEvent<HTMLButtonElement>) => void
   selected: boolean
   train: TrainState
-  upperTrainReferenceTop: number
 }) {
   const isNotGranted = !isTrainItamaGranted(train)
-  const markerDirection = train.direction === 'left' || train.service === 'SB' ? 'left' : 'right'
-  const markerTop = train.service === 'NB' && train.id !== '314'
-    ? upperTrainReferenceTop
-    : train.y - 24
-  const markerLeft = train.x - 24
+  const markerDirection = train.direction
+  const compactPglTrainCluster = isPglUpperTrainCluster(train)
+  const markerTop = getTrainMarkerTop(train) + (markerOffset?.y ?? 0)
+  const markerLeft = getTrainMarkerLeft(train) + (markerOffset?.x ?? 0)
+  const compactMarkerClass = compactPglTrainCluster ? ' line-map-train-marker--compact-pgl-cluster' : ''
 
   return (
     <>
       <span
-        className={`line-map-train-marker line-map-train-marker--${markerDirection}${isNotGranted ? ' line-map-train-marker--not-granted' : ''}`}
+        className={`line-map-train-marker line-map-train-marker--${markerDirection}${compactMarkerClass}${isNotGranted ? ' line-map-train-marker--not-granted' : ''}`}
         data-selected={selected ? 'true' : 'false'}
         style={{
           '--line-map-train-arrow-color': getTrainArrowColor(train),
@@ -2233,6 +2127,58 @@ function TrainHotspot({
   )
 }
 
+function createTrainMarkerOffsets(trains: readonly TrainState[]) {
+  const trainsByOccupiedRail = new Map<string, TrainState[]>()
+  const offsets = new Map<string, { x: number; y: number }>()
+
+  trains.forEach((train) => {
+    if (!train.occupancySegmentId) {
+      return
+    }
+
+    trainsByOccupiedRail.set(train.occupancySegmentId, [
+      ...(trainsByOccupiedRail.get(train.occupancySegmentId) ?? []),
+      train,
+    ])
+  })
+
+  trainsByOccupiedRail.forEach((railTrains) => {
+    if (railTrains.length <= 1) {
+      return
+    }
+
+    const sortedGroup = [...railTrains].sort((left, right) => left.id.localeCompare(right.id, undefined, { numeric: true }))
+    const stackDirection = getTrainMarkerTop(sortedGroup[0]) < MAIN_LOWER_TRACK_Y ? -1 : 1
+
+    sortedGroup.forEach((train, index) => {
+      offsets.set(train.id, {
+        x: 0,
+        y: index * TRAIN_MARKER_SAME_RAIL_STACK_STEP_PX * stackDirection,
+      })
+    })
+  })
+
+  return offsets
+}
+
+function getTrainMarkerTop(train: TrainState) {
+  const isLowerLaneTrain = train.y > (MAIN_UPPER_TRACK_Y + MAIN_LOWER_TRACK_Y) / 2
+
+  return isLowerLaneTrain
+    ? MAIN_LOWER_TRACK_Y + 36
+    : train.y - 44
+}
+
+function getTrainMarkerLeft(train: TrainState) {
+  return train.x - 24
+}
+
+function isPglUpperTrainCluster(train: TrainState) {
+  return train.y <= MAIN_UPPER_TRACK_Y + 8
+    && train.x >= MAP_SECTION_OFFSETS.section04 + 60
+    && train.x <= MAP_SECTION_OFFSETS.section04 + 150
+}
+
 function getTrainArrowColor(train: TrainState) {
   if (train.isMoving) {
     return '#34ff4c'
@@ -2247,20 +2193,4 @@ function getTrainTextColor(train: TrainState) {
   }
 
   return '#ffffff'
-}
-
-function getRouteSegmentPaint(state?: LineMapRuntimeState['routeSegments'][string]) {
-  if (state?.status === 'DISPATCHED') {
-    return { color: '#ff0000', opacity: 1 }
-  }
-
-  if (state?.status === 'UNSET') {
-    return { color: '#eedc7f', opacity: 1 }
-  }
-
-  if (state) {
-    return { color: '#ffffff', opacity: 1 }
-  }
-
-  return { color: '#63869a', opacity: 0.28 }
 }

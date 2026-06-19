@@ -64,7 +64,7 @@ const trainingModes: Array<{ mode: TrainingMode; label: string; description: str
   {
     mode: 'PLAYER',
     label: 'Player',
-    description: 'Auto-run playback for client walkthroughs and demos.',
+    description: 'Auto-run playback for structured review and trainer-led walkthroughs.',
   },
 ]
 
@@ -141,7 +141,7 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
 
           <div className="system-chip">
             <span className="status-dot" />
-            Prototype Console
+            Training Console
           </div>
           <h1 id="page-title">OCC Training Simulator</h1>
           <p className="brand-copy">
@@ -184,7 +184,7 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
             <button
               type="button"
               className="text-link"
-              onClick={() => setSessionHint('Use Open three-monitor session for the client demo, or Sign in to OCC for single-screen line map testing.')}
+              onClick={() => setSessionHint('Use Open three-monitor session for coordinated operations, or Sign in to OCC for single-screen line map testing.')}
             >
               Session help
             </button>
@@ -238,14 +238,6 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
             onClick={() => onNavigate('/ios/scenarios')}
           >
             Open scenario builder
-          </button>
-
-          <button
-            type="button"
-            className="tertiary-action secondary-link"
-            onClick={() => onNavigate('/guide')}
-          >
-            View prototype demo guide
           </button>
 
           <div className="mode-picker" aria-label="Training mode selection">
