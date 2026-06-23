@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "audit:routes": "node scripts/audit-routes.mjs",
+    "audit:timetable": "node scripts/audit-timetable-routes.mjs",
     "test": "node scripts/run-tests.mjs",
     "reset:runtime": "node scripts/reset-runtime-state.mjs",
     "preview": "vite preview"

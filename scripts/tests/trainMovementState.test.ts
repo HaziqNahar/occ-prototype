@@ -144,15 +144,22 @@ function routeState(segmentId: string) {
 
 {
   const plan: TimetablePlaybackPlan = {
+    endSeconds: 1200,
     firstStepIndex: 0,
+    from: 'PGC',
     panelCode: 'SKG',
     routeLabel: 'Route R608_803',
+    routeLabels: ['Route R608_803'],
     routeSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
     scheduleNumber: '001',
     service: 'SB',
+    startSeconds: 0,
+    stationRouteId: 'timetable-pgc-skg-to-rt2-depot',
     stepOffsetsMs: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map(() => 0),
     steps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    to: 'RT2_DEPOT',
     trainId: '312',
+    via: ['SKG'],
   }
   const first = applyTimetablePlaybackStepState({
     lineMap: createLineMapRuntimeState(),

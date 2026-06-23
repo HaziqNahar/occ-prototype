@@ -7,6 +7,8 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from 'react'
 import ScadaFooter from '../../components/ScadaFooter'
+import Win98HtmlButton from '../../components/train-control/Win98HtmlButton'
+import usePopupDrag from '../../components/train-control/usePopupDrag'
 import {
   MAP_PAN_MAX,
   MAP_PAN_STEP,
@@ -92,7 +94,7 @@ type LineMapMonitorDomProps = {
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void
-  onToggleRouteControlMode: (panelCode: string) => void
+  onSetRouteControlMode: (panelCode: string, mode: RouteControlMode) => void
   onWheel: (event: ReactWheelEvent<HTMLDivElement>) => void
   panX: number
   routeAutomationStatus: string
@@ -283,10 +285,7 @@ const seamSignalOverlaps = [
 ] as const
 
 function isRouteNumberAnnotation(annotation: SchematicAnnotation) {
-  return (
-    ('routeNumber' in annotation && annotation.routeNumber)
-    || (!('tone' in annotation) && !('rotate' in annotation) && (annotation.y === 211 || annotation.y === 478))
-  )
+  return annotation.railLabel
 }
 
 function shouldHideSeamRouteNumber(annotation: SchematicAnnotation, panX: number) {
@@ -382,7 +381,7 @@ export default function LineMapMonitorDom({
   onPointerDown,
   onPointerMove,
   onPointerUp,
-  onToggleRouteControlMode,
+  onSetRouteControlMode,
   onWheel,
   panX,
   routeAutomationStatus,
@@ -490,7 +489,7 @@ export default function LineMapMonitorDom({
               panX={panX}
               routeControlModes={routeControlModes}
               trainOccupancyRouteSegments={trainOccupancyRouteSegments}
-              onToggleRouteControlMode={onToggleRouteControlMode}
+              onSetRouteControlMode={onSetRouteControlMode}
               trains={visibleTrains}
             />
             <div className="line-map-route-automation-status">{routeAutomationStatus}</div>
@@ -617,7 +616,7 @@ function LineMapSchematicBase({
   panX,
   routeControlModes,
   trainOccupancyRouteSegments,
-  onToggleRouteControlMode,
+  onSetRouteControlMode,
   trains,
 }: {
   lineMap: LineMapRuntimeState
@@ -626,9 +625,72 @@ function LineMapSchematicBase({
   panX: number
   routeControlModes: Record<string, RouteControlMode>
   trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
-  onToggleRouteControlMode: (panelCode: string) => void
+  onSetRouteControlMode: (panelCode: string, mode: RouteControlMode) => void
   trains: readonly TrainState[]
 }) {
+  const [routeModeMenu, setRouteModeMenu] = useState<{
+    panelCode: string
+    x: number
+    y: number
+  } | null>(null)
+  const [routeModeConfirmation, setRouteModeConfirmation] = useState<{
+    mode: RouteControlMode
+    panelCode: string
+    x: number
+    y: number
+  } | null>(null)
+
+  useEffect(() => {
+    const handleDocumentPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element)) {
+        return
+      }
+
+      if (event.target.closest('.line-map-command-cascade, .line-map-route-mode-confirmation')) {
+        return
+      }
+
+      setRouteModeMenu(null)
+      setRouteModeConfirmation(null)
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+
+    return () => document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+  }, [])
+
+  const openRouteModeMenu = (panelCode: string, x: number, y: number) => {
+    setRouteModeConfirmation(null)
+    setRouteModeMenu((current) => (
+      current?.panelCode === panelCode
+        ? null
+        : {
+            panelCode,
+            x,
+            y,
+          }
+    ))
+  }
+
+  const requestRouteModeChange = (panelCode: string, mode: RouteControlMode, x: number, y: number) => {
+    setRouteModeMenu(null)
+    setRouteModeConfirmation({ mode, panelCode, x, y })
+  }
+
+  const closeRouteModeOverlays = () => {
+    setRouteModeMenu(null)
+    setRouteModeConfirmation(null)
+  }
+
+  const confirmRouteModeChange = () => {
+    if (!routeModeConfirmation) {
+      return
+    }
+
+    onSetRouteControlMode(routeModeConfirmation.panelCode, routeModeConfirmation.mode)
+    setRouteModeConfirmation(null)
+  }
+
   return (
     <div className="line-map-schematic-base">
       {sectionDividers.map((x) => <span className="line-map-section-divider" key={x} style={{ left: x }} />)}
@@ -682,13 +744,32 @@ function LineMapSchematicBase({
         <CommandPanel
           key={`command-${command.code}`}
           onCommand={onCommand}
-          onToggleRouteControlMode={onToggleRouteControlMode}
+          onOpenRouteModeMenu={openRouteModeMenu}
           panelCode={command.code}
           routeMode={routeControlModes[command.code] ?? 'OCCA'}
           x={command.x}
           y={command.y}
         />
       ))}
+      {routeModeMenu ? (
+        <RouteModeCascadeMenu
+          onClose={closeRouteModeOverlays}
+          onSelectMode={(mode) => requestRouteModeChange(routeModeMenu.panelCode, mode, routeModeMenu.x, routeModeMenu.y)}
+          panelCode={routeModeMenu.panelCode}
+          x={routeModeMenu.x}
+          y={routeModeMenu.y}
+        />
+      ) : null}
+      {routeModeConfirmation ? (
+        <RouteModeConfirmationDialog
+          mode={routeModeConfirmation.mode}
+          onCancel={() => setRouteModeConfirmation(null)}
+          onConfirm={confirmRouteModeChange}
+          panelCode={routeModeConfirmation.panelCode}
+          x={routeModeConfirmation.x}
+          y={routeModeConfirmation.y}
+        />
+      ) : null}
       <button
         className="line-map-gh-button"
         onClick={(event) => event.stopPropagation()}
@@ -858,7 +939,7 @@ function TrackGuideSvg({
         if ('flatCaps' in guide && guide.flatCaps) {
           const isOverlay = isOverlayTrackGuide(guide)
           const segments = 'segments' in guide ? guide.segments : [{ from: guide.from, to: guide.to }]
-          const branchGuideRailIds = segments.map((_, index) => getTrackGuideRailId(guideId, index))
+          const branchGuideRailIds = segments.map((_, index) => getTrackGuideRailId(guide, index))
           const renderInactiveBranchLines = branchGuideRailIds.length > 0
             && branchGuideRailIds.every((railId) => railId.startsWith('rail-P'))
             && branchGuideRailIds.every((railId) => !isTrackGuideRailActive(guide, railId, lineMap, trainOccupancyRouteSegments))
@@ -880,7 +961,7 @@ function TrackGuideSvg({
               {'segmentPolygons' in guide ? (
                 renderInactiveBranchLines ? (
                   segments.map((segment, index) => {
-                    const railId = getTrackGuideRailId(guideId, index)
+                    const railId = getTrackGuideRailId(guide, index)
                     const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
                     const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
                     const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap, trainOccupancyRouteSegments)
@@ -908,7 +989,7 @@ function TrackGuideSvg({
                     )
                   })
                 ) : guide.segmentPolygons.map((piece, index) => {
-                  const railId = getTrackGuideRailId(guideId, index)
+                  const railId = getTrackGuideRailId(guide, index)
                   const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
                   const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
                   const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap, trainOccupancyRouteSegments)
@@ -986,7 +1067,7 @@ function TrackGuideSvg({
                 })
               ) : (
                 segments.map((segment, index) => {
-                  const railId = getTrackGuideRailId(guideId, index)
+                  const railId = getTrackGuideRailId(guide, index)
                   const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
                   const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
                   const trackOpacity = getTrackGuideRailOpacity(guide, railId, lineMap, trainOccupancyRouteSegments)
@@ -1018,7 +1099,7 @@ function TrackGuideSvg({
           )
         }
 
-        const railId = getTrackGuideRailId(guideId)
+        const railId = getTrackGuideRailId(guide)
         const trackState = getTrackGuideRailState(guide, railId, lineMap, trainOccupancyRouteSegments)
         const trackColor = getTrackGuideRailColor(guide, railId, lineMap, trainOccupancyRouteSegments)
 
@@ -1128,7 +1209,7 @@ function getTrackGuideRailVisualPaint(
   lineMap: LineMapRuntimeState,
   trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments'],
 ) {
-  const routeRailId = getTrackGuideRouteRailId(railId)
+  const routeRailId = getTrackGuideRouteRailId(railId, guide)
   const modelPaint = {
     color: DEFAULT_RAIL_VISUAL_PAINT.color,
     opacity: isOverlayTrackGuide(guide) ? DEFAULT_RAIL_VISUAL_PAINT.opacity : undefined,
@@ -1207,6 +1288,7 @@ function TrackPiece({
         opacity: visualPaint.opacity,
         top: y,
         width: piece.width,
+        ...('clipPath' in piece ? { clipPath: piece.clipPath } : {}),
       }}
     />
   )
@@ -1222,7 +1304,7 @@ function ShapedUpperTrackPieces() {
       width={MAP_WORLD_WIDTH}
     >
       {shapedUpperTrackPieces.map((piece) => {
-        const railId = getShapedTrackRailId(piece.id)
+        const railId = getShapedTrackRailId(piece)
         const pieceOpacity = 'opacity' in piece && typeof piece.opacity === 'number'
           ? piece.opacity
           : undefined
@@ -1324,7 +1406,7 @@ function StaticTrackPiece({ piece }: { piece: (typeof staticTrackPieces)[number]
       color={getStaticTrackPieceColor(piece.state)}
       from={piece.from}
       opacity={1}
-      railId={getStaticTrackPieceRailId(piece.id)}
+      railId={getStaticTrackPieceRailId(piece)}
       rounded={false}
       to={piece.to}
       width={piece.width}
@@ -1343,7 +1425,7 @@ function StaticTrackPaths() {
     >
       {staticTrackPaths.map((path) => (
         (() => {
-          const railId = getStaticTrackPathRailId(path.id)
+          const railId = getStaticTrackPathRailId(path)
           const polygonPoints = 'polygonPoints' in path ? path.polygonPoints : undefined
 
           if (polygonPoints !== undefined) {
@@ -1453,6 +1535,24 @@ function isDuplicateSignalLabel(label: string) {
   return [...upperSignals, ...lowerSignals].filter((signal) => signal.label === label).length > 1
 }
 
+function getSignalStemX(signal: LineMapSignalData, side: 'above' | 'below') {
+  if ('layout' in signal && signal.layout === 'left-stem') {
+    return 22
+  }
+
+  return side === 'below' ? 33 : 7
+}
+
+function getSignalLeft(signal: LineMapSignalData, side: 'above' | 'below') {
+  const isLeftStem = 'layout' in signal && signal.layout === 'left-stem'
+
+  if ('stemAnchored' in signal && signal.stemAnchored && !isLeftStem) {
+    return signal.x - getSignalStemX(signal, side)
+  }
+
+  return signal.x - 10
+}
+
 function getRouteTrackPieceState(
   piece: (typeof upperTrackPieces)[number] | (typeof lowerTrackPieces)[number],
   lineMap: LineMapRuntimeState,
@@ -1477,7 +1577,7 @@ function getRouteSegmentState(
   segment: (typeof routeSegmentData)[number],
   lineMap: LineMapRuntimeState,
 ) {
-  const railId = getRouteSegmentRailId(segment.id)
+  const railId = getRouteSegmentRailId(segment)
 
   if (isRouteRailDisplaySuppressed(lineMap, railId)) {
     return undefined
@@ -1499,7 +1599,7 @@ function RouteSegmentBase({
   state?: LineMapRuntimeState['routeSegments'][string]
   trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
 }) {
-  const railId = getRouteSegmentRailId(segment.id)
+  const railId = getRouteSegmentRailId(segment)
   const idlePaint = 'idleColor' in segment && typeof segment.idleColor === 'string'
     ? {
         color: segment.idleColor,
@@ -1545,7 +1645,7 @@ function RouteSegmentBase({
       ) : (
         segment.points.slice(1).map((point, index) => {
           const from = segment.points[index]
-          const partRailId = getRouteSegmentRailPartId(segment.id, index)
+          const partRailId = getRouteSegmentRailPartId(segment, index)
           const segmentPaint = resolveRouteRailVisualPaint({
             fallbackRouteState: state,
             lineMap,
@@ -1605,8 +1705,8 @@ function RouteSegmentPath({
       {'segmentPolygons' in segment ? (
         <>
           {segment.segmentPolygons.map((piece, index) => {
-            const railId = getRouteSegmentRailPartId(segment.id, index)
-            const segmentRailId = getRouteSegmentRailId(segment.id)
+            const railId = getRouteSegmentRailPartId(segment, index)
+            const segmentRailId = getRouteSegmentRailId(segment)
             const piecePaint = resolveRouteRailVisualPaint({
               fallbackRouteState: state,
               lineMap,
@@ -1679,13 +1779,13 @@ function RouteSegmentPath({
       ) : 'polygonPoints' in segment ? (
         <>
           {(() => {
-            const railId = getRouteSegmentRailPartId(segment.id, 0)
+            const railId = getRouteSegmentRailPartId(segment, 0)
             const piecePaint = resolveRouteRailVisualPaint({
               fallbackRouteState: state,
               lineMap,
               modelPaint: { color, opacity },
               railId,
-              segmentRailId: getRouteSegmentRailId(segment.id),
+              segmentRailId: getRouteSegmentRailId(segment),
               trainOccupancyRouteSegments,
             })
 
@@ -1712,13 +1812,13 @@ function RouteSegmentPath({
         </>
       ) : (
         (() => {
-          const railId = getRouteSegmentRailPartId(segment.id, 0)
+          const railId = getRouteSegmentRailPartId(segment, 0)
           const piecePaint = resolveRouteRailVisualPaint({
             fallbackRouteState: state,
             lineMap,
             modelPaint: { color, opacity },
             railId,
-            segmentRailId: getRouteSegmentRailId(segment.id),
+            segmentRailId: getRouteSegmentRailId(segment),
             trainOccupancyRouteSegments,
           })
 
@@ -1775,9 +1875,9 @@ function RouteSegmentCaps({
       {caps.map((cap, index) => (
         <span
           className="line-map-route-cap"
-          data-rail-id={`${getRouteSegmentRailId(segment.id)}-cap-${index + 1}`}
-          data-testid={`${getRouteSegmentRailId(segment.id)}-cap-${index + 1}`}
-          id={`${getRouteSegmentRailId(segment.id)}-cap-${index + 1}`}
+          data-rail-id={`${getRouteSegmentRailId(segment)}-cap-${index + 1}`}
+          data-testid={`${getRouteSegmentRailId(segment)}-cap-${index + 1}`}
+          id={`${getRouteSegmentRailId(segment)}-cap-${index + 1}`}
           key={`${segment.id}-cap-${index}`}
           style={{
             background: capColor,
@@ -1845,14 +1945,14 @@ function PlatformPanel({ platform }: { platform: (typeof platformData)[number] }
 
 function CommandPanel({
   onCommand,
-  onToggleRouteControlMode,
+  onOpenRouteModeMenu,
   panelCode,
   routeMode,
   x,
   y,
 }: {
   onCommand: (command: TrainCommand) => void
-  onToggleRouteControlMode: (panelCode: string) => void
+  onOpenRouteModeMenu: (panelCode: string, x: number, y: number) => void
   panelCode: string
   routeMode: RouteControlMode
   x: number
@@ -1879,10 +1979,19 @@ function CommandPanel({
           onClick={(event) => {
             event.stopPropagation()
             if (item.command === 'ROUTE') {
-              onToggleRouteControlMode(panelCode)
+              onOpenRouteModeMenu(panelCode, x - 24, y - 42)
               return
             }
             onCommand(item.command)
+          }}
+          onContextMenu={(event) => {
+            if (item.command !== 'ROUTE') {
+              return
+            }
+
+            event.preventDefault()
+            event.stopPropagation()
+            onOpenRouteModeMenu(panelCode, x - 24, y - 42)
           }}
           onPointerDown={(event) => event.stopPropagation()}
           title={item.command === 'ROUTE'
@@ -1894,6 +2003,166 @@ function CommandPanel({
           <strong>{item.command === 'HOLD' ? 'ISCS' : item.command === 'ROUTE' ? routeMode : 'OCCA'}</strong>
         </button>
       ))}
+    </div>
+  )
+}
+
+function RouteModeCascadeMenu({
+  onClose,
+  onSelectMode,
+  panelCode,
+  x,
+  y,
+}: {
+  onClose: () => void
+  onSelectMode: (mode: RouteControlMode) => void
+  panelCode: string
+  x: number
+  y: number
+}) {
+  const [activeSubmenu, setActiveSubmenu] = useState<'route' | null>(null)
+
+  return (
+    <div
+      className="line-map-cascade line-map-command-cascade"
+      onContextMenu={(event) => event.preventDefault()}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerLeave={() => setActiveSubmenu(null)}
+      style={{ left: x, top: y }}
+    >
+      <div className="line-map-cascade-menu line-map-cascade-menu--command-main">
+        <div className="line-map-command-cascade-title">{panelCode}_TRAS_0001</div>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          onPointerEnter={() => setActiveSubmenu(null)}
+          type="button"
+        >
+          <span>Open inspector...</span>
+          <span>&gt;</span>
+        </button>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          onPointerEnter={() => setActiveSubmenu(null)}
+          type="button"
+        >
+          <span>Open details...</span>
+          <span>&gt;</span>
+        </button>
+        <button
+          className={activeSubmenu === 'route' ? 'is-active' : undefined}
+          onClick={(event) => {
+            event.stopPropagation()
+            setActiveSubmenu((current) => current === 'route' ? null : 'route')
+          }}
+          onPointerEnter={() => setActiveSubmenu('route')}
+          type="button"
+        >
+          <span>Routing mode</span>
+          <span>&gt;</span>
+        </button>
+        <button
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          onPointerEnter={() => setActiveSubmenu(null)}
+          type="button"
+        >
+          <span>Dispatching mode</span>
+          <span>&gt;</span>
+        </button>
+        <button
+          className="has-divider"
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          onPointerEnter={() => setActiveSubmenu(null)}
+          type="button"
+        >
+          _Work request
+        </button>
+      </div>
+      {activeSubmenu === 'route' ? (
+        <div className="line-map-cascade-menu line-map-cascade-menu--command-sub">
+          <button
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectMode('OCCA')
+            }}
+            type="button"
+          >
+            <span>Central AUTO</span>
+          </button>
+          <button
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectMode('OCCM')
+            }}
+            type="button"
+          >
+            <span>Central MANUAL</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function RouteModeConfirmationDialog({
+  mode,
+  onCancel,
+  onConfirm,
+  panelCode,
+  x,
+  y,
+}: {
+  mode: RouteControlMode
+  onCancel: () => void
+  onConfirm: () => void
+  panelCode: string
+  x: number
+  y: number
+}) {
+  const confirmationDrag = usePopupDrag()
+  const command = mode === 'OCCA' ? 'AUTO' : 'MANUAL'
+
+  return (
+    <div
+      className="train-command-confirmation line-map-route-mode-confirmation"
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        left: Math.max(40, x - 60),
+        top: Math.max(150, y - 150),
+        ...confirmationDrag.style,
+      }}
+    >
+      <div className="train-command-confirmation__title" {...confirmationDrag.titleBarProps}>Command confirmation</div>
+      <fieldset>
+        <legend>Please confirm command...</legend>
+        <div className="train-command-confirmation__grid">
+          <label>Equipment</label>
+          <div>{panelCode}_TRAS_0001 {'{'}{panelCode} Station Traffic Subtree{'}'}</div>
+          <label>Attribute</label>
+          <div>Routing Mode</div>
+          <label>Command</label>
+          <div>{command}</div>
+          <label>No wait</label>
+          <input type="checkbox" />
+        </div>
+      </fieldset>
+      <div className="train-command-confirmation__actions">
+        <Win98HtmlButton>Help</Win98HtmlButton>
+        <span />
+        <Win98HtmlButton onClick={onConfirm}>Confirm</Win98HtmlButton>
+        <Win98HtmlButton onClick={onCancel}>Cancel</Win98HtmlButton>
+      </div>
     </div>
   )
 }
@@ -1942,7 +2211,7 @@ function SignalMarker({
       id={signalId}
       onContextMenu={handleContextMenu}
       onPointerDown={handlePointerDown}
-      style={{ left: signal.x - 10, top: y }}
+      style={{ left: getSignalLeft(signal, side), top: y }}
       type="button"
     >
       <span

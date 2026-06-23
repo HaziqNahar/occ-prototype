@@ -14,6 +14,7 @@ export type TrainMovementAuthorityDecision = {
   allowed: true
   movementRouteSteps: readonly TrainRouteAnimationStep[]
   routeLabel: string
+  routeLabels: readonly string[]
   stateRouteSteps: readonly TrainRouteAnimationStep[]
   getStateRouteStepIndex: (movementStepIndex: number) => number
 } | {
@@ -56,6 +57,7 @@ export function resolveTrainMovementAuthority(
     getStateRouteStepIndex: (movementStepIndex) => getManualLineMapRoutePathStateStepIndex(routePath, movementStepIndex),
     movementRouteSteps: routePath.movementRouteSteps,
     routeLabel: routePath.routeLabel,
+    routeLabels: routePath.routeLabels,
     stateRouteSteps: routePath.stateRouteSteps,
   }
 }

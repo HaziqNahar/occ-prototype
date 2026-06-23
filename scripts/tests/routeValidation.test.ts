@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import type { SignalRouteDefinition } from '../../src/screens/line-map/routeDefinitions'
-import { validateLineMapRouteDefinitions } from '../../src/screens/line-map/routeValidation'
+import {
+  getKnownLineMapRailIds,
+  getLineMapSignalAccounts,
+  validateLineMapRouteDefinitions,
+} from '../../src/screens/line-map/routeValidation'
 import type { TimetableLineMapRoutePathDefinition } from '../../src/screens/line-map/lineMapRoutePaths'
 
 const validRoute: SignalRouteDefinition = {
@@ -12,6 +16,23 @@ const validRoute: SignalRouteDefinition = {
 }
 
 assert.deepEqual(validateLineMapRouteDefinitions(), [])
+
+{
+  const railIds = [...getKnownLineMapRailIds()]
+
+  assert.ok(railIds.length > 0)
+  assert.equal(railIds.some((railId) => railId.startsWith('rail-unlabelled-')), false)
+}
+
+{
+  const signalAccounts = getLineMapSignalAccounts()
+
+  assert.ok(signalAccounts.length > 0)
+  assert.equal(new Set(signalAccounts.map((account) => account.accountId)).size, signalAccounts.length)
+  assert.equal(signalAccounts.some((account) => account.label.trim() === ''), false)
+  assert.equal(signalAccounts.every((account) => account.placementStatus === 'rail-anchored'), true)
+  assert.equal(signalAccounts.every((account) => account.routeStatus.length > 0), true)
+}
 
 {
   const issues = validateLineMapRouteDefinitions({
@@ -130,13 +151,45 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
 }
 
 {
+  const issues = validateLineMapRouteDefinitions({
+    routeDefinitions: [{
+      commandSegmentIds: ['route-r999-001-command', 'rail-P608', 'rail-614'],
+      commandStateSegmentIds: ['route-r999-001-command'],
+      realSegmentIds: ['rail-P608', 'rail-614'],
+      routeLabel: 'Route R999_001',
+      signalLabel: 'S608',
+    }],
+  })
+
+  assert.ok(issues.some((issue) => issue.includes('sets mutually exclusive rails rail-P608 and rail-614')))
+}
+
+{
+  const issues = validateLineMapRouteDefinitions({
+    routeDefinitions: [{
+      commandSegmentIds: ['route-r999-002-command', 'rail-P1102', 'rail-1115', 'rail-P1103'],
+      commandStateSegmentIds: ['route-r999-002-command'],
+      realSegmentIds: ['rail-P1102', 'rail-1115', 'rail-P1103'],
+      routeLabel: 'Route R999_002',
+      signalLabel: 'S1102',
+    }],
+  })
+
+  assert.ok(issues.some((issue) => issue.includes('uses invalid PGC 1115 crossover pairing rail-P1102, rail-P1103')))
+}
+
+{
   const timetableRoute: TimetableLineMapRoutePathDefinition = {
+    from: 'PGC',
     id: 'test-timetable-path',
-    match: { stationAny: ['SKG'] },
+    match: { destinationAny: ['RT2_DEPOT'], stationAny: ['SKG'] },
     owner: 'timetable',
     panelCode: 'SKG',
     routeLabel: 'Test timetable path',
+    routeLabels: ['Route R608_803'],
     steps: [{ point: { x: 0, y: 0 }, segmentId: 'rail-618' }],
+    to: 'RT2_DEPOT',
+    via: ['SKG'],
   }
 
   const issues = validateLineMapRouteDefinitions({

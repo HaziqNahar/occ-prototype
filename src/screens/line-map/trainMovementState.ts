@@ -1,11 +1,8 @@
 import type { TrainTimeSelection } from '../../components/train-control/trainTimeOptions'
 import type { LineMapRuntimeState, TrainState } from '../../types'
-import {
-  S608_R608_803_REAL_ROUTE_SEGMENT_IDS,
-  S610_REAL_ROUTE_SEGMENT_IDS,
-} from './routeDefinitions'
 import type { TimetablePlaybackPlan } from './timetablePlayback'
 import { upsertTimetablePlaybackTrain } from './timetablePlayback'
+import { getSignalRouteSegmentIds } from './lineMapRoutePaths'
 import {
   getClosestTrainRoutePointIndex,
   getVisibleTrainRoutePointIndex,
@@ -150,16 +147,14 @@ export function applyTimetablePlaybackStepState<T extends TrainMovementSessionSt
   stepIndex: number,
   lastStepIndex: number,
 ): T {
-  const routePlaybackComplete = Boolean(plan.routeSteps && stepIndex >= lastStepIndex)
+  const routePlaybackComplete = stepIndex >= lastStepIndex
 
   return {
     ...current,
-    lineMap: plan.routeSteps
-      ? routePlaybackComplete
-        ? completeTrainRoutePlaybackState(current.lineMap, plan.trainId, plan.routeSteps)
-        : updateTrainRouteStepState(current.lineMap, plan.trainId, plan.routeSteps, stepIndex)
-      : current.lineMap,
-    selectedTrainId: plan.routeSteps && !routePlaybackComplete ? plan.trainId : current.selectedTrainId,
+    lineMap: routePlaybackComplete
+      ? completeTrainRoutePlaybackState(current.lineMap, plan.trainId, plan.routeSteps)
+      : updateTrainRouteStepState(current.lineMap, plan.trainId, plan.routeSteps, stepIndex),
+    selectedTrainId: !routePlaybackComplete ? plan.trainId : current.selectedTrainId,
     trains: upsertTimetablePlaybackTrain(current.trains, plan, step, stepIndex, lastStepIndex),
   }
 }
@@ -186,13 +181,5 @@ function getManualTrainRouteCurrentStepIndex({
 }
 
 function getManualTrainRouteOverrideSegmentIds(authority: AllowedTrainMovementAuthority) {
-  if (authority.routeLabel === 'Route R608_803') {
-    return S608_R608_803_REAL_ROUTE_SEGMENT_IDS
-  }
-
-  if (authority.routeLabel === 'Route R610_652') {
-    return S610_REAL_ROUTE_SEGMENT_IDS
-  }
-
-  return []
+  return getSignalRouteSegmentIds(authority.routeLabels)
 }

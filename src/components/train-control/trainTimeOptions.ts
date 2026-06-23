@@ -27,45 +27,78 @@ export const ARRIVAL_TIME_STATION_SCROLL_TRACK_HEIGHT = 132
 export const PLATFORM_SIDING_VISIBLE_ROWS = 6
 export const PLATFORM_SIDING_SCROLL_TRACK_HEIGHT = 90
 
-const NED_PLATFORM_SIDING_OPTIONS = [
-  'W4',
-  'W3',
-  'W2',
-  'W1',
-  'UC',
-  'TTW',
-  'TTE',
-  'TT1N',
-  'TT1',
-  'T820',
-  'S9W',
-  'S9E',
-  'S8W',
-  'S8E',
-  'S7W',
-  'S7E',
-  'S6W',
-  'S6E',
-  'S5W',
-  'S5E',
-  'S4W',
-  'S4E',
-  'S3W',
-  'S3E',
-  'S2W',
-  'S2E',
-  'S1W',
-  'S1E',
-  '12W',
-  'S12E',
-  'S10W',
-  'S10E',
-  'RT3D',
-  'RT2D',
-  'RT1D',
-  'H5',
-  'H3',
-] as const
+export const PLATFORM_SIDING_OPTIONS_BY_STATION: Record<string, readonly string[]> = {
+  HBF: ['HBFS', 'HBFN', 'HBFC', 'HBF1'],
+  OTP: ['T202', 'OTPS', 'OTPN'],
+  CNT: ['CNTS', 'CNTN'],
+  CQY: ['CQYS', 'CQYN'],
+  DBG: ['DBGS', 'DBGN'],
+  LTI: ['LTIS', 'LTIN', 'LTIC'],
+  FRP: ['FRPS', 'FRPN'],
+  BNK: ['BNKS', 'BNKN'],
+  PTP: ['PTPS', 'PTPN', 'PTPC'],
+  WLH: ['WLHS', 'WLHN'],
+  SER: ['SERS', 'SERN'],
+  KVN: ['KVNS', 'KVNN'],
+  HGN: ['HGNS', 'HGNN'],
+  BGK: ['RT3L', 'BGKS', 'BGKN'],
+  SKG: ['SKGS', 'SKGN', 'RT2L', 'RT1L'],
+  PGL: ['PGLS', 'PGLN'],
+  PGC: ['PGCS', 'PGCN', 'PGC2', 'PGC1'],
+  NED: [
+    'W4',
+    'W3',
+    'W2',
+    'W1',
+    'UC',
+    'TTW',
+    'TTE',
+    'TT1N',
+    'TT1',
+    'B20',
+    'S9W',
+    'S9E',
+    'S8W',
+    'S8E',
+    'S7W',
+    'S7E',
+    'S6W',
+    'S6E',
+    'S5W',
+    'S5E',
+    'S4W',
+    'S4E',
+    'S3W',
+    'S3E',
+    'S2W',
+    'S2E',
+    'S1W',
+    'S1E',
+    'S12W',
+    'S12E',
+    'S10W',
+    'S10E',
+    'RT3D',
+    'RT2D',
+    'RT1D',
+    'H5',
+    'H3',
+    'H2',
+    'H1',
+    'E8',
+    'E7',
+    'E6',
+    'E5',
+    'E4',
+    'E3',
+    'E2',
+    'E1',
+    'DW',
+    'B3',
+    'B2',
+    'B1',
+  ],
+}
 
 export type TrainTimeSelection = {
   command: string
@@ -77,10 +110,6 @@ export type TrainTimeSelection = {
 export function getPlatformSidingMenuOptions(station: string, direction: 'NB' | 'SB'): readonly string[] {
   if (!station) {
     return [] as const
-  }
-
-  if (station === 'NED') {
-    return NED_PLATFORM_SIDING_OPTIONS
   }
 
   return getChangeEndsPlatformSidingMenuOptions(station, direction)
@@ -97,6 +126,12 @@ export function getTrainServiceDirectionLabel(train: Pick<TrainState, 'direction
 export function getChangeEndsPlatformSidingMenuOptions(station: string, direction: 'NB' | 'SB'): readonly string[] {
   if (!station) {
     return [] as const
+  }
+
+  const capturedOptions = PLATFORM_SIDING_OPTIONS_BY_STATION[station]
+
+  if (capturedOptions) {
+    return capturedOptions
   }
 
   const preferred = `${station}${direction === 'NB' ? 'N' : 'S'}`

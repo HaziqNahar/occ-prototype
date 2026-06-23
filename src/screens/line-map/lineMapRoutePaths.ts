@@ -8,6 +8,9 @@ import {
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from './trainMovementRoutes'
 import type { TrainRouteAnimationStep } from './trainMovementRoutes'
+import {
+  getDefinedSignalRoutesByLabels,
+} from './routeDefinitions'
 
 export type LineMapRoutePathOwner = 'manual' | 'timetable'
 export type ManualRouteDestinationKind = 'ANY' | 'RT2_DEPOT'
@@ -20,6 +23,7 @@ export type ManualLineMapRoutePathDefinition = {
   owner: 'manual'
   requiresStartAtFirstStep?: boolean
   routeLabel: string
+  routeLabels: readonly string[]
   stateRouteStepIndexOffset?: number
   stateRouteSteps: readonly TrainRouteAnimationStep[]
   trainIds?: readonly string[]
@@ -57,12 +61,16 @@ export type TimetableRoutePathMatcher = {
 
 export type TimetableLineMapRoutePathDefinition = {
   disallowGuideRails?: boolean
+  from: TimetableRouteLocation
   id: string
   match: TimetableRoutePathMatcher
   owner: 'timetable'
   panelCode: string
   routeLabel: string
+  routeLabels: readonly string[]
   steps: readonly TrainRouteAnimationStep[]
+  to: TimetableRouteLocation
+  via?: readonly TimetableRouteLocation[]
 }
 
 export type LineMapRoutePathDefinition = ManualLineMapRoutePathDefinition | TimetableLineMapRoutePathDefinition
@@ -75,8 +83,12 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
     owner: 'manual',
     requiresStartAtFirstStep: true,
     routeLabel: 'Route R608_803',
+    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
     stateRouteStepIndexOffset: TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS.length - 1,
-    stateRouteSteps: TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS,
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
+      TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS,
+    ),
     trainIds: ['312'],
   },
   {
@@ -87,7 +99,11 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
     owner: 'manual',
     requiresStartAtFirstStep: true,
     routeLabel: 'Route R608_803',
-    stateRouteSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    routeLabels: ['Route R608_803'],
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R608_803'],
+      TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    ),
   },
   {
     destinationKind: 'ANY',
@@ -95,7 +111,11 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
     movementRouteSteps: TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
     owner: 'manual',
     routeLabel: 'Route R610_652',
-    stateRouteSteps: TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
+    routeLabels: ['Route R610_652'],
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R610_652'],
+      TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
+    ),
     trainIds: ['314'],
   },
   {
@@ -104,7 +124,11 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
     movementRouteSteps: TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
     owner: 'manual',
     routeLabel: 'Route R1104_704 / R704_700 / R700_608',
-    stateRouteSteps: TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
+    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608'],
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R1104_704', 'Route R704_700', 'Route R700_608'],
+      TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
+    ),
     trainIds: ['312'],
   },
 ] as const
@@ -112,6 +136,7 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
 export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMapRoutePathDefinition[] = [
   {
     disallowGuideRails: true,
+    from: 'PGC',
     id: 'timetable-pgc-skg-to-rt2-depot',
     match: {
       anyOf: [
@@ -123,10 +148,14 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     owner: 'timetable',
     panelCode: 'SKG',
     routeLabel: 'Timetable path PGC/SKG to RT2 depot',
+    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
     steps: TRAIN_312_TO_RT2_DEPOT_TIMETABLE_ROUTE_STEPS,
+    to: 'RT2_DEPOT',
+    via: ['SKG'],
   },
   {
     disallowGuideRails: true,
+    from: 'SKG',
     id: 'timetable-skg-to-pgc-upper-mainline',
     match: {
       anyOf: [
@@ -139,10 +168,20 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     owner: 'timetable',
     panelCode: 'SKG',
     routeLabel: 'Timetable path SKG to PGC upper mainline',
+    routeLabels: [
+      'Route R619_701',
+      'Route R701_705',
+      'Route R705_707',
+      'Route R707_1101',
+      'Route R1101_1105',
+      'Route R1105_1107',
+    ],
     steps: SKG_TO_PGC_MAINLINE_ROUTE_STEPS,
+    to: 'PGC',
   },
   {
     disallowGuideRails: true,
+    from: 'PGC',
     id: 'timetable-pgc-to-skg-lower-mainline',
     match: {
       destinationAny: ['SKG', 'HBF'],
@@ -152,20 +191,9 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     owner: 'timetable',
     panelCode: 'PGC',
     routeLabel: 'Timetable path PGC to SKG lower mainline',
+    routeLabels: ['Route R1102_704', 'Route R704_700', 'Route R700_608'],
     steps: PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
-  },
-  {
-    disallowGuideRails: true,
-    id: 'timetable-pgc-to-selected-skg-lower-mainline',
-    match: {
-      originAny: ['PGC', 'PGL'],
-      run: 'SB',
-      stationAny: ['SKG'],
-    },
-    owner: 'timetable',
-    panelCode: 'PGC',
-    routeLabel: 'Timetable path PGC to SKG lower mainline',
-    steps: PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
+    to: 'SKG',
   },
 ] as const
 
@@ -195,4 +223,35 @@ export function getManualLineMapRoutePathStateStepIndex(
   movementStepIndex: number,
 ) {
   return movementStepIndex + (routePath.stateRouteStepIndexOffset ?? 0)
+}
+
+export function getManualLineMapRoutePathSegmentIds(routePath: ManualLineMapRoutePathDefinition): readonly string[] {
+  return getSignalRouteSegmentIds(routePath.routeLabels)
+}
+
+export function getSignalRouteSegmentIds(routeLabels: readonly string[]): readonly string[] {
+  const seen = new Set<string>()
+  const segmentIds: string[] = []
+
+  getDefinedSignalRoutesByLabels(routeLabels).forEach((routeDefinition) => {
+    routeDefinition.realSegmentIds.forEach((segmentId) => {
+      if (seen.has(segmentId)) {
+        return
+      }
+
+      seen.add(segmentId)
+      segmentIds.push(segmentId)
+    })
+  })
+
+  return segmentIds
+}
+
+function createRouteDefinitionBackedStateRouteSteps(
+  routeLabels: readonly string[],
+  movementRouteSteps: readonly TrainRouteAnimationStep[],
+): readonly TrainRouteAnimationStep[] {
+  const routeSegmentIds = new Set(getSignalRouteSegmentIds(routeLabels))
+
+  return movementRouteSteps.filter((step) => routeSegmentIds.has(step.segmentId))
 }

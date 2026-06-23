@@ -12,7 +12,7 @@ import {
 import usePopupDrag from './usePopupDrag'
 import Win98HtmlButton from './Win98HtmlButton'
 
-function ChangeEndsDialog({
+function SkipStopDialog({
   currentDirection,
   defaultStation,
   onApply,
@@ -31,13 +31,13 @@ function ChangeEndsDialog({
   const [stationDropdownOpen, setStationDropdownOpen] = useState(false)
   const [stationScrollIndex, setStationScrollIndex] = useState(0)
   const [stationScrollDrag, setStationScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [platformSiding, setPlatformSiding] = useState(() => {
-    const options = getChangeEndsPlatformSidingMenuOptions(defaultStation, currentDirection)
-    return options[0] ?? ''
-  })
+  const [platformSiding, setPlatformSiding] = useState(() => (
+    getChangeEndsPlatformSidingMenuOptions(defaultStation, currentDirection)[0] ?? ''
+  ))
   const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false)
   const [platformScrollIndex, setPlatformScrollIndex] = useState(0)
   const [platformScrollDrag, setPlatformScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
+  const [skipStopStatus, setSkipStopStatus] = useState<'request' | 'release'>('request')
   const [status, setStatus] = useState('')
   const stationOptions = ARRIVAL_TIME_STATION_MENU_OPTIONS
   const platformOptions = getChangeEndsPlatformSidingMenuOptions(station, currentDirection)
@@ -153,33 +153,37 @@ function ChangeEndsDialog({
     setPlatformScroll(platformScrollDrag.startIndex + Math.round(dragRatio * platformScrollMax))
   }
 
-  const applyChangeEnds = () => {
-    const nextStatus = `Change of ends request ${station} ${platformSiding}\nCommand successful`
+  const applySkipStop = () => {
+    const actionLabel = skipStopStatus === 'request' ? 'request' : 'release'
+    const nextStatus = `Skip stop ${actionLabel} ${station} ${platformSiding}\nCommand successful`
+
     setStatus(nextStatus)
     onApply(nextStatus)
   }
 
   return (
     <div
-      className="arrival-time-dialog change-ends-dialog"
+      className="arrival-time-dialog skip-stop-dialog"
       onContextMenu={(event) => event.preventDefault()}
       onPointerDown={(event) => event.stopPropagation()}
       style={popupDrag.style}
     >
-      <div className="arrival-time-dialog__title" {...popupDrag.titleBarProps}>SIG Change End Request for Train : {trainRef}</div>
-      <div className="arrival-time-dialog__body change-ends-dialog__body">
-        <div className="change-ends-dialog__top-row">
-          <fieldset className="arrival-time-dialog__fieldset change-ends-dialog__fieldset">
+      <div className="arrival-time-dialog__title skip-stop-dialog__title" {...popupDrag.titleBarProps}>
+        SIG Skip Stop for Train : {trainRef}
+      </div>
+      <div className="arrival-time-dialog__body skip-stop-dialog__body">
+        <div className="skip-stop-dialog__top-row">
+          <fieldset className="arrival-time-dialog__fieldset skip-stop-dialog__fieldset">
             <legend>Area Selection</legend>
             <div className="arrival-time-dialog__area-grid">
-              <label htmlFor="change-ends-station">Station</label>
-              <label htmlFor="change-ends-platform">Platform / Siding</label>
-              <div className="arrival-time-dialog__station-combo change-ends-dialog__station-combo">
+              <label htmlFor="skip-stop-station">Station</label>
+              <label htmlFor="skip-stop-platform">Platform / Siding</label>
+              <div className="arrival-time-dialog__station-combo skip-stop-dialog__station-combo">
                 <button
                   aria-expanded={stationDropdownOpen}
                   aria-haspopup="listbox"
-                  className="arrival-time-dialog__control arrival-time-dialog__station-trigger change-ends-dialog__station-trigger"
-                  id="change-ends-station"
+                  className="arrival-time-dialog__control arrival-time-dialog__station-trigger skip-stop-dialog__station-trigger"
+                  id="skip-stop-station"
                   onClick={() => setStationDropdownOpen((open) => !open)}
                   type="button"
                 >
@@ -188,7 +192,7 @@ function ChangeEndsDialog({
                 </button>
                 {stationDropdownOpen ? (
                   <div
-                    className="arrival-time-dialog__station-list change-ends-dialog__station-list"
+                    className="arrival-time-dialog__station-list skip-stop-dialog__station-list"
                     onWheel={(event) => {
                       event.preventDefault()
                       setStationScroll(stationScrollIndex + (event.deltaY > 0 ? 1 : -1))
@@ -200,12 +204,12 @@ function ChangeEndsDialog({
                         <button
                           aria-selected={station === stationOption}
                           className={station === stationOption ? 'is-selected' : undefined}
-                          key={stationOption || 'blank'}
+                          key={stationOption}
                           onClick={() => selectStation(stationOption)}
                           role="option"
                           type="button"
                         >
-                          {stationOption || '\u00a0'}
+                          {stationOption}
                         </button>
                       ))}
                     </div>
@@ -217,10 +221,7 @@ function ChangeEndsDialog({
                       >
                         <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
                       </button>
-                      <div
-                        className="arrival-time-dialog__station-scroll-track"
-                        onPointerDown={handleStationScrollTrackPointerDown}
-                      >
+                      <div className="arrival-time-dialog__station-scroll-track" onPointerDown={handleStationScrollTrackPointerDown}>
                         <span
                           className="arrival-time-dialog__station-scroll-thumb"
                           onPointerCancel={() => setStationScrollDrag(null)}
@@ -241,12 +242,12 @@ function ChangeEndsDialog({
                   </div>
                 ) : null}
               </div>
-              <div className="arrival-time-dialog__platform-combo">
+              <div className="arrival-time-dialog__platform-combo skip-stop-dialog__platform-combo">
                 <button
                   aria-expanded={platformDropdownOpen}
                   aria-haspopup="listbox"
                   className="arrival-time-dialog__control arrival-time-dialog__station-trigger arrival-time-dialog__platform-trigger"
-                  id="change-ends-platform"
+                  id="skip-stop-platform"
                   onClick={() => setPlatformDropdownOpen((open) => !open)}
                   type="button"
                 >
@@ -255,7 +256,7 @@ function ChangeEndsDialog({
                 </button>
                 {platformDropdownOpen ? (
                   <div
-                    className="arrival-time-dialog__station-list arrival-time-dialog__platform-list change-ends-dialog__platform-list"
+                    className="arrival-time-dialog__station-list arrival-time-dialog__platform-list skip-stop-dialog__platform-list"
                     onWheel={(event) => {
                       event.preventDefault()
                       setPlatformScroll(platformScrollIndex + (event.deltaY > 0 ? 1 : -1))
@@ -267,12 +268,12 @@ function ChangeEndsDialog({
                         <button
                           aria-selected={platformSiding === platformOption}
                           className={platformSiding === platformOption ? 'is-selected' : undefined}
-                          key={platformOption || 'blank-platform'}
+                          key={platformOption}
                           onClick={() => selectPlatformSiding(platformOption)}
                           role="option"
                           type="button"
                         >
-                          {platformOption || '\u00a0'}
+                          {platformOption}
                         </button>
                       ))}
                     </div>
@@ -284,10 +285,7 @@ function ChangeEndsDialog({
                       >
                         <i className="arrival-time-dialog__station-scroll-arrow arrival-time-dialog__station-scroll-arrow--up" />
                       </button>
-                      <div
-                        className="arrival-time-dialog__station-scroll-track"
-                        onPointerDown={handlePlatformScrollTrackPointerDown}
-                      >
+                      <div className="arrival-time-dialog__station-scroll-track" onPointerDown={handlePlatformScrollTrackPointerDown}>
                         <span
                           className="arrival-time-dialog__station-scroll-thumb"
                           onPointerCancel={() => setPlatformScrollDrag(null)}
@@ -311,28 +309,38 @@ function ChangeEndsDialog({
             </div>
           </fieldset>
 
-          <fieldset className="arrival-time-dialog__fieldset change-ends-dialog__direction-fieldset">
-            <legend>Current train direction</legend>
-            <label className="arrival-time-dialog__radio change-ends-dialog__radio">
-              <input checked={currentDirection === 'NB'} name="change-ends-direction" readOnly type="radio" />
-              <span>NB</span>
+          <fieldset className="arrival-time-dialog__fieldset skip-stop-dialog__status-select-fieldset">
+            <legend>Skip Stop Status</legend>
+            <label className="arrival-time-dialog__radio skip-stop-dialog__radio">
+              <input
+                checked={skipStopStatus === 'request'}
+                name="skip-stop-status"
+                onChange={() => setSkipStopStatus('request')}
+                type="radio"
+              />
+              <span>Request</span>
             </label>
-            <label className="arrival-time-dialog__radio change-ends-dialog__radio">
-              <input checked={currentDirection === 'SB'} name="change-ends-direction" readOnly type="radio" />
-              <span>SB</span>
+            <label className="arrival-time-dialog__radio skip-stop-dialog__radio">
+              <input
+                checked={skipStopStatus === 'release'}
+                name="skip-stop-status"
+                onChange={() => setSkipStopStatus('release')}
+                type="radio"
+              />
+              <span>Release</span>
             </label>
           </fieldset>
         </div>
 
-        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--status change-ends-dialog__status-fieldset">
+        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--status skip-stop-dialog__status-fieldset">
           <legend>Status</legend>
           <output>{status}</output>
         </fieldset>
 
-        <div className="arrival-time-dialog__actions change-ends-dialog__actions">
+        <div className="arrival-time-dialog__actions skip-stop-dialog__actions">
           <Win98HtmlButton onClick={() => setStatus('Help selected')}>Help</Win98HtmlButton>
           <span />
-          <Win98HtmlButton onClick={applyChangeEnds}>Apply</Win98HtmlButton>
+          <Win98HtmlButton onClick={applySkipStop}>Apply</Win98HtmlButton>
           <Win98HtmlButton onClick={onClose}>Close</Win98HtmlButton>
         </div>
       </div>
@@ -340,4 +348,4 @@ function ChangeEndsDialog({
   )
 }
 
-export default ChangeEndsDialog
+export default SkipStopDialog

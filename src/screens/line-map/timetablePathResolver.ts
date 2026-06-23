@@ -17,9 +17,14 @@ export type TimetableRailPathRow = {
 }
 
 export type TimetableRailPathResolution = {
+  from: TimetableRouteLocation
+  id: string
   panelCode: string
   routeLabel: string
+  routeLabels: readonly string[]
   steps: readonly TrainRouteAnimationStep[]
+  to: TimetableRouteLocation
+  via?: readonly TimetableRouteLocation[]
 }
 
 type NormalizedTimetableLocation = TimetableRouteLocation
@@ -86,9 +91,14 @@ export function resolveTimetableRailPath(row: TimetableRailPathRow): TimetableRa
 
   if (routePath) {
     return {
+      from: routePath.from,
+      id: routePath.id,
       panelCode: routePath.panelCode,
       routeLabel: routePath.routeLabel,
+      routeLabels: routePath.routeLabels,
       steps: routePath.steps,
+      to: routePath.to,
+      via: routePath.via,
     }
   }
 

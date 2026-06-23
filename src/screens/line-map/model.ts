@@ -176,6 +176,7 @@ export function getTrainItamaStatusValue(train: Pick<TrainState, 'itamaGranted' 
 }
 
 const RAIL_ANCHOR_X = {
+  'rail-105': s.section01 + 174.5,
   'rail-203B': s.section01 + 509,
   'rail-207': s.section01 + 614,
   'rail-209': s.section01 + 691,
@@ -183,16 +184,441 @@ const RAIL_ANCHOR_X = {
   'rail-309': s.section01 + 1212,
   'rail-309-seam': s.section02 + 14,
   'rail-311-seam': s.section02 + 58,
+  'rail-316': s.section02 + 272,
+  'rail-318': s.section02 + 238,
+  'rail-326': s.section02 + 461,
+  'rail-418': s.section02 + 924,
+  'rail-605A': s.section03 + 725,
+  'rail-607': s.section03 + 776,
+  'rail-609': s.section03 + 838,
+  'rail-611': s.section03 + 898,
   'rail-613': s.section03 + 1020,
   'rail-617': s.section03 + 1198,
+  'rail-618': s.section03 + 1188,
+  'rail-620': s.section03 + 1213,
+  'rail-650': s.section03 + 879,
+  'rail-653': s.section03 + 843,
+  'rail-663': s.section03 + 621,
+  'rail-702': s.section04 + 61,
   'rail-703': s.section04 + 49,
   'rail-705': s.section04 + 105,
+  'rail-707': s.section04 + 236,
+  'rail-709': s.section04 + 294,
+  'rail-710': s.section04 + 292,
+  'rail-711': s.section04 + 338,
+  'rail-713': s.section04 + 370,
+  'rail-714': s.section04 + 369,
+  'rail-1103': s.section04 + 493,
+  'rail-1102': s.section04 + 492,
+  'rail-1105': s.section04 + 589,
+  'rail-1107': s.section04 + 690,
+  'rail-1108': s.section04 + 791,
+  'rail-1109': s.section04 + 791,
+  'rail-1111': s.section04 + 859,
+  'rail-1112': s.section04 + 926,
+  'rail-1113': s.section04 + 927,
 } as const
 
 const RAIL_EDGE_X = {
+  'rail-100': {
+    left: s.section01 + 6,
+    right: s.section01 + 60,
+  },
+  'rail-101': {
+    left: s.section01 + 6,
+    right: s.section01 + 91,
+  },
+  'rail-105': {
+    left: s.section01 + 147,
+    right: s.section01 + 202,
+  },
+  'rail-106': {
+    left: s.section01 + 114,
+    right: s.section01 + 145,
+  },
+  'rail-108': {
+    left: s.section01 + 147,
+    right: s.section01 + 202,
+  },
+  'rail-111': {
+    left: s.section01 + 303,
+    right: s.section01 + 333,
+  },
+  'rail-112': {
+    left: s.section01 + 265,
+    right: s.section01 + 295,
+  },
+  'rail-202': {
+    left: s.section01 + 426,
+    right: s.section01 + 475,
+  },
+  'rail-203B': {
+    left: s.section01 + 497,
+    right: s.section01 + 527,
+  },
+  'rail-206': {
+    left: s.section01 + 587,
+    right: s.section01 + 643,
+  },
+  'rail-207': {
+    left: s.section01 + 587,
+    right: s.section01 + 643,
+  },
+  'rail-208': {
+    left: s.section01 + 646,
+    right: s.section01 + 736,
+  },
+  'rail-209': {
+    left: s.section01 + 645,
+    right: s.section01 + 735,
+  },
+  'rail-210': {
+    left: s.section01 + 738,
+    right: s.section01 + 793,
+  },
+  'rail-211': {
+    left: s.section01 + 738,
+    right: s.section01 + 793,
+  },
+  'rail-212': {
+    left: s.section01 + 798,
+    right: s.section01 + 892,
+  },
+  'rail-213': {
+    left: s.section01 + 795,
+    right: s.section01 + 890,
+  },
+  'rail-214': {
+    left: s.section01 + 894,
+    right: s.section01 + 949,
+  },
+  'rail-215': {
+    left: s.section01 + 894,
+    right: s.section01 + 949,
+  },
+  'rail-216': {
+    left: s.section01 + 951,
+    right: s.section01 + 981,
+  },
+  'rail-217': {
+    left: s.section01 + 951,
+    right: s.section01 + 981,
+  },
+  'rail-304': {
+    left: s.section01 + 1079,
+    right: s.section01 + 1134,
+  },
+  'rail-305': {
+    left: s.section01 + 1079,
+    right: s.section01 + 1134,
+  },
+  'rail-308': {
+    left: s.section02 + 0,
+    right: s.section02 + 29,
+  },
+  'rail-309': {
+    left: s.section01 + 1190,
+    right: s.section01 + 1220,
+  },
   'rail-311-seam': {
     left: s.section02 + 31,
     right: s.section02 + 86,
+  },
+  'rail-310': {
+    left: s.section02 + 31,
+    right: s.section02 + 86,
+  },
+  'rail-311': {
+    left: s.section02 + 58,
+    right: s.section02 + 113,
+  },
+  'rail-315': {
+    left: s.section02 + 161,
+    right: s.section02 + 289,
+  },
+  'rail-316': {
+    left: s.section02 + 216,
+    right: s.section02 + 329,
+  },
+  'rail-318': {
+    left: s.section02 + 224,
+    right: s.section02 + 256,
+  },
+  'rail-317': {
+    left: s.section02 + 318,
+    right: s.section02 + 372,
+  },
+  'rail-319': {
+    left: s.section02 + 347,
+    right: s.section02 + 387,
+  },
+  'rail-321': {
+    left: s.section02 + 389,
+    right: s.section02 + 444,
+  },
+  'rail-323': {
+    left: s.section02 + 446,
+    right: s.section02 + 476,
+  },
+  'rail-324': {
+    left: s.section02 + 389,
+    right: s.section02 + 444,
+  },
+  'rail-326': {
+    left: s.section02 + 446,
+    right: s.section02 + 476,
+  },
+  'rail-402': {
+    left: s.section02 + 542,
+    right: s.section02 + 572,
+  },
+  'rail-403': {
+    left: s.section02 + 557,
+    right: s.section02 + 587,
+  },
+  'rail-404': {
+    left: s.section02 + 574,
+    right: s.section02 + 629,
+  },
+  'rail-405': {
+    left: s.section02 + 574,
+    right: s.section02 + 629,
+  },
+  'rail-406': {
+    left: s.section02 + 631,
+    right: s.section02 + 672,
+  },
+  'rail-407': {
+    left: s.section02 + 631,
+    right: s.section02 + 672,
+  },
+  'rail-410': {
+    left: s.section02 + 706,
+    right: s.section02 + 736,
+  },
+  'rail-411': {
+    left: s.section02 + 695,
+    right: s.section02 + 736,
+  },
+  'rail-412': {
+    left: s.section02 + 738,
+    right: s.section02 + 793,
+  },
+  'rail-413': {
+    left: s.section02 + 738,
+    right: s.section02 + 793,
+  },
+  'rail-414': {
+    left: s.section02 + 795,
+    right: s.section02 + 957,
+  },
+  'rail-417': {
+    left: s.section02 + 882,
+    right: s.section02 + 1034,
+  },
+  'rail-418': {
+    left: s.section02 + 908,
+    right: s.section02 + 940,
+  },
+  'rail-419': {
+    left: s.section02 + 1036,
+    right: s.section02 + 1067,
+  },
+  'rail-421': {
+    left: s.section02 + 1069,
+    right: s.section02 + 1124,
+  },
+  'rail-423': {
+    left: s.section02 + 1126,
+    right: s.section02 + 1156,
+  },
+  'rail-424': {
+    left: s.section02 + 1024,
+    right: s.section02 + 1067,
+  },
+  'rail-426': {
+    left: s.section02 + 1069,
+    right: s.section02 + 1124,
+  },
+  'rail-428': {
+    left: s.section02 + 1126,
+    right: s.section02 + 1156,
+  },
+  'rail-503': {
+    left: s.section03 + 17,
+    right: s.section03 + 47,
+  },
+  'rail-502': {
+    left: s.section03 + 38,
+    right: s.section03 + 93,
+  },
+  'rail-504': {
+    left: s.section03 + 95,
+    right: s.section03 + 125,
+  },
+  'rail-505': {
+    left: s.section03 + 38,
+    right: s.section03 + 93,
+  },
+  'rail-506': {
+    left: s.section03 + 127,
+    right: s.section03 + 157,
+  },
+  'rail-507': {
+    left: s.section03 + 95,
+    right: s.section03 + 125,
+  },
+  'rail-510': {
+    left: s.section03 + 191,
+    right: s.section03 + 246,
+  },
+  'rail-512': {
+    left: s.section03 + 248,
+    right: s.section03 + 278,
+  },
+  'rail-513': {
+    left: s.section03 + 191,
+    right: s.section03 + 246,
+  },
+  'rail-514': {
+    left: s.section03 + 280,
+    right: s.section03 + 310,
+  },
+  'rail-511': {
+    left: s.section03 + 170,
+    right: s.section03 + 200,
+  },
+  'rail-515': {
+    left: s.section03 + 259,
+    right: s.section03 + 289,
+  },
+  'rail-518': {
+    left: s.section03 + 355,
+    right: s.section03 + 410,
+  },
+  'rail-519': {
+    left: s.section03 + 323,
+    right: s.section03 + 353,
+  },
+  'rail-520': {
+    left: s.section03 + 401,
+    right: s.section03 + 431,
+  },
+  'rail-521': {
+    left: s.section03 + 355,
+    right: s.section03 + 410,
+  },
+  'rail-522': {
+    left: s.section03 + 444,
+    right: s.section03 + 474,
+  },
+  'rail-523': {
+    left: s.section03 + 401,
+    right: s.section03 + 431,
+  },
+  'rail-603': {
+    left: s.section03 + 517,
+    right: s.section03 + 586,
+  },
+  'rail-602': {
+    left: s.section03 + 529,
+    right: s.section03 + 559,
+  },
+  'rail-605B': {
+    left: s.section03 + 689,
+    right: s.section03 + 726,
+  },
+  'rail-606': {
+    left: s.section03 + 624,
+    right: s.section03 + 715,
+  },
+  'rail-608': {
+    left: s.section03 + 717,
+    right: s.section03 + 772,
+  },
+  'rail-607': {
+    left: s.section03 + 728,
+    right: s.section03 + 783,
+  },
+  'rail-609': {
+    left: s.section03 + 785,
+    right: s.section03 + 797,
+  },
+  'rail-610': {
+    left: s.section03 + 774,
+    right: s.section03 + 803,
+  },
+  'rail-611': {
+    left: s.section03 + 898,
+    right: s.section03 + 951,
+  },
+  'rail-613': {
+    left: s.section03 + 952,
+    right: s.section03 + 1102,
+  },
+  'rail-617': {
+    left: s.section03 + 1166,
+    right: s.section03 + 1221,
+  },
+  'rail-618': {
+    left: s.section03 + 1157,
+    right: s.section03 + 1221,
+  },
+  'rail-663': {
+    left: s.section03 + 619,
+    right: s.section03 + 626,
+  },
+  'rail-703': {
+    left: s.section04 + 34,
+    right: s.section04 + 64,
+  },
+  'rail-705': {
+    left: s.section04 + 66,
+    right: s.section04 + 204,
+  },
+  'rail-709': {
+    left: s.section04 + 266,
+    right: s.section04 + 321,
+  },
+  'rail-710': {
+    left: s.section04 + 265,
+    right: s.section04 + 320,
+  },
+  'rail-713': {
+    left: s.section04 + 355,
+    right: s.section04 + 385,
+  },
+  'rail-714': {
+    left: s.section04 + 354,
+    right: s.section04 + 384,
+  },
+  'rail-1103': {
+    left: s.section04 + 436,
+    right: s.section04 + 549,
+  },
+  'rail-1105': {
+    left: s.section04 + 550,
+    right: s.section04 + 628,
+  },
+  'rail-1109': {
+    left: s.section04 + 752,
+    right: s.section04 + 829,
+  },
+  'rail-1102': {
+    left: s.section04 + 435,
+    right: s.section04 + 548,
+  },
+  'rail-1108': {
+    left: s.section04 + 752,
+    right: s.section04 + 829,
+  },
+  'rail-1112': {
+    left: s.section04 + 888,
+    right: s.section04 + 965,
+  },
+  'rail-1113': {
+    left: s.section04 + 888,
+    right: s.section04 + 965,
   },
 } as const
 
@@ -200,10 +626,53 @@ function centerOfRail(railId: keyof typeof RAIL_ANCHOR_X) {
   return RAIL_ANCHOR_X[railId]
 }
 
+function getDerivedTrackPieceRailEdgeX(railId: string) {
+  const piece = [...upperTrackPieces, ...lowerTrackPieces].find((candidate) => (
+    ('railId' in candidate && candidate.railId === railId)
+    || ('railIds' in candidate && (candidate.railIds as readonly string[] | undefined)?.includes(railId))
+  ))
+
+  return piece ? { left: piece.x, right: piece.x + piece.width } : undefined
+}
+
 function edgeOfRail(railId: keyof typeof RAIL_EDGE_X, edge: 'left' | 'right', inset = 0) {
-  const rail = RAIL_EDGE_X[railId]
+  const rail = getDerivedTrackPieceRailEdgeX(railId) ?? RAIL_EDGE_X[railId]
 
   return edge === 'left' ? rail.left + inset : rail.right - inset
+}
+
+const DEFAULT_SIGNAL_EDGE_INSET = 5
+
+function signalAtRail<T extends { anchorRailId: keyof typeof RAIL_ANCHOR_X, xOffset?: number }>(
+  signal: T,
+) {
+  const { anchorRailId, xOffset = 0, ...rest } = signal
+
+  return {
+    ...rest,
+    anchorRailId,
+    x: centerOfRail(anchorRailId) + xOffset,
+  }
+}
+
+function signalAtRailEdge<T extends {
+  anchorEdge: 'left' | 'right'
+  anchorRailId: keyof typeof RAIL_EDGE_X
+  edgeOffset?: number
+  inset?: number
+}>(
+  signal: T,
+) {
+  const { anchorEdge, anchorRailId, edgeOffset = 0, inset, ...rest } = signal
+  const edgeInset = inset ?? (edgeOffset === 0 ? DEFAULT_SIGNAL_EDGE_INSET : 0)
+
+  return {
+    ...rest,
+    anchorEdge,
+    anchorRailId,
+    stemAnchored: true,
+    x: edgeOfRail(anchorRailId, anchorEdge, edgeInset) + edgeOffset,
+  }
 }
 
 export const platformData = [
@@ -399,6 +868,7 @@ function makeUpperLeftSlantedCornerPiece(capLeftX: number, from: TrackPoint, to:
 export const translucentTrackGuides = [
   {
     id: 'hbf-102-to-103-guide',
+    railIds: ['rail-P103'],
     from: [s.section01 + 118, 226],
     to: [s.section01 + 91, 338],
     flatCaps: true,
@@ -443,6 +913,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'hbf-110-to-109-guide',
+    railIds: ['rail-P105', 'rail-P102'],
     from: [s.section01 + 277, 226],
     to: [s.section01 + 234, 455],
     flatCaps: true,
@@ -480,6 +951,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'hbf-204-to-205-guide',
+    railIds: ['rail-P201', 'rail-P200'],
     from: [s.section01 + 560, 226],
     to: [s.section01 + 517, 455],
     flatCaps: true,
@@ -517,6 +989,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'frp-p301-p300-guide',
+    railIds: ['rail-P301', 'rail-P300'],
     from: [s.section02 + 124, 226],
     to: [s.section02 + 187, MIDDLE_TURNBACK_TRACK_TOP_Y],
     flatCaps: true,
@@ -553,6 +1026,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'frp-p305-p303-guide',
+    railIds: ['rail-P305', 'rail-P303'],
     from: [s.section02 + 318, 226],
     to: [s.section02 + 307, MIDDLE_TURNBACK_TRACK_TOP_Y],
     flatCaps: true,
@@ -588,6 +1062,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'frp-p304-p302-guide',
+    railIds: ['rail-P304', 'rail-P302'],
     from: [s.section02 + 173, MIDDLE_TURNBACK_TRACK_BOTTOM_Y],
     to: [s.section02 + 151, 455],
     flatCaps: true,
@@ -623,6 +1098,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'frp-p307-p306-guide',
+    railIds: ['rail-P307', 'rail-P306'],
     from: [s.section02 + 328, MIDDLE_TURNBACK_TRACK_BOTTOM_Y],
     to: [s.section02 + 348, 455],
     flatCaps: true,
@@ -658,6 +1134,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'wlh-p401-p400-guide',
+    railIds: ['rail-P401', 'rail-P400'],
     from: [s.section02 + 837.5, 226],
     to: [s.section02 + 882, MIDDLE_TURNBACK_TRACK_TOP_Y],
     flatCaps: true,
@@ -684,6 +1161,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'wlh-p403-p402-guide',
+    railIds: ['rail-P403', 'rail-P402'],
     from: [s.section02 + 970.7, MIDDLE_TURNBACK_TRACK_BOTTOM_Y],
     to: [s.section02 + 990.5, 455],
     flatCaps: true,
@@ -718,6 +1196,8 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-605-to-604-upper-guide',
+    railIds: ['rail-P601', 'rail-P601-2'],
+    routeRailIds: ['rail-P601', 'rail-P601'],
     from: [s.section03 + 643, 225],
     to: [s.section03 + 622, 339],
     flatCaps: true,
@@ -739,6 +1219,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-605-to-604-lower-guide',
+    railIds: ['rail-P600'],
     from: [s.section03 + 622, 341],
     to: [s.section03 + 599, 466],
     flatCaps: true,
@@ -765,6 +1246,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-p606-guide',
+    railIds: ['rail-P606'],
     from: [s.section03 + 836, 341],
     to: [s.section03 + 857, 466],
     flatCaps: true,
@@ -798,6 +1280,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'bgk-p611-p609-guide',
+    railIds: ['rail-P611', 'rail-P609'],
     from: [s.section03 + 920, 226],
     to: [s.section03 + 892, 280],
     flatCaps: true,
@@ -824,6 +1307,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-613-to-614-guide',
+    railIds: ['rail-P613'],
     from: [s.section03 + 970, 226],
     to: [s.section03 + 988, 339],
     flatCaps: true,
@@ -837,6 +1321,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-p608-guide',
+    railIds: ['rail-P608'],
     from: [s.section03 + 988, 341],
     to: [s.section03 + 1006, 455],
     flatCaps: true,
@@ -866,6 +1351,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-p615-guide',
+    railIds: ['rail-P615'],
     from: [s.section03 + 1138, 226],
     to: [s.section03 + 1120, 339],
     flatCaps: true,
@@ -890,6 +1376,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'skg-p610-guide',
+    railIds: ['rail-P610'],
     from: [s.section03 + 1120, 341],
     to: [s.section03 + 1102, 455],
     flatCaps: true,
@@ -914,6 +1401,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgl-p701-p700-guide',
+    railIds: ['rail-P701', 'rail-P700'],
     from: [s.section04 + 105, 226],
     to: [s.section04 + 132, 455],
     flatCaps: true,
@@ -957,6 +1445,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgl-p703-p702-guide',
+    railIds: ['rail-P703', 'rail-P702'],
     from: [s.section04 + 236, 225],
     to: [s.section04 + 199, 455],
     flatCaps: true,
@@ -994,6 +1483,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgc-1105-to-1106-guide',
+    railIds: ['rail-1105-1106-guide'],
     from: [s.section04 + 612, 225],
     to: [s.section04 + 676, 455],
     flatCaps: true,
@@ -1029,6 +1519,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgc-1107-to-1104-guide',
+    railIds: ['rail-1107-to-1115-background', 'rail-1115', 'rail-1115-to-1104-background'],
     from: [s.section04 + 676, 225],
     to: [s.section04 + 612, 455],
     tone: 'grey',
@@ -1070,6 +1561,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgc-p1101-to-1115-guide',
+    railIds: ['rail-P1101'],
     from: [s.section04 + 612, 225],
     to: [s.section04 + 633, 300],
     flatCaps: true,
@@ -1088,6 +1580,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgc-p1103-to-1115-guide',
+    railIds: ['rail-P1103'],
     from: [s.section04 + 676, 225],
     to: [s.section04 + 655, 300],
     flatCaps: true,
@@ -1109,6 +1602,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgc-p1100-to-1115-guide',
+    railIds: ['rail-P1100'],
     from: [s.section04 + 612, 455],
     to: [s.section04 + 632, 382],
     flatCaps: true,
@@ -1130,6 +1624,7 @@ export const translucentTrackGuides = [
   },
   {
     id: 'pgc-p1102-to-1115-guide',
+    railIds: ['rail-P1102'],
     from: [s.section04 + 676, 455],
     to: [s.section04 + 656, 382],
     flatCaps: true,
@@ -1150,6 +1645,7 @@ export const translucentTrackGuides = [
 export const staticTrackPieces = [
   {
     id: 'hbf-p101-approach-100',
+    railId: 'rail-100',
     from: [s.section01 + 6, 338],
     to: [s.section01 + 60, 338],
     state: 'unset',
@@ -1157,6 +1653,7 @@ export const staticTrackPieces = [
   },
   {
     id: 'hbf-p101-approach-102',
+    railId: 'rail-102',
     from: [s.section01 + 63, 338],
     to: [s.section01 + 91, 338],
     state: 'unset',
@@ -1167,6 +1664,7 @@ export const staticTrackPieces = [
 export const staticTrackPaths = [
   {
     id: 'hbf-p101-track-102',
+    railId: 'rail-102',
     points: [
       [s.section01 + 63, 338],
       [s.section01 + 91, 338],
@@ -1192,6 +1690,7 @@ export const staticTrackPaths = [
   },
   {
     id: 'hbf-p101-track-106',
+    railId: 'rail-106',
     points: [
       [s.section01 + 107, 400],
       [s.section01 + 121, 460],
@@ -1285,6 +1784,7 @@ export const mapArrowData = mapSections.flatMap((offset) => [
 
 const bgkP602RouteSegment = {
   id: 'bgk-p602',
+  railId: 'rail-P602',
   idleColor: '#eedc7f',
   idleOpacity: 1,
   joined: true,
@@ -1323,6 +1823,7 @@ const bgkP602RouteSegment = {
 
 const bgkRt3Track661Segment = {
   id: 'bgk-rt3-661',
+  railId: 'rail-661',
   color: '#63869a',
   joined: true,
   opacity: 0.28,
@@ -1340,8 +1841,11 @@ const bgkRt3Track661Segment = {
 type RouteTrackState = 'condition' | 'set' | 'unset'
 
 export type TrackPieceDefinition = {
+  readonly clipPath?: string
   readonly color?: string
   readonly opacity?: number
+  readonly railId?: string
+  readonly railIds?: readonly string[]
   readonly state: RouteTrackState
   readonly width: number
   readonly x: number
@@ -1388,6 +1892,7 @@ function makeBlockedStraightRouteSegmentPiece(piece: Pick<TrackPieceDefinition, 
 export const routeSegmentData = [
   {
     id: 'hbf-turnback',
+    railId: 'rail-hbf-turnback',
     points: [
       [s.section01 + 6, 338],
       [s.section01 + 91, 338],
@@ -1401,6 +1906,8 @@ export const routeSegmentData = [
   },
   {
     id: 'section02-middle-turnback',
+    railId: 'rail-middle-turnback',
+    railIds: ['rail-314', 'rail-318', 'rail-320'],
     idleColor: section02MiddleTrackBlockedBySlant.color,
     idleOpacity: section02MiddleTrackBlockedBySlant.opacity,
     points: [
@@ -1464,6 +1971,8 @@ export const routeSegmentData = [
   },
   {
     id: 'wlh-turnback',
+    railId: 'rail-wlh-turnback',
+    railIds: ['rail-416', 'rail-418', 'rail-420'],
     idleColor: wlhTurnbackRail416.color,
     idleOpacity: wlhTurnbackRail416.opacity,
     points: [
@@ -1485,6 +1994,7 @@ export const routeSegmentData = [
   },
   {
     id: 'bgk-p603',
+    railId: 'rail-P603',
     color: '#63869a',
     joined: true,
     opacity: 0.28,
@@ -1521,6 +2031,8 @@ export const routeSegmentData = [
   bgkP602RouteSegment,
   {
     id: 'bgk-rt3',
+    railId: 'rail-RT3',
+    railIds: ['rail-663', 'rail-665'],
     joined: true,
     preserveTone: true,
     points: [
@@ -1540,6 +2052,7 @@ export const routeSegmentData = [
   },
   {
     id: 'bgk-rt2-652',
+    railId: 'rail-652',
     joined: true,
     preserveTone: true,
     points: [
@@ -1553,6 +2066,7 @@ export const routeSegmentData = [
   },
   {
     id: 'bgk-rt2',
+    railId: 'rail-650',
     joined: true,
     preserveTone: true,
     points: [
@@ -1567,6 +2081,8 @@ export const routeSegmentData = [
   },
   {
     id: 'bgk-rt1',
+    railId: 'rail-RT1',
+    railIds: ['rail-655', 'rail-653'],
     joined: true,
     preserveTone: true,
     points: [
@@ -1581,14 +2097,14 @@ export const routeSegmentData = [
         polygonPoints: [
           [s.section03 + 859, 146],
           [s.section03 + 871, 146],
-          [s.section03 + 891, 275],
-          [s.section03 + 879, 285],
+          [s.section03 + 894, 276],
+          [s.section03 + 882, 286],
         ],
         edgePolygonPoints: [
           [s.section03 + 855, 146],
           [s.section03 + 858, 146],
-          [s.section03 + 878, 285],
-          [s.section03 + 875, 285],
+          [s.section03 + 881, 286],
+          [s.section03 + 878, 286],
         ],
       },
     ],
@@ -1598,27 +2114,28 @@ export const routeSegmentData = [
   },
   {
     id: 'bgk-651',
+    railId: 'rail-651',
     joined: true,
     idleColor: STRAIGHT_TRACK_BLOCKED_BY_SLANT_COLOR,
     idleOpacity: STRAIGHT_TRACK_BLOCKED_BY_SLANT_OPACITY,
     preserveTone: true,
     points: [
-      [s.section03 + 895, 280],
+      [s.section03 + 898, 280],
       [s.section03 + 935, 280],
     ],
     segmentPolygons: [
       {
         polygonPoints: [
-          [s.section03 + 893, 276],
+          [s.section03 + 896, 276],
           [s.section03 + 935, 276],
           [s.section03 + 935, 286],
-          [s.section03 + 881, 286],
+          [s.section03 + 884, 286],
         ],
         edgePolygonPoints: [
-          [s.section03 + 881, 287],
+          [s.section03 + 884, 287],
           [s.section03 + 935, 287],
           [s.section03 + 935, 290],
-          [s.section03 + 881, 290],
+          [s.section03 + 884, 290],
         ],
         edgeVisualOnly: true,
       },
@@ -1656,20 +2173,22 @@ export function getRouteSegmentIdForTrain(train: Pick<TrainState, 'id'>) {
 export const shapedUpperTrackPieces = [
   {
     id: 'bgk-rt1-right-edge',
+    railId: 'rail-611',
     points: [
-      [s.section03 + 884, 215],
+      [s.section03 + 887, 215],
       [s.section03 + 950, 215],
       [s.section03 + 950, 226],
-      [s.section03 + 887, 226],
+      [s.section03 + 888.9, 226],
     ],
     state: 'set',
   },
   {
     id: 'bgk-rt2-right-edge',
+    railId: 'rail-RT2-edge',
     points: [
       [s.section03 + 821, 215],
       [s.section03 + 865, 215],
-      [s.section03 + 867, 226],
+      [s.section03 + 866.9, 226],
       [s.section03 + 823, 226],
     ],
     state: 'set',
@@ -1759,8 +2278,8 @@ export const upperTrackEdgeStrips = [
     id: 'bgk-609-top-strip-left',
     polygonPoints: [
       [s.section03 + 785, 210],
-      [s.section03 + 797, 210],
-      [s.section03 + 797, 213],
+      [s.section03 + 799, 210],
+      [s.section03 + 799.5, 213],
       [s.section03 + 785, 213],
     ],
   },
@@ -1776,10 +2295,10 @@ export const upperTrackEdgeStrips = [
   {
     id: 'bgk-611-top-strip',
     polygonPoints: [
-      [s.section03 + 884, 210],
+      [s.section03 + 887, 210],
       [s.section03 + 950, 210],
       [s.section03 + 950, 213],
-      [s.section03 + 884, 213],
+      [s.section03 + 887.5, 213],
     ],
   },
   {
@@ -2004,153 +2523,153 @@ export const lowerTrackEdgeStrips = [
 ] as const
 
 export const upperTrackPieces = [
-  { x: s.section01 + 6, width: 85, state: 'condition' },
+  { x: s.section01 + 6, width: 85, state: 'condition', railId: 'rail-101' },
   { x: s.section01 + 94, width: 51, state: 'unset', color: STRAIGHT_TRACK_BLOCKED_BY_SLANT_COLOR, opacity: STRAIGHT_TRACK_BLOCKED_BY_SLANT_OPACITY },
-  { x: s.section01 + 147, width: 55, state: 'unset' },
+  { x: s.section01 + 147, width: 55, state: 'unset', railIds: ['rail-105', 'rail-108'] },
   { x: s.section01 + 204, width: 44, state: 'unset' },
   { x: s.section01 + 250, width: 51, state: 'unset', color: STRAIGHT_TRACK_BLOCKED_BY_SLANT_COLOR, opacity: STRAIGHT_TRACK_BLOCKED_BY_SLANT_OPACITY },
-  { x: s.section01 + 303, width: 30, state: 'set' },
+  { x: s.section01 + 303, width: 30, state: 'set', railId: 'rail-111' },
   { x: s.section01 + 335, width: 30, state: 'set' },
   { x: s.section01 + 367, width: 30, state: 'condition' },
   { x: s.section01 + 399, width: 30, state: 'set' },
   { x: s.section01 + 432, width: 30, state: 'set' },
   { x: s.section01 + 464, width: 31, state: 'set' },
-  { x: s.section01 + 497, width: 30, state: 'set' },
+  { x: s.section01 + 497, width: 30, state: 'set', railId: 'rail-203B' },
   { x: s.section01 + 529, width: 56, state: 'unset', color: STRAIGHT_TRACK_BLOCKED_BY_SLANT_COLOR, opacity: STRAIGHT_TRACK_BLOCKED_BY_SLANT_OPACITY },
-  { x: s.section01 + 587, width: 56, state: 'set' },
-  { x: s.section01 + 645, width: 90, state: 'set' },
-  { x: s.section01 + 738, width: 55, state: 'set' },
-  { x: s.section01 + 795, width: 95, state: 'set' },
-  { x: s.section01 + 894, width: 55, state: 'condition' },
-  { x: s.section01 + 951, width: 30, state: 'set' },
+  { x: s.section01 + 587, width: 56, state: 'set', railIds: ['rail-206', 'rail-207'] },
+  { x: s.section01 + 645, width: 90, state: 'set', railId: 'rail-209' },
+  { x: s.section01 + 738, width: 55, state: 'set', railIds: ['rail-210', 'rail-211'] },
+  { x: s.section01 + 795, width: 95, state: 'set', railId: 'rail-213' },
+  { x: s.section01 + 894, width: 55, state: 'condition', railIds: ['rail-214', 'rail-215'] },
+  { x: s.section01 + 951, width: 30, state: 'set', railIds: ['rail-216', 'rail-217'] },
   { x: s.section01 + 983, width: 30, state: 'set' },
   { x: s.section01 + 1015, width: 30, state: 'set' },
   { x: s.section01 + 1047, width: 30, state: 'set' },
-  { x: s.section01 + 1079, width: 55, state: 'set' },
-  { x: s.section01 + 1136, width: 51, state: 'set' },
-  { x: s.section02 + 0, width: 29, state: 'condition' },
-  { x: s.section02 + 31, width: 55, state: 'condition' },
+  { x: s.section01 + 1079, width: 55, state: 'set', railIds: ['rail-304', 'rail-305'] },
+  { x: s.section01 + 1136, width: 51, state: 'set', railIds: ['rail-309'] },
+  { x: s.section02 + 0, width: 29, state: 'condition', railId: 'rail-308' },
+  { x: s.section02 + 31, width: 55, state: 'condition', railIds: ['rail-311-seam', 'rail-310'] },
   blockedBySlantedTrack(s.section02 + 88, 71, 'set'),
-  { x: s.section02 + 161, width: 128, state: 'set' },
+  { x: s.section02 + 161, width: 128, state: 'set', railId: 'rail-315' },
   blockedBySlantedTrack(s.section02 + 291, 54, 'set'),
-  { x: s.section02 + 347, width: 40, state: 'set' },
-  { x: s.section02 + 389, width: 55, state: 'set' },
-  { x: s.section02 + 446, width: 30, state: 'set' },
+  { x: s.section02 + 347, width: 40, state: 'set', railId: 'rail-319' },
+  { x: s.section02 + 389, width: 55, state: 'set', railIds: ['rail-321', 'rail-324'] },
+  { x: s.section02 + 446, width: 30, state: 'set', railIds: ['rail-323', 'rail-326'] },
   { x: s.section02 + 478, width: 30, state: 'set' },
   { x: s.section02 + 510, width: 30, state: 'set' },
-  { x: s.section02 + 542, width: 30, state: 'set' },
-  { x: s.section02 + 574, width: 55, state: 'set' },
+  { x: s.section02 + 542, width: 30, state: 'set', railId: 'rail-402', railIds: ['rail-403'] },
+  { x: s.section02 + 574, width: 55, state: 'set', railIds: ['rail-404', 'rail-405'] },
   { x: s.section02 + 631, width: 30, state: 'condition' },
   { x: s.section02 + 663, width: 30, state: 'set' },
-  { x: s.section02 + 695, width: 41, state: 'set' },
-  { x: s.section02 + 738, width: 55, state: 'set' },
+  { x: s.section02 + 695, width: 41, state: 'set', railId: 'rail-411' },
+  { x: s.section02 + 738, width: 55, state: 'set', railIds: ['rail-412', 'rail-413'] },
   blockedBySlantedTrack(s.section02 + 795, 85, 'set'),
-  { x: s.section02 + 882, width: 152, state: 'set' },
-  { x: s.section02 + 1036, width: 31, state: 'set' },
-  { x: s.section02 + 1069, width: 55, state: 'condition' },
-  { x: s.section02 + 1126, width: 30, state: 'set' },
+  { x: s.section02 + 882, width: 152, state: 'set', railId: 'rail-417' },
+  { x: s.section02 + 1036, width: 31, state: 'set', railId: 'rail-419' },
+  { x: s.section02 + 1069, width: 55, state: 'condition', railId: 'rail-421' },
+  { x: s.section02 + 1126, width: 30, state: 'set', railId: 'rail-423' },
   { x: s.section02 + 1158, width: 30, state: 'set' },
   { x: s.section02 + 1190, width: 30, state: 'set' },
-  { x: s.section03 + 17, width: 30, state: 'condition' },
+  { x: s.section03 + 17, width: 30, state: 'condition', railId: 'rail-503' },
   { x: s.section03 + 49, width: 55, state: 'set' },
   { x: s.section03 + 106, width: 30, state: 'set' },
   { x: s.section03 + 138, width: 30, state: 'set' },
-  { x: s.section03 + 170, width: 30, state: 'set' },
+  { x: s.section03 + 170, width: 30, state: 'set', railId: 'rail-511' },
   { x: s.section03 + 202, width: 55, state: 'set' },
-  { x: s.section03 + 259, width: 30, state: 'condition' },
+  { x: s.section03 + 259, width: 30, state: 'condition', railId: 'rail-515' },
   { x: s.section03 + 291, width: 30, state: 'set' },
-  { x: s.section03 + 323, width: 30, state: 'set' },
-  { x: s.section03 + 355, width: 55, state: 'set' },
+  { x: s.section03 + 323, width: 30, state: 'set', railId: 'rail-519' },
+  { x: s.section03 + 355, width: 55, state: 'set', railIds: ['rail-518', 'rail-521'] },
   { x: s.section03 + 412, width: 30, state: 'set' },
-  { x: s.section03 + 444, width: 30, state: 'set' },
+  { x: s.section03 + 444, width: 30, state: 'set', railId: 'rail-522' },
   { x: s.section03 + 476, width: 39, state: 'set' },
-  { x: s.section03 + 517, width: 69, state: 'set' },
+  { x: s.section03 + 517, width: 69, state: 'set', railId: 'rail-603' },
   blockedBySlantedTrack(s.section03 + 588, 99, 'set'),
-  { x: s.section03 + 689, width: 37, state: 'set' },
-  { x: s.section03 + 728, width: 55, state: 'condition' },
-  { x: s.section03 + 785, width: 12, state: 'set' },
+  { x: s.section03 + 689, width: 37, state: 'set', railId: 'rail-605B' },
+  { x: s.section03 + 728, width: 55, state: 'condition', railId: 'rail-607' },
+  { x: s.section03 + 785, width: 16, state: 'set', railId: 'rail-609', clipPath: 'polygon(0 0, calc(100% - 2px) 0, 100% 100%, 0 100%)' },
   blockedBySlantedTrack(s.section03 + 952, 150, 'set'),
   blockedBySlantedTrack(s.section03 + 1104, 60, 'unset'),
-  { x: s.section03 + 1166, width: 55, state: 'set' },
+  { x: s.section03 + 1166, width: 55, state: 'set', railId: 'rail-617' },
   { x: s.section03 + 1223, width: 30, state: 'condition' },
   { x: s.section03 + 1255, width: 20, state: 'set' },
   { x: s.section04 + 2, width: 30, state: 'set' },
-  { x: s.section04 + 34, width: 30, state: 'set' },
+  { x: s.section04 + 34, width: 30, state: 'set', railId: 'rail-703' },
   blockedBySlantedTrack(s.section04 + 66, 138, 'set'),
   blockedBySlantedTrack(s.section04 + 206, 58, 'set'),
-  { x: s.section04 + 266, width: 55, state: 'set' },
+  { x: s.section04 + 266, width: 55, state: 'set', railId: 'rail-709' },
   { x: s.section04 + 323, width: 30, state: 'set' },
-  { x: s.section04 + 355, width: 30, state: 'set' },
+  { x: s.section04 + 355, width: 30, state: 'set', railId: 'rail-713' },
   { x: s.section04 + 387, width: 47, state: 'set' },
-  { x: s.section04 + 436, width: 113, state: 'condition' },
+  { x: s.section04 + 436, width: 113, state: 'condition', railId: 'rail-1103' },
   blockedBySlantedTrack(s.section04 + 550, 78, 'set'),
   blockedBySlantedTrack(s.section04 + 629, 121, 'set'),
-  { x: s.section04 + 752, width: 77, state: 'set' },
+  { x: s.section04 + 752, width: 77, state: 'set', railIds: ['rail-1109', 'rail-1108'] },
   { x: s.section04 + 831, width: 55, state: 'unset' },
-  { x: s.section04 + 888, width: 77, state: 'unset' },
+  { x: s.section04 + 888, width: 77, state: 'unset', railIds: ['rail-1112', 'rail-1113'] },
 ] as const satisfies readonly TrackPieceDefinition[]
 
 export const lowerTrackPieces = [
-  { x: s.section01 + 147, width: 55, state: 'condition' },
+  { x: s.section01 + 147, width: 55, state: 'condition', railIds: ['rail-105', 'rail-108'] },
   { x: s.section01 + 204, width: 59, state: 'unset', color: STRAIGHT_TRACK_BLOCKED_BY_SLANT_COLOR, opacity: STRAIGHT_TRACK_BLOCKED_BY_SLANT_OPACITY },
-  { x: s.section01 + 265, width: 30, state: 'set' },
+  { x: s.section01 + 265, width: 30, state: 'set', railId: 'rail-112' },
   { x: s.section01 + 297, width: 30, state: 'set' },
   { x: s.section01 + 329, width: 30, state: 'set' },
   { x: s.section01 + 361, width: 30, state: 'set' },
   { x: s.section01 + 393, width: 31, state: 'set' },
-  { x: s.section01 + 426, width: 49, state: 'set' },
+  { x: s.section01 + 426, width: 49, state: 'set', railId: 'rail-202' },
   { x: s.section01 + 477, width: 108, state: 'unset', color: STRAIGHT_TRACK_BLOCKED_BY_SLANT_COLOR, opacity: STRAIGHT_TRACK_BLOCKED_BY_SLANT_OPACITY },
-  { x: s.section01 + 587, width: 56, state: 'set' },
-  { x: s.section01 + 646, width: 90, state: 'condition' },
-  { x: s.section01 + 738, width: 55, state: 'condition' },
-  { x: s.section01 + 798, width: 94, state: 'set' },
-  { x: s.section01 + 894, width: 55, state: 'set' },
-  { x: s.section01 + 951, width: 30, state: 'set' },
+  { x: s.section01 + 587, width: 56, state: 'set', railIds: ['rail-206', 'rail-207'] },
+  { x: s.section01 + 646, width: 90, state: 'condition', railId: 'rail-208' },
+  { x: s.section01 + 738, width: 55, state: 'condition', railIds: ['rail-210', 'rail-211'] },
+  { x: s.section01 + 798, width: 94, state: 'set', railId: 'rail-212' },
+  { x: s.section01 + 894, width: 55, state: 'set', railIds: ['rail-214', 'rail-215'] },
+  { x: s.section01 + 951, width: 30, state: 'set', railIds: ['rail-216', 'rail-217'] },
   { x: s.section01 + 983, width: 30, state: 'set' },
   { x: s.section01 + 1015, width: 30, state: 'set' },
   { x: s.section01 + 1047, width: 30, state: 'set' },
-  { x: s.section01 + 1079, width: 55, state: 'condition' },
+  { x: s.section01 + 1079, width: 55, state: 'condition', railIds: ['rail-304', 'rail-305'] },
   { x: s.section01 + 1136, width: 51, state: 'condition' },
-  { x: s.section02 + 0, width: 29, state: 'set' },
-  { x: s.section02 + 31, width: 55, state: 'condition' },
+  { x: s.section02 + 0, width: 29, state: 'set', railId: 'rail-308' },
+  { x: s.section02 + 31, width: 55, state: 'condition', railIds: ['rail-311-seam', 'rail-310'] },
   blockedBySlantedTrack(s.section02 + 88, 126, 'set'),
-  { x: s.section02 + 216, width: 113, state: 'set' },
+  { x: s.section02 + 216, width: 113, state: 'set', railId: 'rail-316' },
   blockedBySlantedTrack(s.section02 + 331, 56, 'set'),
-  { x: s.section02 + 389, width: 55, state: 'set' },
-  { x: s.section02 + 446, width: 30, state: 'set' },
+  { x: s.section02 + 389, width: 55, state: 'set', railIds: ['rail-321', 'rail-324'] },
+  { x: s.section02 + 446, width: 30, state: 'set', railIds: ['rail-323', 'rail-326'] },
   { x: s.section02 + 478, width: 30, state: 'set' },
   { x: s.section02 + 510, width: 30, state: 'set' },
-  { x: s.section02 + 542, width: 30, state: 'set' },
-  { x: s.section02 + 574, width: 55, state: 'set' },
-  { x: s.section02 + 631, width: 41, state: 'condition' },
+  { x: s.section02 + 542, width: 30, state: 'set', railId: 'rail-402' },
+  { x: s.section02 + 574, width: 55, state: 'set', railIds: ['rail-404', 'rail-405'] },
+  { x: s.section02 + 631, width: 41, state: 'condition', railIds: ['rail-406', 'rail-407'] },
   { x: s.section02 + 674, width: 30, state: 'condition' },
-  { x: s.section02 + 706, width: 30, state: 'set' },
-  { x: s.section02 + 738, width: 55, state: 'set' },
-  { x: s.section02 + 795, width: 162, state: 'set' },
+  { x: s.section02 + 706, width: 30, state: 'set', railId: 'rail-410' },
+  { x: s.section02 + 738, width: 55, state: 'set', railIds: ['rail-412', 'rail-413'] },
+  { x: s.section02 + 795, width: 162, state: 'set', railId: 'rail-414' },
   { x: s.section02 + 959, width: 63, state: 'set' },
-  { x: s.section02 + 1024, width: 43, state: 'set' },
-  { x: s.section02 + 1069, width: 55, state: 'set' },
-  { x: s.section02 + 1126, width: 30, state: 'set' },
+  { x: s.section02 + 1024, width: 43, state: 'set', railId: 'rail-424' },
+  { x: s.section02 + 1069, width: 55, state: 'set', railId: 'rail-426' },
+  { x: s.section02 + 1126, width: 30, state: 'set', railId: 'rail-428' },
   { x: s.section02 + 1158, width: 30, state: 'set' },
   { x: s.section02 + 1190, width: 30, state: 'set' },
-  { x: s.section03 + 17, width: 30, state: 'condition' },
+  { x: s.section03 + 17, width: 30, state: 'condition', railId: 'rail-503' },
   { x: s.section03 + 49, width: 55, state: 'set' },
   { x: s.section03 + 106, width: 30, state: 'set' },
   { x: s.section03 + 138, width: 30, state: 'set' },
-  { x: s.section03 + 170, width: 30, state: 'set' },
+  { x: s.section03 + 170, width: 30, state: 'set', railId: 'rail-511' },
   { x: s.section03 + 202, width: 55, state: 'set' },
-  { x: s.section03 + 259, width: 30, state: 'set' },
+  { x: s.section03 + 259, width: 30, state: 'set', railId: 'rail-515', railIds: ['rail-512'] },
   { x: s.section03 + 291, width: 30, state: 'set' },
-  { x: s.section03 + 323, width: 30, state: 'condition' },
-  { x: s.section03 + 355, width: 55, state: 'set' },
+  { x: s.section03 + 323, width: 30, state: 'condition', railId: 'rail-519' },
+  { x: s.section03 + 355, width: 55, state: 'set', railIds: ['rail-518', 'rail-521'] },
   { x: s.section03 + 412, width: 30, state: 'set' },
-  { x: s.section03 + 444, width: 30, state: 'set' },
+  { x: s.section03 + 444, width: 30, state: 'set', railId: 'rail-522' },
   { x: s.section03 + 476, width: 30, state: 'set' },
-  { x: s.section03 + 508, width: 30, state: 'set' },
-  { x: s.section03 + 540, width: 30, state: 'set' },
-  blockedBySlantedTrack(s.section03 + 572, 61, 'set'),
-  { x: s.section03 + 635, width: 91, state: 'set' },
-  { x: s.section03 + 728, width: 55, state: 'unset' },
+  { x: s.section03 + 508, width: 30, state: 'set', railId: 'rail-600' },
+  { x: s.section03 + 540, width: 30, state: 'set', railId: 'rail-602' },
+  { ...blockedBySlantedTrack(s.section03 + 572, 61, 'set'), railId: 'rail-604' },
+  { x: s.section03 + 635, width: 91, state: 'set', railId: 'rail-606' },
+  { x: s.section03 + 728, width: 55, state: 'unset', railId: 'rail-608' },
   { x: s.section03 + 785, width: 29, state: 'unset' },
   blockedBySlantedTrack(s.section03 + 817, 32, 'unset'),
   blockedBySlantedTrack(s.section03 + 849, 133, 'unset'),
@@ -2164,175 +2683,172 @@ export const lowerTrackPieces = [
   blockedBySlantedTrack(s.section04 + 99, 65, 'set'),
   blockedBySlantedTrack(s.section04 + 166, 65, 'set'),
   { x: s.section04 + 233, width: 30, state: 'condition' },
-  { x: s.section04 + 265, width: 55, state: 'set' },
+  { x: s.section04 + 265, width: 55, state: 'set', railId: 'rail-710' },
   { x: s.section04 + 322, width: 30, state: 'unset' },
-  { x: s.section04 + 354, width: 30, state: 'unset' },
+  { x: s.section04 + 354, width: 30, state: 'unset', railId: 'rail-714' },
   { x: s.section04 + 386, width: 47, state: 'unset' },
-  { x: s.section04 + 435, width: 113, state: 'unset' },
+  { x: s.section04 + 435, width: 113, state: 'unset', railId: 'rail-1102' },
   blockedBySlantedTrack(s.section04 + 549, 76, 'unset'),
   blockedBySlantedTrack(s.section04 + 627, 26, 'unset'),
   blockedBySlantedTrack(s.section04 + 655, 95, 'unset'),
-  { x: s.section04 + 752, width: 77, state: 'condition' },
+  { x: s.section04 + 752, width: 77, state: 'condition', railIds: ['rail-1109', 'rail-1108'] },
   { x: s.section04 + 831, width: 55, state: 'unset' },
-  { x: s.section04 + 888, width: 77, state: 'unset' },
+  { x: s.section04 + 888, width: 77, state: 'unset', railIds: ['rail-1112', 'rail-1113'] },
 ] as const satisfies readonly TrackPieceDefinition[]
 
 export const upperSignals = [
-  { x: s.section01 + 4, track: 'upper', side: 'below', label: 'S104', tone: 'red' },
-  { x: s.section01 + 98, label: 'S105', tone: 'red' },
-  { x: s.section01 + 205, label: 'S107', tone: 'red' },
-  { x: s.section01 + 194, track: 'lower', label: 'S109', tone: 'red' },
-  { x: centerOfRail('rail-203B'), label: 'S203', tone: 'white' },
-  { x: s.section01 + 474, track: 'lower', label: 'S201', tone: 'red' },
-  { x: centerOfRail('rail-207'), label: 'S205', tone: 'white' },
-  { x: s.section01 + 640, track: 'lower', label: 'S207', tone: 'red' },
-  { x: centerOfRail('rail-209'), label: 'S209', tone: 'white' },
-  { x: s.section01 + 689, track: 'lower', label: 'S211', tone: 'red' },
-  { x: s.section01 + 793, label: 'S213', tone: 'white' },
-  { x: s.section01 + 791, track: 'lower', label: 'S215', tone: 'red' },
-  { x: s.section01 + 891, label: 'S217', tone: 'white' },
-  { x: s.section01 + 889, track: 'lower', label: 'S219', tone: 'red' },
-  { x: s.section01 + 939, label: 'S221', tone: 'white' },
-  { x: s.section01 + 943, track: 'lower', label: 'S223', tone: 'red' },
-  { x: centerOfRail('rail-305'), label: 'S305', tone: 'white' },
-  { x: s.section01 + 1132, track: 'lower', label: 'S307', tone: 'red' },
-  { x: centerOfRail('rail-309'), label: 'S309', tone: 'white' },
-  { x: s.section02 + 14, track: 'lower', label: 'S311', tone: 'red', seamVisible: true },
-  { x: centerOfRail('rail-309-seam'), label: 'S309', tone: 'white', seamVisible: true },
-  { x: edgeOfRail('rail-311-seam', 'right', 5), label: 'S313', tone: 'white' },
-  { x: s.section02 + 225, track: 'upper', side: 'below', label: 'S316', tone: 'red' },
-  { x: s.section02 + 319, label: 'S319', tone: 'white' },
-  { x: s.section02 + 392, label: 'S325', tone: 'white' },
-  { x: s.section02 + 443, label: 'S327', tone: 'white' },
-  { x: s.section02 + 578, label: 'S401', tone: 'white' },
-  { x: s.section02 + 649, label: 'S405', tone: 'white' },
-  { x: s.section02 + 742, label: 'S409', tone: 'white' },
-  { x: s.section02 + 793, label: 'S413', tone: 'white' },
-  { x: s.section02 + 1056, label: 'S423', tone: 'white' },
-  { x: s.section02 + 1128, label: 'S427', tone: 'white' },
-  { x: s.section03 + 54, label: 'S501', tone: 'white' },
-  { x: s.section03 + 108, label: 'S505', tone: 'white' },
-  { x: s.section03 + 208, label: 'S509', tone: 'white' },
-  { x: s.section03 + 261, label: 'S513', tone: 'white', hideText: true },
-  { x: s.section03 + 360, label: 'S517', tone: 'white' },
-  { x: s.section03 + 414, label: 'S521', tone: 'white' },
-  { x: s.section03 + 576, label: 'S603', tone: 'white' },
-  { x: s.section03 + 621, y: 138, label: 'S652', tone: 'red', layout: 'left-stem' },
-  { x: s.section03 + 725, label: 'S605', tone: 'white' },
-  { x: s.section03 + 776, label: 'S609', tone: 'white' },
-  { x: s.section03 + 898, label: 'S613', tone: 'white' },
-  { x: centerOfRail('rail-613'), label: 'S617', tone: 'white' },
-  { x: centerOfRail('rail-617'), label: 'S619', seamVisible: true, tone: 'white' },
-  { x: centerOfRail('rail-703'), label: 'S701', tone: 'white' },
-  { x: centerOfRail('rail-705'), label: 'S705', tone: 'white' },
-  { x: s.section04 + 315, label: 'S707', tone: 'white' },
-  { x: s.section04 + 555, label: 'S1101', tone: 'white' },
-  { x: s.section04 + 632, label: 'S1105', tone: 'white' },
-  { x: s.section04 + 828, label: 'S1107', tone: 'red' },
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-101', track: 'upper', side: 'below', label: 'S104', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-101', label: 'S105', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-105', label: 'S107', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-108', inset: 10, track: 'lower', label: 'S109', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-203B', label: 'S203', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-202', track: 'lower', label: 'S201', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-207', label: 'S205', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-206', track: 'lower', label: 'S207', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-209', edgeOffset: 2, label: 'S209', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-208', track: 'lower', label: 'S211', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-211', label: 'S213', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-210', track: 'lower', label: 'S215', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-213', label: 'S217', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-212', track: 'lower', label: 'S219', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-215', label: 'S221', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-214', track: 'lower', label: 'S223', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-305', label: 'S305', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-304', track: 'lower', label: 'S307', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-309', label: 'S309', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-308', track: 'lower', label: 'S311', tone: 'red', seamVisible: true }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-311', inset: 5, label: 'S313', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-315', track: 'upper', side: 'below', label: 'S316', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-315', label: 'S319', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-319', label: 'S325', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-321', label: 'S327', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-403', label: 'S401', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-405', label: 'S405', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-411', edgeOffset: 2, label: 'S409', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-413', label: 'S413', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-419', label: 'S423', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-421', label: 'S427', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-503', label: 'S501', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-505', label: 'S505', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-511', label: 'S509', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-513', label: 'S513', tone: 'white', hideText: true }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-519', label: 'S517', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-521', label: 'S521', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-603', inset: 5, label: 'S603', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-663', inset: 15, y: 138, label: 'S652', tone: 'red', layout: 'left-stem' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-605B', inset: 1, label: 'S605', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-607', inset: 7, label: 'S609', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-611', label: 'S613', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-613', edgeOffset: -5, label: 'S617', seamVisible: true, tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-617', label: 'S619', seamVisible: true, tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-703', edgeOffset: -4, label: 'S701', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-705', label: 'S705', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-709', label: 'S707', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1103', inset: 5, label: 'S1101', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1105', inset: 5, label: 'S1105', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1109', inset: 5, label: 'S1107', tone: 'red' }),
 ] as const
 
 export const lowerSignals = [
-  { x: s.section01 + 27, y: 333, track: 'lower', side: 'below', label: 'S100', labelPosition: 'below-lamp', tone: 'red' },
-  { x: s.section01 + 66, y: 333, track: 'upper', label: 'S101', tone: 'red' },
-  { x: s.section01 + 144, track: 'upper', side: 'below', label: 'S108', tone: 'red' },
-  { x: s.section01 + 144, label: 'S106', tone: 'red' },
-  { x: s.section01 + 319, track: 'upper', side: 'below', label: 'S112', tone: 'red' },
-  { x: s.section01 + 254, label: 'S110', tone: 'red' },
-  { x: s.section01 + 590, track: 'upper', side: 'below', label: 'S202', tone: 'red' },
-  { x: s.section01 + 590, label: 'S200', tone: 'white' },
-  { x: s.section01 + 640, track: 'upper', side: 'below', label: 'S206', tone: 'red' },
-  { x: s.section01 + 640, label: 'S204', tone: 'white' },
-  { x: s.section01 + 732, track: 'upper', side: 'below', label: 'S210', tone: 'red' },
-  { x: s.section01 + 732, label: 'S208', tone: 'white' },
-  { x: s.section01 + 790, track: 'upper', side: 'below', label: 'S214', tone: 'red' },
-  { x: s.section01 + 790, label: 'S212', tone: 'white' },
-  { x: s.section01 + 888, track: 'upper', side: 'below', label: 'S218', tone: 'red' },
-  { x: s.section01 + 888, label: 'S216', tone: 'white' },
-  { x: s.section01 + 940, track: 'upper', side: 'below', label: 'S222', tone: 'red' },
-  { x: s.section01 + 940, label: 'S220', tone: 'white' },
-  { x: s.section01 + 1080, track: 'upper', side: 'below', label: 'S302', tone: 'red' },
-  { x: s.section01 + 1080, label: 'S300', tone: 'white' },
-  { x: s.section01 + 1136, label: 'S304', tone: 'white' },
-  { x: s.section01 + 1238, track: 'upper', side: 'below', label: 'S310', tone: 'red' },
-  { x: s.section01 + 1238, label: 'S308', tone: 'white' },
-  { x: edgeOfRail('rail-311-seam', 'left', 5), track: 'upper', side: 'below', label: 'S310', tone: 'red', seamVisible: true },
-  { x: s.section02 + 58, side: 'above', label: 'S315', tone: 'red' },
-  { x: s.section02 + 272, track: 'lower', side: 'below', label: 'S314', tone: 'red' },
-  { x: s.section02 + 272, track: 'lower', side: 'above', label: 'S321', tone: 'red' },
-  { x: s.section02 + 238, y: 335, side: 'above', label: 'S317', tone: 'red' },
-  { x: s.section02 + 238, y: 338, side: 'below', label: 'S318', labelPosition: 'below-lamp', tone: 'red' },
-  { x: s.section02 + 416, track: 'lower', side: 'below', label: 'S320', tone: 'red' },
-  { x: s.section02 + 416, track: 'lower', side: 'above', label: 'S329', tone: 'red' },
-  { x: s.section02 + 416, track: 'upper', side: 'below', label: 'S322', tone: 'red' },
-  { x: s.section02 + 461, track: 'lower', side: 'below', label: 'S324', tone: 'red' },
-  { x: s.section02 + 461, track: 'upper', side: 'below', label: 'S326', tone: 'red' },
-  { x: s.section02 + 557, track: 'lower', side: 'above', label: 'S403', tone: 'red' },
-  { x: s.section02 + 601, track: 'lower', side: 'below', label: 'S400', tone: 'red' },
-  { x: s.section02 + 601, track: 'upper', side: 'below', label: 'S402', tone: 'red' },
-  { x: s.section02 + 601, track: 'lower', side: 'above', label: 'S407', tone: 'red' },
-  { x: s.section02 + 651, track: 'lower', side: 'below', label: 'S404', tone: 'red' },
-  { x: s.section02 + 646, track: 'upper', side: 'below', label: 'S406', tone: 'red' },
-  { x: s.section02 + 765, track: 'lower', side: 'below', label: 'S408', tone: 'red' },
-  { x: s.section02 + 721, track: 'lower', side: 'above', label: 'S411', tone: 'red' },
-  { x: s.section02 + 765, track: 'upper', side: 'below', label: 'S410', tone: 'red' },
-  { x: s.section02 + 876, track: 'lower', side: 'below', label: 'S412', tone: 'red' },
-  { x: s.section02 + 765, track: 'lower', side: 'above', label: 'S415', tone: 'red' },
-  { x: s.section02 + 958, track: 'upper', side: 'below', label: 'S416', tone: 'red' },
-  { x: s.section02 + 925, y: 328, side: 'above', label: 'S417', tone: 'red' },
-  { x: s.section02 + 866, y: 338, side: 'below', label: 'S418', labelPosition: 'below-lamp', tone: 'red' },
-  { x: s.section02 + 876, track: 'lower', side: 'above', label: 'S419', tone: 'red' },
-  { x: s.section02 + 1045, track: 'lower', side: 'below', label: 'S420', tone: 'red' },
-  { x: s.section02 + 1096, track: 'lower', side: 'below', label: 'S422', tone: 'red' },
-  { x: s.section02 + 1045, track: 'lower', side: 'above', label: 'S425', tone: 'red' },
-  { x: s.section02 + 1096, track: 'upper', side: 'below', label: 'S424', tone: 'red' },
-  { x: s.section02 + 1096, track: 'lower', side: 'above', label: 'S429', tone: 'red' },
-  { x: s.section02 + 1141, track: 'lower', side: 'below', label: 'S426', tone: 'red' },
-  { x: s.section02 + 1141, track: 'upper', side: 'below', label: 'S428', tone: 'red' },
-  { x: s.section03 + 47, track: 'upper', side: 'below', label: 'S502', tone: 'red' },
-  { x: s.section03 + 95, track: 'upper', side: 'below', label: 'S506', tone: 'red' },
-  { x: s.section03 + 200, track: 'upper', side: 'below', label: 'S510', tone: 'red' },
-  { x: s.section03 + 248, track: 'upper', side: 'below', label: 'S514', tone: 'red' },
-  { x: s.section03 + 353, track: 'upper', side: 'below', label: 'S518', tone: 'red' },
-  { x: s.section03 + 401, track: 'upper', side: 'below', label: 'S522', tone: 'red' },
-  { x: s.section03 + 44, track: 'lower', side: 'below', label: 'S500', tone: 'white' },
-  { x: s.section03 + 54, side: 'above', label: 'S503', tone: 'red' },
-  { x: s.section03 + 98, track: 'lower', side: 'below', label: 'S504', tone: 'white' },
-  { x: s.section03 + 112, side: 'above', label: 'S507', tone: 'red' },
-  { x: s.section03 + 198, track: 'lower', side: 'below', label: 'S508', tone: 'white' },
-  { x: s.section03 + 207, side: 'above', label: 'S511', tone: 'red' },
-  { x: s.section03 + 251, track: 'lower', side: 'below', label: 'S512', tone: 'white' },
-  { x: s.section03 + 265, side: 'above', label: 'S515', tone: 'red' },
-  { x: s.section03 + 353, track: 'lower', side: 'below', label: 'S516', tone: 'white' },
-  { x: s.section03 + 361, side: 'above', label: 'S519', tone: 'red' },
-  { x: s.section03 + 404, track: 'lower', side: 'below', label: 'S520', tone: 'white' },
-  { x: s.section03 + 421, side: 'above', label: 'S523', tone: 'red' },
-  { x: s.section03 + 544, side: 'above', label: 'S601', tone: 'red' },
-  { x: s.section03 + 756, track: 'upper', side: 'below', label: 'S602', tone: 'red' },
-  { x: s.section03 + 838, track: 'upper', side: 'below', label: 'S606', tone: 'red' },
-  { x: s.section03 + 723, track: 'lower', side: 'below', label: 'S600', tone: 'white' },
-  { x: s.section03 + 786, track: 'lower', side: 'below', label: 'S604', tone: 'red' },
-  { x: s.section03 + 724, side: 'above', label: 'S607', tone: 'red' },
-  { x: s.section03 + 776, side: 'above', label: 'S611', tone: 'red' },
-  { x: s.section03 + 814, side: 'above', label: 'S615', tone: 'red' },
-  { x: s.section03 + 879, y: 320, track: 'lower', side: 'below', label: 'S653', tone: 'red' },
-  { x: s.section03 + 840, y: 262, track: 'lower', side: 'below', label: 'S655', tone: 'red' },
-  { x: s.section03 + 1188, track: 'lower', side: 'below', label: 'S608', seamVisible: true, tone: 'red' },
-  { x: s.section03 + 1213, side: 'above', label: 'S621', tone: 'red' },
-  { x: centerOfRail('rail-617') - 10, track: 'upper', side: 'below', label: 'S610', seamVisible: true, tone: 'red' },
-  { x: s.section04 + 268, track: 'upper', side: 'below', label: 'S702', tone: 'red' },
-  { x: s.section04 + 345, track: 'upper', side: 'below', label: 'S706', tone: 'red' },
-  { x: s.section04 + 750, track: 'upper', side: 'below', label: 'S1104', tone: 'red' },
-  { x: s.section04 + 890, track: 'upper', side: 'below', label: 'S1108', tone: 'red' },
-  { x: s.section04 + 61, track: 'lower', side: 'above', label: 'S703', tone: 'red' },
-  { x: s.section04 + 280, track: 'lower', side: 'below', label: 'S700', tone: 'white' },
-  { x: s.section04 + 292, track: 'lower', side: 'above', label: 'S709', tone: 'red' },
-  { x: s.section04 + 354, track: 'lower', side: 'below', label: 'S704', tone: 'white' },
-  { x: s.section04 + 492, track: 'lower', side: 'above', label: 'S1103', tone: 'red' },
-  { x: s.section04 + 801, label: 'S1102', tone: 'red' },
-  { x: s.section04 + 791, track: 'lower', side: 'above', label: 'S1109', tone: 'red' },
-  { x: s.section04 + 926, track: 'lower', side: 'above', label: 'S1111', tone: 'red' },
-  { x: s.section04 + 927, track: 'upper', side: 'above', label: 'S110', tone: 'red' },
-  { x: s.section04 + 931, label: 'S1106', tone: 'red' },
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-100', y: 333, track: 'lower', side: 'below', label: 'S100', labelPosition: 'below-lamp', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-100', y: 333, track: 'upper', label: 'S101', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-105', track: 'upper', side: 'below', label: 'S108', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-106', label: 'S106', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-111', track: 'upper', side: 'below', label: 'S112', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-112', label: 'S110', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-207', track: 'upper', side: 'below', label: 'S202', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-206', label: 'S200', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-209', track: 'upper', side: 'below', label: 'S206', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-208', label: 'S204', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-211', track: 'upper', side: 'below', label: 'S210', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-210', label: 'S208', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-213', track: 'upper', side: 'below', label: 'S214', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-212', label: 'S212', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-215', track: 'upper', side: 'below', label: 'S218', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-214', label: 'S216', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-217', track: 'upper', side: 'below', label: 'S222', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-216', label: 'S220', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-305', track: 'upper', side: 'below', label: 'S302', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-304', label: 'S300', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-310', track: 'upper', side: 'below', label: 'S310', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-310', label: 'S308', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-310', side: 'above', label: 'S315', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-316', track: 'lower', side: 'below', label: 'S314', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-316', track: 'lower', side: 'above', label: 'S321', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-318', y: 335, side: 'above', label: 'S317', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-318', y: 338, side: 'below', label: 'S318', labelPosition: 'below-lamp', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-324', track: 'lower', side: 'below', label: 'S320', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-324', track: 'lower', side: 'above', label: 'S329', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-321', track: 'upper', side: 'below', label: 'S322', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-326', track: 'lower', side: 'below', label: 'S324', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-323', track: 'upper', side: 'below', label: 'S326', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-402', track: 'lower', side: 'above', label: 'S403', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-404', track: 'lower', side: 'below', label: 'S400', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-405', track: 'upper', side: 'below', label: 'S402', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-404', track: 'lower', side: 'above', label: 'S407', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-406', track: 'lower', side: 'below', label: 'S404', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-407', track: 'upper', side: 'below', label: 'S406', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-412', track: 'lower', side: 'below', label: 'S408', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-410', track: 'lower', side: 'above', label: 'S411', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-413', track: 'upper', side: 'below', label: 'S410', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-414', track: 'lower', side: 'below', label: 'S412', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-412', track: 'lower', side: 'above', label: 'S415', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-417', track: 'upper', side: 'below', label: 'S416', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-418', y: 333, side: 'above', label: 'S417', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-418', y: 338, side: 'below', label: 'S418', labelPosition: 'below-lamp', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-414', track: 'lower', side: 'above', label: 'S419', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-424', track: 'lower', side: 'below', label: 'S420', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-426', track: 'lower', side: 'below', label: 'S422', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-424', track: 'lower', side: 'above', label: 'S425', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-421', track: 'upper', side: 'below', label: 'S424', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-426', track: 'lower', side: 'above', label: 'S429', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-428', track: 'lower', side: 'below', label: 'S426', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-423', track: 'upper', side: 'below', label: 'S428', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-505', track: 'upper', side: 'below', label: 'S502', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-507', track: 'upper', side: 'below', label: 'S506', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-513', track: 'upper', side: 'below', label: 'S510', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-515', track: 'upper', side: 'below', label: 'S514', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-521', track: 'upper', side: 'below', label: 'S518', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-523', track: 'upper', side: 'below', label: 'S522', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-504', track: 'lower', side: 'below', label: 'S500', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-502', side: 'above', label: 'S503', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-506', track: 'lower', side: 'below', label: 'S504', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-504', side: 'above', label: 'S507', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-512', track: 'lower', side: 'below', label: 'S508', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-510', side: 'above', label: 'S511', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-514', track: 'lower', side: 'below', label: 'S512', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-512', side: 'above', label: 'S515', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-520', track: 'lower', side: 'below', label: 'S516', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-518', side: 'above', label: 'S519', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-522', track: 'lower', side: 'below', label: 'S520', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-520', side: 'above', label: 'S523', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-602', side: 'above', label: 'S601', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-607', inset: 5, track: 'upper', side: 'below', label: 'S602', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-609', inset: 5, track: 'upper', side: 'below', label: 'S606', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-608', track: 'lower', side: 'below', label: 'S600', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-610', track: 'lower', side: 'below', label: 'S604', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-606', side: 'above', label: 'S607', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-608', side: 'above', label: 'S611', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-610', side: 'above', label: 'S615', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-650', y: 320, track: 'lower', side: 'below', label: 'S653', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-653', y: 262, track: 'lower', side: 'below', label: 'S655', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-618', inset: 5, track: 'lower', side: 'below', label: 'S608', seamVisible: true, tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-620', side: 'above', label: 'S621', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-617', xOffset: -10, track: 'upper', side: 'below', label: 'S610', seamVisible: true, tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-709', xOffset: -26, track: 'upper', side: 'below', label: 'S702', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-713', inset: 5, track: 'upper', side: 'below', label: 'S706', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-1109', track: 'upper', side: 'below', label: 'S1104', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-1113', track: 'upper', side: 'below', label: 'S1108', tone: 'red' }),
+  signalAtRail({ anchorRailId: 'rail-702', track: 'lower', side: 'above', label: 'S703', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-710', edgeOffset: 4, track: 'lower', side: 'below', label: 'S700', tone: 'white' }),
+  signalAtRail({ anchorRailId: 'rail-710', track: 'lower', side: 'above', label: 'S709', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-714', edgeOffset: 4, track: 'lower', side: 'below', label: 'S704', tone: 'white' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1102', track: 'lower', side: 'above', label: 'S1103', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-1108', edgeOffset: 4, label: 'S1102', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1108', track: 'lower', side: 'above', label: 'S1109', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1112', edgeOffset: 2, track: 'lower', side: 'above', label: 'S1111', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1113', inset: 5, track: 'upper', side: 'above', label: 'S1110', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-1112', label: 'S1106', tone: 'red' }),
 ] as const
 
 export type LineMapSignalData = (typeof upperSignals)[number] | (typeof lowerSignals)[number]
@@ -2377,7 +2893,7 @@ export const pointLabels = [
   { x: s.section04 + 650, y: 432, label: 'P1102', bold: true },
 ]
 
-export const schematicAnnotations = [
+const schematicAnnotationDefinitions = [
   { x: s.section01 + 44, y: 319, label: '100', routeNumber: true },
   { x: s.section01 + 68, y: 319, label: '102', routeNumber: true },
   { x: s.section01 + 46, y: 211, label: '101' },
@@ -2458,9 +2974,9 @@ export const schematicAnnotations = [
   { x: s.section02 + 14, y: 478, label: '308' },
   { x: s.section02 + 58, y: 478, label: '310' },
   { x: s.section02 + 151, y: 478, label: '312' },
-  { x: s.section02 + 173, y: 326, label: '314', routeNumber: true, fontSize: 10 },
+  { x: s.section02 + 193, y: 326, label: '314', routeNumber: true, fontSize: 10 },
   { x: s.section02 + 238, y: 326, label: '318', routeNumber: true, fontSize: 10 },
-  { x: s.section02 + 308, y: 326, label: '320', routeNumber: true, fontSize: 10 },
+  { x: s.section02 + 328, y: 326, label: '320', routeNumber: true, fontSize: 10 },
   { x: s.section02 + 272, y: 478, label: '316' },
   { x: s.section02 + 359, y: 478, label: '322' },
   { x: s.section02 + 416, y: 478, label: '324' },
@@ -2474,8 +2990,8 @@ export const schematicAnnotations = [
   { x: s.section02 + 721, y: 478, label: '410' },
   { x: s.section02 + 765, y: 478, label: '412' },
   { x: s.section02 + 876, y: 478, label: '414' },
-  { x: s.section02 + 866, y: 326, label: '416' },
-  { x: s.section02 + 924, y: 326, label: '418' },
+  { x: s.section02 + 836, y: 326, label: '416' },
+  { x: centerOfRail('rail-418'), y: 326, label: '418', routeNumber: true },
   { x: s.section02 + 982, y: 326, label: '420' },
   { x: s.section02 + 990, y: 478, label: '422' },
   { x: s.section02 + 1045, y: 478, label: '424' },
@@ -2543,7 +3059,7 @@ export const schematicAnnotations = [
   { x: s.section03 + 854, y: 478, label: '612' },
   { x: s.section03 + 999, y: 478, label: '614' },
   { x: s.section03 + 1082, y: 478, label: '616' },
-  { x: s.section03 + 1169, y: 478, label: '618' },
+  { x: s.section03 + 1189, y: 478, label: '618' },
   { x: s.section03 + 1230, y: 478, label: '620' },
   { x: s.section03 + 1265, y: 478, label: '622' },
   { x: s.section04 + 42, y: 211, label: '613' },
@@ -2585,3 +3101,17 @@ export const schematicAnnotations = [
   { x: s.section04 + 926, y: 478, label: '1112' },
   { x: s.section04 + 929, y: 410, label: 'SB' },
 ] as const
+
+type SchematicAnnotationDefinition = (typeof schematicAnnotationDefinitions)[number]
+
+function isRailLabelAnnotationDefinition(annotation: SchematicAnnotationDefinition) {
+  return (
+    ('routeNumber' in annotation && annotation.routeNumber)
+    || (!('tone' in annotation) && !('rotate' in annotation) && (annotation.y === 211 || annotation.y === 478))
+  )
+}
+
+export const schematicAnnotations = schematicAnnotationDefinitions.map((annotation) => ({
+  ...annotation,
+  railLabel: isRailLabelAnnotationDefinition(annotation),
+}))

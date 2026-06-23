@@ -5,14 +5,18 @@ import {
   upsertTimetableRow,
 } from '../../scenarioWorkflow'
 import { clearInactiveTimetablePlaybackTrains } from '../../sessionState'
-import { isPanelTimetableAutomatic } from './lineMapRouteState'
 import { applyTimetablePlaybackStepState } from './trainMovementState'
-import {
-  createTimetablePlaybackPlans,
-} from './timetablePlayback'
 import type { TimetablePlaybackPlan } from './timetablePlayback'
+import {
+  createAllowedTimetablePlaybackPlans,
+  createTimetableMovementAuthorities,
+} from './timetableMovementAuthority'
+import {
+  createTimetablePlaybackSchedule,
+  scheduleTimetablePlaybackEntries,
+} from './timetablePlaybackScheduler'
+import type { TimetablePlaybackScheduler } from './timetablePlaybackScheduler'
 
-export type TimetablePlaybackScheduler = (callback: () => void, delayMs: number) => number
 export type TimetablePlaybackSessionUpdater = (
   updater: (current: OccSessionState) => OccSessionState
 ) => void
@@ -37,8 +41,15 @@ export function createAutomaticTimetablePlaybackPlans(
   routeControlModes: Record<string, RouteControlMode>,
   now: Date,
 ) {
-  return createTimetablePlaybackPlans(session.timetableRows, now)
-    .filter((plan) => isPanelTimetableAutomatic(plan.panelCode, routeControlModes))
+  return createAllowedTimetablePlaybackPlans(session, routeControlModes, now)
+}
+
+export function createAutomaticTimetableMovementAuthorities(
+  session: OccSessionState,
+  routeControlModes: Record<string, RouteControlMode>,
+  now: Date,
+) {
+  return createTimetableMovementAuthorities(session, routeControlModes, now)
 }
 
 export function getActiveTimetablePlaybackTrainIds(plans: readonly TimetablePlaybackPlan[]) {
@@ -103,21 +114,15 @@ export function scheduleTimetablePlaybackRun({
   updateSession: TimetablePlaybackSessionUpdater
 }) {
   const playbackPlans = createAutomaticTimetablePlaybackPlans(session, routeControlModes, now)
-  const timeoutIds: number[] = []
+  const playbackSchedule = createTimetablePlaybackSchedule(playbackPlans)
 
   updateSession((current) => applyTimetablePlaybackRunStart(current, playbackPlans))
 
-  playbackPlans.forEach((plan) => {
-    plan.steps.forEach((_, stepIndex) => {
-      if (stepIndex < plan.firstStepIndex) {
-        return
-      }
-
-      timeoutIds.push(scheduleTimeout(() => {
-        updateSession((current) => applyTimetablePlaybackStepSession(current, plan, stepIndex))
-      }, plan.stepOffsetsMs[stepIndex] ?? 0))
-    })
+  return scheduleTimetablePlaybackEntries({
+    runEntry: (entry) => {
+      updateSession((current) => applyTimetablePlaybackStepSession(current, entry.plan, entry.stepIndex))
+    },
+    schedule: playbackSchedule,
+    scheduleTimeout,
   })
-
-  return timeoutIds
 }

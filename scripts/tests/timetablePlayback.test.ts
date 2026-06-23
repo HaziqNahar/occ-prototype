@@ -55,10 +55,28 @@ assert.equal(getTimetableRowSelectedStation(timetableRow({ stationPoint: '', ori
   assert.ok(plan)
   assert.equal(plan.trainId, '312')
   assert.equal(plan.panelCode, 'SKG')
+  assert.equal(plan.stationRouteId, 'timetable-pgc-skg-to-rt2-depot')
+  assert.equal(plan.from, 'PGC')
+  assert.deepEqual(plan.via, ['SKG'])
+  assert.equal(plan.to, 'RT2_DEPOT')
   assert.equal(plan.steps.length > 0, true)
   assert.equal(
     plan.steps.some((step) => step.segmentId.startsWith('rail-P') || step.segmentId === 'rail-1115'),
     false,
     'timetable playback route must not include P-guide rails or rail-1115',
   )
+}
+
+{
+  const plans = createTimetablePlaybackPlans(
+    [timetableRow({
+      destinationPoint: 'PGCN',
+      originPoint: 'HBFN',
+      run: 'NB',
+      stationPoint: 'HBFN',
+    })],
+    new Date(2026, 0, 1, 10, 6, 0),
+  )
+
+  assert.equal(plans.length, 0, 'timetable rows without a station route must not use fallback playback')
 }

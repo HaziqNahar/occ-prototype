@@ -23,14 +23,15 @@ import {
   REMOVED_ROUTE_SEGMENT_IDS,
   SIGNAL_LABELS_WITHOUT_ROUTES,
   SIGNAL_ROUTE_DEFINITIONS,
-  S610_RETIRED_ROUTE_SEGMENT_IDS,
   type SignalRouteDefinition,
 } from './routeDefinitions'
 import {
   LINE_MAP_ROUTE_PATH_DEFINITIONS,
+  getSignalRouteSegmentIds,
   type LineMapRoutePathDefinition,
   type ManualLineMapRoutePathDefinition,
   type TimetableLineMapRoutePathDefinition,
+  type TimetableRoutePathMatcher,
 } from './lineMapRoutePaths'
 import { isTimetableIneligibleGuideRailId } from './timetableRouteStateCleanup'
 
@@ -38,7 +39,6 @@ let didWarnLineMapRouteValidation = false
 
 const LEGACY_OR_REMOVED_ROUTE_SEGMENT_IDS = new Set<string>([
   ...REMOVED_ROUTE_SEGMENT_IDS,
-  ...S610_RETIRED_ROUTE_SEGMENT_IDS,
   ...LINE_SUFFIX_ROUTE_SEGMENT_MIGRATIONS.map(([legacySegmentId]) => legacySegmentId),
 ])
 
@@ -64,6 +64,14 @@ export function warnLineMapRouteValidationIssues() {
 type LineMapRouteValidationOptions = {
   routePathDefinitions?: readonly LineMapRoutePathDefinition[]
   routeDefinitions?: readonly SignalRouteDefinition[]
+}
+
+export type LineMapSignalAccount = {
+  accountId: string
+  anchorRailId?: string
+  label: string
+  placementStatus: 'pixel-positioned' | 'rail-anchored'
+  routeStatus: 'pending-route-definition' | 'route-defined' | 'route-less'
 }
 
 export function validateLineMapRouteDefinitions(options: LineMapRouteValidationOptions = {}) {
@@ -126,9 +134,33 @@ export function validateLineMapRouteDefinitions(options: LineMapRouteValidationO
     }
   })
 
+  validateRenderedRailInventory(knownRailIds, issues)
+  validateSignalInventory(getLineMapSignalAccounts(routeDefinitions), knownRailIds, issues)
   validateLineMapRoutePathDefinitions(routePathDefinitions, knownRailIds, issues)
 
   return issues
+}
+
+export function getLineMapSignalAccounts(
+  routeDefinitions: readonly SignalRouteDefinition[] = SIGNAL_ROUTE_DEFINITIONS,
+): LineMapSignalAccount[] {
+  const routeSignalLabels = new Set(routeDefinitions.map((routeDefinition) => routeDefinition.signalLabel))
+
+  return [...upperSignals, ...lowerSignals].map((signal) => {
+    const routeStatus = routeSignalLabels.has(signal.label)
+      ? 'route-defined'
+      : SIGNAL_LABELS_WITHOUT_ROUTES.has(signal.label)
+        ? 'route-less'
+        : 'pending-route-definition'
+
+    return {
+      accountId: getSignalAccountId(signal),
+      anchorRailId: 'anchorRailId' in signal && typeof signal.anchorRailId === 'string' ? signal.anchorRailId : undefined,
+      label: signal.label,
+      placementStatus: 'anchorRailId' in signal ? 'rail-anchored' : 'pixel-positioned',
+      routeStatus,
+    }
+  })
 }
 
 function validateLineMapRoutePathDefinitions(
@@ -165,6 +197,12 @@ function validateManualRoutePathDefinition(
   knownRailIds: ReadonlySet<string>,
   issues: string[],
 ) {
+  if (routePath.routeLabels.length === 0) {
+    issues.push(`${routePath.id} has no backing signal route labels`)
+  }
+
+  validateRoutePathRouteLabels(routePath.id, routePath.routeLabels, issues)
+
   if (routePath.movementRouteSteps.length === 0) {
     issues.push(`${routePath.id} has no movement steps`)
   }
@@ -175,6 +213,7 @@ function validateManualRoutePathDefinition(
 
   validateRoutePathSteps(`${routePath.id} movement`, routePath.movementRouteSteps, knownRailIds, issues)
   validateRoutePathSteps(`${routePath.id} state`, routePath.stateRouteSteps, knownRailIds, issues)
+  validateManualRoutePathBackedBySignalRoutes(routePath, issues)
 
   const highestStateIndex = routePath.movementRouteSteps.length - 1 + (routePath.stateRouteStepIndexOffset ?? 0)
 
@@ -183,11 +222,38 @@ function validateManualRoutePathDefinition(
   }
 }
 
+function validateManualRoutePathBackedBySignalRoutes(
+  routePath: ManualLineMapRoutePathDefinition,
+  issues: string[],
+) {
+  const routeSegmentIds = getSignalRouteSegmentIds(routePath.routeLabels)
+
+  if (routeSegmentIds.length === 0) {
+    return
+  }
+
+  const routeSegmentIdSet = new Set(routeSegmentIds)
+  const stateStepSegmentIds = routePath.stateRouteSteps.map((step) => step.segmentId)
+  const stateStepSegmentIdSet = new Set(stateStepSegmentIds)
+  const unexpectedStateStepIds = stateStepSegmentIds.filter((segmentId) => !routeSegmentIdSet.has(segmentId))
+  const missingStateStepIds = routeSegmentIds.filter((segmentId) => !stateStepSegmentIdSet.has(segmentId))
+
+  if (unexpectedStateStepIds.length > 0) {
+    issues.push(`${routePath.id} has state steps outside its signal route definitions: ${unexpectedStateStepIds.join(', ')}`)
+  }
+
+  if (missingStateStepIds.length > 0) {
+    issues.push(`${routePath.id} is missing signal route rails in state steps: ${missingStateStepIds.join(', ')}`)
+  }
+}
+
 function validateTimetableRoutePathDefinition(
   routePath: TimetableLineMapRoutePathDefinition,
   knownRailIds: ReadonlySet<string>,
   issues: string[],
 ) {
+  validateTimetableStationRouteDefinition(routePath, issues)
+
   if (!routePath.panelCode.trim()) {
     issues.push(`${routePath.id} has no route panel code`)
   }
@@ -196,11 +262,18 @@ function validateTimetableRoutePathDefinition(
     issues.push(`${routePath.id} has no timetable steps`)
   }
 
+  if (routePath.routeLabels.length === 0) {
+    issues.push(`${routePath.id} has no backing signal route labels`)
+  }
+
+  validateRoutePathRouteLabels(routePath.id, routePath.routeLabels, issues)
+
   if (routePath.disallowGuideRails !== true) {
     issues.push(`${routePath.id} must explicitly opt into or out of guide rails`)
   }
 
   validateRoutePathSteps(`${routePath.id} timetable`, routePath.steps, knownRailIds, issues)
+  validateTimetableRoutePathBackedBySignalRoutes(routePath, issues)
 
   if (routePath.disallowGuideRails) {
     routePath.steps.forEach((step) => {
@@ -208,6 +281,80 @@ function validateTimetableRoutePathDefinition(
         issues.push(`${routePath.id} timetable path must not include guide rail ${step.segmentId}`)
       }
     })
+  }
+}
+
+function validateTimetableStationRouteDefinition(
+  routePath: TimetableLineMapRoutePathDefinition,
+  issues: string[],
+) {
+  if (routePath.from === routePath.to) {
+    issues.push(`${routePath.id} has the same station route origin and destination ${routePath.from}`)
+  }
+
+  const allowedOrigins = collectRouteMatcherLocations(routePath.match, 'originAny')
+  const allowedStations = collectRouteMatcherLocations(routePath.match, 'stationAny')
+  const allowedDestinations = collectRouteMatcherLocations(routePath.match, 'destinationAny')
+
+  if (allowedOrigins.size > 0 && !allowedOrigins.has(routePath.from) && !routePath.via?.some((station) => allowedOrigins.has(station))) {
+    issues.push(`${routePath.id} station route origin ${routePath.from} is not represented by its matcher originAny`)
+  }
+
+  if (allowedDestinations.size > 0 && !allowedDestinations.has(routePath.to)) {
+    issues.push(`${routePath.id} station route destination ${routePath.to} is not represented by its matcher destinationAny`)
+  }
+
+  routePath.via?.forEach((station) => {
+    if (allowedStations.size > 0 && !allowedStations.has(station)) {
+      issues.push(`${routePath.id} station route via ${station} is not represented by its matcher stationAny`)
+    }
+  })
+}
+
+function collectRouteMatcherLocations(
+  matcher: TimetableRoutePathMatcher,
+  key: 'destinationAny' | 'originAny' | 'stationAny',
+): Set<string> {
+  const locations = new Set<string>()
+
+  matcher[key]?.forEach((location) => locations.add(location))
+  matcher.anyOf?.forEach((candidate) => {
+    collectRouteMatcherLocations(candidate, key).forEach((location) => locations.add(location))
+  })
+
+  return locations
+}
+
+function validateRoutePathRouteLabels(
+  routePathId: string,
+  routeLabels: readonly string[],
+  issues: string[],
+) {
+  const knownRouteLabels = new Set<string>(SIGNAL_ROUTE_DEFINITIONS.map((routeDefinition) => routeDefinition.routeLabel))
+
+  routeLabels.forEach((routeLabel) => {
+    if (!knownRouteLabels.has(routeLabel)) {
+      issues.push(`${routePathId} references unknown signal route ${routeLabel}`)
+    }
+  })
+}
+
+function validateTimetableRoutePathBackedBySignalRoutes(
+  routePath: TimetableLineMapRoutePathDefinition,
+  issues: string[],
+) {
+  const routeSegmentIds = getSignalRouteSegmentIds(routePath.routeLabels)
+
+  if (routeSegmentIds.length === 0) {
+    return
+  }
+
+  const routeSegmentIdSet = new Set(routeSegmentIds)
+  const timetableStepSegmentIds = routePath.steps.map((step) => step.segmentId)
+  const unexpectedStepIds = timetableStepSegmentIds.filter((segmentId) => !routeSegmentIdSet.has(segmentId))
+
+  if (unexpectedStepIds.length > 0) {
+    issues.push(`${routePath.id} has timetable steps outside its signal route definitions: ${unexpectedStepIds.join(', ')}`)
   }
 }
 
@@ -223,6 +370,45 @@ function validateRoutePathSteps(
     if (!knownRailIds.has(step.segmentId)) {
       issues.push(`${label} step references unknown rail ${step.segmentId}`)
     }
+  })
+}
+
+function validateRenderedRailInventory(
+  knownRailIds: ReadonlySet<string>,
+  issues: string[],
+) {
+  knownRailIds.forEach((railId) => {
+    if (railId.startsWith('rail-unlabelled-')) {
+      issues.push(`${railId} is rendered without an explicit rail ID`)
+    }
+  })
+}
+
+function validateSignalInventory(
+  signalAccounts: readonly LineMapSignalAccount[],
+  knownRailIds: ReadonlySet<string>,
+  issues: string[],
+) {
+  const accountIds = new Set<string>()
+
+  signalAccounts.forEach((account) => {
+    if (!account.label.trim()) {
+      issues.push(`${account.accountId} has no signal label`)
+    }
+
+    if (accountIds.has(account.accountId)) {
+      issues.push(`${account.accountId} signal account is duplicated`)
+    }
+
+    if (account.placementStatus === 'pixel-positioned') {
+      issues.push(`${account.accountId} is not anchored to a rail`)
+    }
+
+    if (account.anchorRailId && !knownRailIds.has(account.anchorRailId)) {
+      issues.push(`${account.accountId} is anchored to unknown rail ${account.anchorRailId}`)
+    }
+
+    accountIds.add(account.accountId)
   })
 }
 
@@ -269,6 +455,8 @@ function validateSignalRouteDefinition(
   validateNoLegacyOrRemovedRouteIds(`${routeName} real rails`, routeDefinition.realSegmentIds, issues)
   validateNoLegacyOrRemovedRouteIds(`${routeName} command segments`, routeDefinition.commandSegmentIds, issues)
   validateNoLegacyOrRemovedRouteIds(`${routeName} command-state segments`, routeDefinition.commandStateSegmentIds, issues)
+  validateNoExclusiveRouteSegmentConflicts(routeDefinition, routeName, issues)
+  validatePgcCrossoverPairing(routeDefinition, routeName, issues)
 
   routeDefinition.realSegmentIds.forEach((segmentId) => {
     if (!knownRailIds.has(segmentId)) {
@@ -304,6 +492,53 @@ function validateSignalRouteDefinition(
   if (routeDefinition.keepRealSegmentsUnsetOnUnset && getCommandMarkerSegmentIds(routeDefinition).length === 0) {
     issues.push(`${routeName} keeps rails yellow on unset but does not define a command marker`)
   }
+}
+
+function validateNoExclusiveRouteSegmentConflicts(
+  routeDefinition: SignalRouteDefinition,
+  routeName: string,
+  issues: string[],
+) {
+  const routeRailIds = new Set(routeDefinition.realSegmentIds)
+
+  EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
+    const preferredRails = group.sides[0].filter((railId) => routeRailIds.has(railId))
+    const conflictingRails = group.sides.slice(1).flat().filter((railId) => routeRailIds.has(railId))
+
+    if (preferredRails.length === 0 || conflictingRails.length === 0) {
+      return
+    }
+
+    issues.push(`${routeName} sets mutually exclusive rails ${preferredRails.join(', ')} and ${conflictingRails.join(', ')}`)
+  })
+}
+
+function validatePgcCrossoverPairing(
+  routeDefinition: SignalRouteDefinition,
+  routeName: string,
+  issues: string[],
+) {
+  const routeRailIds = new Set(routeDefinition.realSegmentIds)
+
+  if (!routeRailIds.has('rail-1115')) {
+    return
+  }
+
+  const pgcCrossoverRails = ['rail-P1100', 'rail-P1101', 'rail-P1102', 'rail-P1103']
+    .filter((railId) => routeRailIds.has(railId))
+    .sort()
+
+  if (pgcCrossoverRails.length === 0) {
+    return
+  }
+
+  const pairing = pgcCrossoverRails.join('|')
+
+  if (pairing === 'rail-P1100|rail-P1103' || pairing === 'rail-P1101|rail-P1102') {
+    return
+  }
+
+  issues.push(`${routeName} uses invalid PGC 1115 crossover pairing ${pgcCrossoverRails.join(', ')}`)
 }
 
 function validatePendingRouteDefinition(
@@ -356,7 +591,7 @@ function getExpectedCommandMarkerSegmentId(routeLabel: string) {
   return `${routeLabel.toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-')}-command`
 }
 
-function getKnownLineMapRailIds() {
+export function getKnownLineMapRailIds() {
   const railIds = new Set<string>()
 
   EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
@@ -364,8 +599,8 @@ function getKnownLineMapRailIds() {
   })
 
   routeSegmentData.forEach((segment) => {
-    railIds.add(getRouteSegmentRailId(segment.id))
-    getRouteSegmentRailPartIds(segment.id).forEach((railId) => railIds.add(railId))
+    railIds.add(getRouteSegmentRailId(segment))
+    getRouteSegmentRailPartIds(segment).forEach((railId) => railIds.add(railId))
   })
 
   translucentTrackGuides.forEach((guide) => {
@@ -376,26 +611,39 @@ function getKnownLineMapRailIds() {
         : 1
 
     Array.from({ length: segmentCount }).forEach((_, index) => {
-      const railId = getTrackGuideRailId(guide.id, segmentCount > 1 ? index : undefined)
-      railIds.add(getTrackGuideRouteRailId(railId))
+      const railId = getTrackGuideRailId(guide, segmentCount > 1 ? index : undefined)
+      railIds.add(getTrackGuideRouteRailId(railId, guide))
     })
   })
 
   staticTrackPieces.forEach((piece) => {
-    railIds.add(getStaticTrackPieceRailId(piece.id))
+    railIds.add(getStaticTrackPieceRailId(piece))
   })
 
   staticTrackPaths.forEach((path) => {
-    railIds.add(getStaticTrackPathRailId(path.id))
+    railIds.add(getStaticTrackPathRailId(path))
   })
 
   upperTrackPieces.forEach((piece) => {
     railIds.add(getTrackPieceRailId(piece, 'upper'))
+    const pieceRailIds = 'railIds' in piece ? piece.railIds : undefined
+
+    pieceRailIds?.forEach((railId) => railIds.add(railId))
   })
 
   lowerTrackPieces.forEach((piece) => {
     railIds.add(getTrackPieceRailId(piece, 'lower'))
+    const pieceRailIds = 'railIds' in piece ? piece.railIds : undefined
+
+    pieceRailIds?.forEach((railId) => railIds.add(railId))
   })
 
   return railIds
+}
+
+function getSignalAccountId(signal: (typeof upperSignals)[number] | (typeof lowerSignals)[number]) {
+  const track = 'track' in signal && signal.track ? signal.track : 'auto'
+  const y = 'y' in signal && typeof signal.y === 'number' ? Math.round(signal.y) : 'auto'
+
+  return `${signal.label}:${track}:${Math.round(signal.x)}:${y}`
 }

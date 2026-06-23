@@ -1,26 +1,55 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
 type InspectorInfoRowProps = {
+  disabled?: boolean
   label: string
-  tone?: 'green' | 'red'
+  tone?: 'blue' | 'green' | 'red'
   value: string
 }
 
 export function InspectorInfoRow({
+  disabled = false,
   label,
   tone = 'green',
   value,
 }: InspectorInfoRowProps) {
   return (
-    <div className="train-inspector-info-row">
+    <div className={`train-inspector-info-row ${disabled ? 'is-disabled' : ''}`}>
       <span className="train-inspector-info-label">{label}</span>
       <span className="train-inspector-info-field">
         <span>{value}</span>
-        <i className={tone === 'red' ? 'is-red' : undefined} />
+        <i className={`is-${tone}`} />
       </span>
     </div>
   )
+}
+
+type InspectorCommandRowProps = {
+  children?: ReactNode
+  disabled?: boolean
+  label: string
+}
+
+export function InspectorCommandRow({
+  children,
+  disabled = false,
+  label,
+}: InspectorCommandRowProps) {
+  return (
+    <div className={`train-inspector-command-row ${disabled ? 'is-disabled' : ''}`}>
+      <span>{label}</span>
+      {children ? <div>{children}</div> : <div />}
+    </div>
+  )
+}
+
+export function InspectorCommandSection({
+  label,
+}: {
+  label: string
+}) {
+  return <div className="train-inspector-command-section">{label}</div>
 }
 
 type TrainInspectorScrollbarProps = {

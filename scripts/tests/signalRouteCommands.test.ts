@@ -63,8 +63,8 @@ function routeState(
 }
 
 {
-  assert.equal(hasSignalRouteCommand(signal('S700'), 'Route R709_705'), true)
-  assert.equal(hasSignalRouteCommand(signal('S709'), 'Route R709_705'), false)
+  assert.equal(hasSignalRouteCommand(signal('S700'), 'Route R700_608'), true)
+  assert.equal(hasSignalRouteCommand(signal('S709'), 'Route R700_608'), false)
   assert.equal(shouldResetTrainRouteIndexForSignal(signal('S610')), true)
   assert.equal(shouldResetTrainRouteIndexForSignal(signal('S700')), false)
 }
@@ -100,11 +100,11 @@ function routeState(
   }
 
   assert.strictEqual(
-    createSignalRouteSetOverrideSegments(current, signal('S709'), 'Route R709_705', { id: '312' }),
+    createSignalRouteSetOverrideSegments(current, signal('S709'), 'Route R700_608', { id: '312' }),
     current,
   )
   assert.strictEqual(
-    createSignalRouteUnsetOverrideSegments(current, signal('S709'), 'Route R709_705'),
+    createSignalRouteUnsetOverrideSegments(current, signal('S709'), 'Route R700_608'),
     current,
   )
 }
@@ -114,15 +114,15 @@ function routeState(
     ...createInitialSession(),
     selectedTrainId: '314',
   }
-  const setSession = applySignalRouteSetSession(session, signal('S700'), 'Route R709_705')
+  const setSession = applySignalRouteSetSession(session, signal('S700'), 'Route R700_608')
 
-  assert.deepEqual(getSignalRouteSetLabels('S700', setSession.lineMap), ['Route R709_705'])
+  assert.deepEqual(getSignalRouteSetLabels('S700', setSession.lineMap), ['Route R700_608'])
   assert.deepEqual(getSignalRouteSetLabels('S709', setSession.lineMap), [])
   assert.equal(setSession.selectedTrainId, '314')
   assert.equal(setSession.timetableRows.find((row) => row.train === '314')?.state, 'R')
-  assert.equal(setSession.eventRows[0].message.includes('Route R709_705 set from S700'), true)
+  assert.equal(setSession.eventRows[0].message.includes('Route R700_608 set from S700'), true)
 
-  const unsetSession = applySignalRouteUnsetSession(setSession, signal('S700'), 'Route R709_705')
+  const unsetSession = applySignalRouteUnsetSession(setSession, signal('S700'), 'Route R700_608')
 
   assert.deepEqual(getSignalRouteSetLabels('S700', unsetSession.lineMap), [])
   assert.deepEqual(getSignalRouteSetLabels('S709', unsetSession.lineMap), [])

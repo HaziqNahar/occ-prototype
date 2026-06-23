@@ -30,8 +30,17 @@ import SignalRouteDefinitionWindow from './components/route-definition/SignalRou
 import ScadaFooter from './components/ScadaFooter'
 import ChangeEndsDialog from './components/train-control/ChangeEndsDialog'
 import { SignalContextMenu, TrainAuxiliaryPanel, TrainContextMenu } from './components/train-control/LineMapContextMenus'
+import PtiInitialisationDialog from './components/train-control/PtiInitialisationDialog'
 import ScadaCommandDialog from './components/train-control/ScadaCommandDialog'
-import { InspectorInfoRow, ScadaDropdown, TrainInspectorScrollbar } from './components/train-control/TrainInspectorControls'
+import SkipStopDialog from './components/train-control/SkipStopDialog'
+import {
+  InspectorCommandRow,
+  InspectorCommandSection,
+  InspectorInfoRow,
+  ScadaDropdown,
+  TrainInspectorScrollbar,
+} from './components/train-control/TrainInspectorControls'
+import TrainHoldDialog from './components/train-control/TrainHoldDialog'
 import TrainTimeDialog from './components/train-control/TrainTimeDialog'
 import {
   getTrainServiceDirectionLabel,
@@ -114,6 +123,10 @@ import {
   TIMETABLE_PLAYBACK_REFRESH_MS,
   getTimetableRowSelectedStation,
 } from './screens/line-map/timetablePlayback'
+import {
+  createTimetableRouteDiagnostics,
+  createTimetableRouteDiagnosticsSummary,
+} from './screens/line-map/timetableDiagnostics'
 import {
   createTimetablePlaybackRunKey,
   scheduleTimetablePlaybackRun,
@@ -1988,14 +2001,18 @@ function TrainInspectorPanel({
   } | null>(null)
   const [doorRequest, setDoorRequest] = useState('')
   const [brakeResetRequest, setBrakeResetRequest] = useState('')
+  const [controlSelections, setControlSelections] = useState<Record<string, string>>({})
   const [readinessModeOverride, setReadinessModeOverride] = useState<{
     baseMode: TrainReadinessMode
     mode: TrainReadinessMode
     trainId: string
   } | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
+  const [ptiDialogOpen, setPtiDialogOpen] = useState(false)
   const [trainTimeDialogKind, setTrainTimeDialogKind] = useState<'arrival' | 'departure' | null>(null)
   const [changeEndsDialogOpen, setChangeEndsDialogOpen] = useState(false)
+  const [trainHoldDialogOpen, setTrainHoldDialogOpen] = useState(false)
+  const [skipStopDialogOpen, setSkipStopDialogOpen] = useState(false)
   const [displayedItamaStatusOverride, setDisplayedItamaStatusOverride] = useState<{
     baseStatus: TrainItamaDisplayStatus
     trainId: string
@@ -2072,18 +2089,62 @@ function TrainInspectorPanel({
 
   const recordStatus = (message: string) => setStatusMessage(message)
 
+  const updateControlSelection = (key: string, label: string, nextValue: string) => {
+    setControlSelections((current) => ({
+      ...current,
+      [key]: nextValue,
+    }))
+    setStatusMessage(`${label}${nextValue ? ` ${nextValue}` : ''} selected`)
+  }
+
   const openTrainTimeDialog = (kind: 'arrival' | 'departure') => {
     setConfirmationCommand(null)
+    setPtiDialogOpen(false)
     setChangeEndsDialogOpen(false)
+    setTrainHoldDialogOpen(false)
+    setSkipStopDialogOpen(false)
     setTrainTimeDialogKind(kind)
     setStatusMessage(`${kind === 'arrival' ? 'Arrival' : 'Departure'} time selected`)
   }
 
-  const openChangeEndsDialog = () => {
+  const openPtiDialog = () => {
     setConfirmationCommand(null)
     setTrainTimeDialogKind(null)
+    setChangeEndsDialogOpen(false)
+    setTrainHoldDialogOpen(false)
+    setSkipStopDialogOpen(false)
+    setPtiDialogOpen(true)
+    setStatusMessage('PTI initialisation selected')
+  }
+
+  const openChangeEndsDialog = () => {
+    setConfirmationCommand(null)
+    setPtiDialogOpen(false)
+    setTrainTimeDialogKind(null)
+    setTrainHoldDialogOpen(false)
+    setSkipStopDialogOpen(false)
     setChangeEndsDialogOpen(true)
     setStatusMessage('Change of ends request selected')
+  }
+
+  const openTrainHoldDialog = () => {
+    setConfirmationCommand(null)
+    setPtiDialogOpen(false)
+    setTrainTimeDialogKind(null)
+    setChangeEndsDialogOpen(false)
+    setSkipStopDialogOpen(false)
+    setTrainHoldDialogOpen(true)
+    setStatusMessage('Train hold selected')
+  }
+
+  const openSkipStopDialog = () => {
+    setConfirmationCommand(null)
+    setPtiDialogOpen(false)
+    setTrainTimeDialogKind(null)
+    setChangeEndsDialogOpen(false)
+    setTrainHoldDialogOpen(false)
+    setSkipStopDialogOpen(true)
+    setStatusMessage('Skip stop selected')
   }
 
   const updateInspectorScroll = useCallback(() => {
@@ -2319,6 +2380,76 @@ function TrainInspectorPanel({
     setConfirmationCommand(null)
   }
 
+  const selectedArrivalParts = arrivalTimeSelection?.command.split(' - ') ?? []
+  const selectedArrivalTime = selectedArrivalParts[1] ?? '08:40:18'
+  const selectedArrivalPlatform = arrivalTimeSelection?.platformSiding ?? `${nearestPlatform.code}${currentDirection === 'NB' ? 'N' : 'S'}`
+  const departurePlatform = `${nearestPlatform.code}${currentDirection === 'NB' ? 'S' : 'N'}`
+  const trainHoldStatus = train.status === 'HOLD' ? 'REQUESTED' : 'RELEASED'
+  const trainHoldValue = train.status === 'HOLD' ? 'APPLIED' : 'NOT APPLIED'
+  const trainSpeed = train.isMoving ? '10' : '0'
+  const computedDirection = currentDirection === 'NB' ? 'TO NORTH DIR' : 'TO SOUTH DIR'
+  const trainInfoRows: Array<{
+    disabled?: boolean
+    label: string
+    tone?: 'blue' | 'green' | 'red'
+    value: string
+  }> = [
+    { label: 'Train number', value: trainNumber },
+    { label: 'Schedule number, given by ATC', value: scheduleNumber },
+    { label: 'Train Readiness State', value: train.status === 'HOLD' ? 'AUTO HOLD' : 'AUTO MODE' },
+    { label: 'Train Readiness Mode: Manual', value: 'NONE' },
+    { label: 'Train Readiness Mode: Auto', value: readinessInfoValue },
+    { label: 'Train ITAMA Status', tone: itamaStatus === 'NOT GRANTED' ? 'red' : 'green', value: itamaStatus },
+    { label: 'Action Needed (from operator for recovery)', tone: train.status === 'HOLD' || doorFaultActive ? 'red' : 'green', value: train.status === 'HOLD' || doorFaultActive ? 'YES' : 'NO' },
+    { label: 'Train Emergency Brake', value: train.status === 'HOLD' || doorFaultActive ? 'APPLIED' : 'NOT APPLIED' },
+    { label: 'Status of train hold request', tone: train.status === 'HOLD' ? 'green' : 'blue', value: trainHoldStatus },
+    { label: 'Train hold', value: trainHoldValue },
+    { label: 'Physical car number of the half-train/loco host ATC', value: '58' },
+    { label: 'Physical car number of the half-train/loco host cab', value: '58' },
+    { label: 'Availability', value: 'AVAILABLE' },
+    { label: 'State of Train Localisation', value: 'LOCALISED' },
+    { label: 'Speed of the train (Kph)', value: trainSpeed },
+    { label: 'Train Saloon Doors Summary Status', tone: doorFaultActive ? 'red' : 'green', value: doorSummaryStatus },
+    { label: 'Train Detrainment Doors Summary Status', value: 'CLOSED/LOCKED' },
+    { label: 'Train Door Isolation Status', value: doorIsolationStatus },
+    { label: 'Emergency Brake by ATC', value: 'INACTIVE CAB' },
+    { label: 'Train creep mode', value: 'TRAIN STOP' },
+    { label: 'Train Driving Mode Status', value: 'AM' },
+    { label: 'Destination number, given by ATC', value: '1' },
+    { label: 'Departure platform/siding name', value: departurePlatform },
+    { label: 'Departure time', value: '08:38:15' },
+    { label: 'Platform/siding name where train is stationary', value: selectedArrivalPlatform },
+    { label: 'Arrival time', value: selectedArrivalTime },
+    { label: 'Crew number, given by ATC', value: '0' },
+    { label: 'Train Stalled in Interstation', value: 'NOT STALLED' },
+    { label: 'Skip/stop platform/siding name', value: '' },
+    { label: 'Train Skip Stop', value: 'NO' },
+    { label: 'Platform/siding name for train hold', value: selectedArrivalPlatform },
+    { label: 'Active Cab Auto-Test Status', value: 'NORMAL' },
+    { label: 'Opposite Cab Auto-Test Status', value: 'NORMAL' },
+    { label: 'On-board Communication Failure with C751A', value: 'NORMAL' },
+    { label: 'On-board Communication Failure with C760', value: 'NORMAL' },
+    { label: 'Trainborne ATC Communication State', value: 'TALKING' },
+    { label: 'Physical car number of the half-train/locomotive', value: '57' },
+    { label: 'Direction of Train Computed by ATC', value: computedDirection },
+    { label: 'Train Wash Mode Status', tone: 'blue', value: '' },
+  ]
+
+  const renderControlDropdown = (key: string, label: string, options: readonly string[]) => (
+    <ScadaDropdown
+      id={`train-control-${key}`}
+      onChange={(value) => updateControlSelection(key, label, value)}
+      options={options}
+      value={controlSelections[key] ?? ''}
+    />
+  )
+
+  const renderControlOkButton = (label: string, disabled = false) => (
+    <Win98HtmlButton disabled={disabled} onClick={() => recordStatus(`${label}\nCommand successful`)}>
+      OK
+    </Win98HtmlButton>
+  )
+
   return (
     <div
       aria-label={`Inspecting Train ${trainNumber}`}
@@ -2342,17 +2473,15 @@ function TrainInspectorPanel({
           <div className="train-inspector-scrollarea" onScroll={updateInspectorScroll} ref={inspectorScrollRef}>
             {page === 'information' ? (
               <div className="train-inspector-page train-inspector-page--information">
-                <InspectorInfoRow label="Train number" value={trainNumber} />
-                <InspectorInfoRow label="Schedule number, given by ATC" value={scheduleNumber} />
-                <InspectorInfoRow label="Train Readiness State" value={train.status === 'HOLD' ? 'AUTO HOLD' : 'AUTO MODE'} />
-                <InspectorInfoRow label="Train Readiness Mode: Manual" value="NONE" />
-                <InspectorInfoRow label="Train Readiness Mode: Auto" value={readinessInfoValue} />
-                <InspectorInfoRow label="Train ITAMA Status" tone={itamaStatus === 'NOT GRANTED' ? 'red' : 'green'} value={itamaStatus} />
-                <InspectorInfoRow label="Train Door Not Open/Close or Not Fully Open/Close" tone={doorFaultActive ? 'red' : 'green'} value={doorFaultActive ? 'YES' : 'NO'} />
-                <InspectorInfoRow label="Train Door Summary Status" tone={doorFaultActive ? 'red' : 'green'} value={doorSummaryStatus} />
-                <InspectorInfoRow label="Train Door Isolation Status" value={doorIsolationStatus} />
-                <InspectorInfoRow label="Action Needed (from operator for recovery)" value={train.status === 'HOLD' || doorFaultActive ? 'YES' : 'NO'} />
-                <InspectorInfoRow label="Train Emergency Brake" value={train.status === 'HOLD' || doorFaultActive ? 'APPLIED' : 'NOT APPLIED'} />
+                {trainInfoRows.map((row) => (
+                  <InspectorInfoRow
+                    disabled={row.disabled}
+                    key={row.label}
+                    label={row.label}
+                    tone={row.tone}
+                    value={row.value}
+                  />
+                ))}
               </div>
             ) : null}
 
@@ -2362,66 +2491,126 @@ function TrainInspectorPanel({
                   <legend>CONTROL TRAIN ATC</legend>
                   <div className="train-inspector-atc">
                     <div className="train-inspector-command-grid">
-                      <Win98HtmlButton onClick={() => recordStatus('PTI initialisation selected')}>PTI Initialisation</Win98HtmlButton>
+                      <Win98HtmlButton onClick={openPtiDialog}>PTI Initialisation</Win98HtmlButton>
                       <Win98HtmlButton onClick={openChangeEndsDialog}>Change of Ends Request</Win98HtmlButton>
                       <Win98HtmlButton onClick={() => openTrainTimeDialog('departure')}>Departure Time</Win98HtmlButton>
                       <Win98HtmlButton onClick={() => openTrainTimeDialog('arrival')}>Arrival Time</Win98HtmlButton>
-                      <Win98HtmlButton onClick={() => recordStatus('Train hold command selected')}>Train Hold</Win98HtmlButton>
-                      <Win98HtmlButton onClick={() => recordStatus('Skip stop command selected')}>Skip Stop</Win98HtmlButton>
+                      <Win98HtmlButton onClick={openTrainHoldDialog}>Train Hold</Win98HtmlButton>
+                      <Win98HtmlButton onClick={openSkipStopDialog}>Skip Stop</Win98HtmlButton>
                     </div>
-                    <div className="train-inspector-request-grid">
-                      <label htmlFor="train-readiness-request">Train Readiness Request</label>
-                      <ScadaDropdown
-                        id="train-readiness-request"
-                        onChange={handleReadinessChange}
-                        options={['Asleep', 'Depot movement', 'Mainline service', 'Mainline off service', 'HV isolated']}
-                        value={readiness}
-                      />
-                      <span className={canRequestItamaAuthorisedPreparation ? undefined : 'is-muted'}>ITAMA AM/CM Authorised Preparation</span>
-                      <Win98HtmlButton
-                        disabled={!canRequestItamaAuthorisedPreparation}
-                        onClick={() => requestItamaCommand('ITAMA AM/CM Authorised Preparation', 'itama-authorised-preparation')}
-                      >
-                        OK
-                      </Win98HtmlButton>
-                      <span className={canRequestItamaAuthorisedConfirmation ? undefined : 'is-muted'}>ITAMA AM/CM Authorised Confirmation</span>
-                      <Win98HtmlButton
-                        disabled={!canRequestItamaAuthorisedConfirmation}
-                        onClick={() => requestItamaCommand('ITAMA AM/CM Authorised Confirmation', 'itama-authorised-confirmation')}
-                      >
-                        OK
-                      </Win98HtmlButton>
-                      <span className={canRequestItamaNotAuthorisedPreparation ? undefined : 'is-muted'}>ITAMA AM/CM Not Authorised Preparation</span>
-                      <Win98HtmlButton
-                        disabled={!canRequestItamaNotAuthorisedPreparation}
-                        onClick={() => requestItamaCommand('ITAMA AM/CM Not Authorised Preparation', 'itama-not-authorised-preparation')}
-                      >
-                        OK
-                      </Win98HtmlButton>
-                      <span className={canRequestItamaNotAuthorisedConfirmation ? undefined : 'is-muted'}>ITAMA AM/CM Not Authorised Confirmation</span>
-                      <Win98HtmlButton
-                        disabled={!canRequestItamaNotAuthorisedConfirmation}
-                        onClick={() => requestItamaCommand('ITAMA AM/CM Not Authorised Confirmation', 'itama-not-authorised-confirmation')}
-                      >
-                        OK
-                      </Win98HtmlButton>
-                      <label htmlFor="door-request">Door Open/Close Request</label>
-                      <ScadaDropdown
-                        id="door-request"
-                        onChange={requestDoorCommand}
-                        options={['', 'Cycle Door', 'Confirm Closed/Locked', 'Authorize door isolation', 'Authorize movement', 'Withdraw from service']}
-                        value={doorRequest}
-                      />
-                      <label htmlFor="brake-reset-request">Emergency Brake Reset Request</label>
-                      <ScadaDropdown
-                        id="brake-reset-request"
-                        onChange={(value) => {
-                          setBrakeResetRequest(value)
-                          recordStatus('Emergency brake reset selected')
-                        }}
-                        options={['', 'Reset', 'Cancel reset']}
-                        value={brakeResetRequest}
-                      />
+                    <div className="train-inspector-command-list">
+                      <InspectorCommandRow label="Train Readiness Request">
+                        <ScadaDropdown
+                          id="train-readiness-request"
+                          onChange={handleReadinessChange}
+                          options={['Asleep', 'Depot movement', 'Mainline service', 'Mainline off service', 'HV isolated']}
+                          value={readiness}
+                        />
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled={!canRequestItamaAuthorisedPreparation} label="ITAMA AM/CM Authorised Preparation">
+                        <Win98HtmlButton
+                          disabled={!canRequestItamaAuthorisedPreparation}
+                          onClick={() => requestItamaCommand('ITAMA AM/CM Authorised Preparation', 'itama-authorised-preparation')}
+                        >
+                          OK
+                        </Win98HtmlButton>
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled={!canRequestItamaAuthorisedConfirmation} label="ITAMA AM/CM Authorised Confirmation">
+                        <Win98HtmlButton
+                          disabled={!canRequestItamaAuthorisedConfirmation}
+                          onClick={() => requestItamaCommand('ITAMA AM/CM Authorised Confirmation', 'itama-authorised-confirmation')}
+                        >
+                          OK
+                        </Win98HtmlButton>
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled={!canRequestItamaNotAuthorisedPreparation} label="ITAMA AM/CM Not Authorised Preparation">
+                        <Win98HtmlButton
+                          disabled={!canRequestItamaNotAuthorisedPreparation}
+                          onClick={() => requestItamaCommand('ITAMA AM/CM Not Authorised Preparation', 'itama-not-authorised-preparation')}
+                        >
+                          OK
+                        </Win98HtmlButton>
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled={!canRequestItamaNotAuthorisedConfirmation} label="ITAMA AM/CM Not Authorised Confirmation">
+                        <Win98HtmlButton
+                          disabled={!canRequestItamaNotAuthorisedConfirmation}
+                          onClick={() => requestItamaCommand('ITAMA AM/CM Not Authorised Confirmation', 'itama-not-authorised-confirmation')}
+                        >
+                          OK
+                        </Win98HtmlButton>
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Door Open/Close Request">
+                        <ScadaDropdown
+                          id="door-request"
+                          onChange={requestDoorCommand}
+                          options={['', 'Cycle Door', 'Confirm Closed/Locked', 'Authorize door isolation', 'Authorize movement', 'Withdraw from service']}
+                          value={doorRequest}
+                        />
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Emergency Brake Reset Request">
+                        <ScadaDropdown
+                          id="brake-reset-request"
+                          onChange={(value) => {
+                            setBrakeResetRequest(value)
+                            recordStatus('Emergency brake reset selected')
+                          }}
+                          options={['', 'Reset', 'Cancel reset']}
+                          value={brakeResetRequest}
+                        />
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Trainborne ATC Reset Request">
+                        {renderControlOkButton('Trainborne ATC reset request')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Trainborne ATC Changeover Request">
+                        {renderControlOkButton('Trainborne ATC changeover request')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Creep Mode Request">
+                        {renderControlDropdown('creep-mode', 'Creep mode request', ['', 'Train stop', 'Creep forward', 'Creep reverse'])}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Wash Request">
+                        {renderControlDropdown('wash-request', 'Wash request', ['', 'Wash on', 'Wash off'])}
+                      </InspectorCommandRow>
+                      <InspectorCommandSection label="ROLLING STOCK" />
+                      <InspectorCommandRow label="Reset Propulsion Equipment Isolation">
+                        {renderControlOkButton('Reset propulsion equipment isolation')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Reset Aux Con Equip (751C/851E) / Battery Charger Isolation">
+                        {renderControlOkButton('Reset aux con equipment isolation')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Reset Battery Isolation">
+                        {renderControlOkButton('Reset battery isolation')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Reset of 2 Pantographs (General Auto Drop)">
+                        {renderControlOkButton('Reset of 2 pantographs')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Reset of 1 Pantograph (Partial Auto Drop)">
+                        {renderControlOkButton('Reset of 1 pantograph')}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Set Damper Position">
+                        {renderControlDropdown('damper-position', 'Set damper position', ['', 'Open', 'Close', 'Auto'])}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Odd Exit Light">
+                        {renderControlDropdown('odd-exit-light', 'Odd exit light', ['', 'On', 'Off'])}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Even Exit Light">
+                        {renderControlDropdown('even-exit-light', 'Even exit light', ['', 'On', 'Off'])}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow label="Parking Brake">
+                        {renderControlDropdown('parking-brake', 'Parking brake', ['', 'Apply', 'Release'])}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled label="ATI Measurement Session">
+                        {renderControlDropdown('ati-measurement-session', 'ATI measurement session', [''])}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled label="ATI THMS-HC Measurement Session On">
+                        {renderControlOkButton('ATI THMS-HC measurement session', true)}
+                      </InspectorCommandRow>
+                      <InspectorCommandRow disabled label="ATI THMS-RC Measurement Session On">
+                        {renderControlOkButton('ATI THMS-RC measurement session', true)}
+                      </InspectorCommandRow>
+                      <InspectorCommandSection label="MAINTENANCE" />
+                      <InspectorCommandRow disabled label="Download MA Table">
+                        {renderControlOkButton('Download MA table', true)}
+                      </InspectorCommandRow>
                     </div>
                   </div>
                 </fieldset>
@@ -2460,7 +2649,7 @@ function TrainInspectorPanel({
         <div className="train-inspector-actions">
           <Win98HtmlButton onClick={() => recordStatus('Help selected')}>Help</Win98HtmlButton>
           <span />
-<Win98HtmlButton onClick={onOpenDetails}>Details...</Win98HtmlButton>
+          <Win98HtmlButton onClick={onOpenDetails}>Details...</Win98HtmlButton>
           <Win98HtmlButton onClick={onClose}>Close</Win98HtmlButton>
         </div>
       </div>
@@ -2512,6 +2701,15 @@ function TrainInspectorPanel({
         />
       ) : null}
 
+      {ptiDialogOpen ? (
+        <PtiInitialisationDialog
+          key={`${train.id}-pti`}
+          onApply={(message) => setStatusMessage(message)}
+          onClose={() => setPtiDialogOpen(false)}
+          train={train}
+        />
+      ) : null}
+
       {changeEndsDialogOpen ? (
         <ChangeEndsDialog
           currentDirection={currentDirection}
@@ -2519,6 +2717,27 @@ function TrainInspectorPanel({
           key={`${train.id}-${nearestPlatform.code}-${currentDirection}`}
           onApply={(message) => setStatusMessage(message)}
           onClose={() => setChangeEndsDialogOpen(false)}
+          train={train}
+        />
+      ) : null}
+
+      {trainHoldDialogOpen ? (
+        <TrainHoldDialog
+          currentDirection={currentDirection}
+          key={`${train.id}-${currentDirection}-train-hold`}
+          onApply={(message) => setStatusMessage(message)}
+          onClose={() => setTrainHoldDialogOpen(false)}
+          train={train}
+        />
+      ) : null}
+
+      {skipStopDialogOpen ? (
+        <SkipStopDialog
+          currentDirection={currentDirection}
+          defaultStation={nearestPlatform.code}
+          key={`${train.id}-${nearestPlatform.code}-${currentDirection}-skip-stop`}
+          onApply={(message) => setStatusMessage(message)}
+          onClose={() => setSkipStopDialogOpen(false)}
           train={train}
         />
       ) : null}
@@ -2546,6 +2765,7 @@ function MonitorCanvas({
   const [trainItamaStatusOverrides, setTrainItamaStatusOverrides] = useState<Record<string, 'GRANTED' | 'NOT_GRANTED'>>({})
   const [trainReadinessModeOverrides, setTrainReadinessModeOverrides] = useState<Record<string, TrainReadinessMode>>({})
   const [timetablePlaybackTick, setTimetablePlaybackTick] = useState(0)
+  const [timetableDiagnosticsNow, setTimetableDiagnosticsNow] = useState(() => new Date())
   const resetLocalLineMapStateKey = `${session.sessionMeta.createdAt}:${session.scenarioMode}:${session.scenarioStep}`
   const shouldClearLocalLineMapState = session.scenarioMode === 'IDLE' && session.scenarioStep === 0
   const [routeControlModeState, setRouteControlModeState] = useState<{
@@ -2663,6 +2883,13 @@ function MonitorCanvas({
   })
   const selectedTrain = renderedTrains.find((train) => train.id === session.selectedTrainId)
   const routeAutomationSummary = useMemo(() => createRouteAutomationSummary(routeControlModes), [routeControlModes])
+  const timetableRouteDiagnosticsSummary = useMemo(() => createTimetableRouteDiagnosticsSummary(
+    createTimetableRouteDiagnostics({
+      now: timetableDiagnosticsNow,
+      routeControlModes,
+      rows: session.timetableRows,
+    }),
+  ), [routeControlModes, session.timetableRows, timetableDiagnosticsNow])
   const inspectorTrain = inspectorPanel ? renderedTrains.find((train) => train.id === inspectorPanel.trainId) : undefined
   const auxiliaryTrain = auxiliaryPanel ? renderedTrains.find((train) => train.id === auxiliaryPanel.trainId) : undefined
   const itamaTrain = itamaTrainId ? renderedTrains.find((train) => train.id === itamaTrainId) : undefined
@@ -2786,11 +3013,15 @@ function MonitorCanvas({
     setPanImmediate(LINE_VIEWPORT_PANS[nextIndex])
   }, [setPanImmediate])
 
-  const toggleRouteControlMode = useCallback((panelCode: string) => {
-    setRouteControlModes((current) => ({
-      ...current,
-      [panelCode]: current[panelCode] === 'OCCM' ? 'OCCA' : 'OCCM',
-    }))
+  const setRouteControlMode = useCallback((panelCode: string, mode: RouteControlMode) => {
+    setRouteControlModes((current) => (
+      current[panelCode] === mode
+        ? current
+        : {
+            ...current,
+            [panelCode]: mode,
+          }
+    ))
   }, [setRouteControlModes])
 
   const showItamaForTrain = (trainId: string) => {
@@ -3559,6 +3790,7 @@ function MonitorCanvas({
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setTimetablePlaybackTick((current) => current + 1)
+      setTimetableDiagnosticsNow(new Date())
     }, TIMETABLE_PLAYBACK_REFRESH_MS)
 
     return () => window.clearInterval(intervalId)
@@ -3613,7 +3845,7 @@ function MonitorCanvas({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
-        onToggleRouteControlMode={toggleRouteControlMode}
+        onSetRouteControlMode={setRouteControlMode}
         onWheel={(event) => {
           const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0
 
@@ -3623,7 +3855,7 @@ function MonitorCanvas({
           }
         }}
         panX={panX}
-        routeAutomationStatus={routeAutomationSummary.text}
+        routeAutomationStatus={`${routeAutomationSummary.text} | ${timetableRouteDiagnosticsSummary.text}`}
         routeControlModes={routeControlModes}
         selectedTrain={selectedTrain}
         selectedTrainId={session.selectedTrainId}

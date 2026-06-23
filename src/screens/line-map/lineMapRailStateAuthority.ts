@@ -1,4 +1,5 @@
 import type { LineMapRuntimeState } from '../../types'
+import type { SignalRouteDefinition } from './routeDefinitions'
 import { EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS } from './model'
 import { SIGNAL_ROUTE_DEFINITIONS } from './routeDefinitions'
 import {
@@ -91,11 +92,37 @@ function clearCompletedSignalRouteCommandStates(
   routeSegments: LineMapRuntimeState['routeSegments'],
   trainId: string,
 ) {
+  const activeRouteDefinitions = SIGNAL_ROUTE_DEFINITIONS.filter((routeDefinition) => (
+    getSignalRouteCommandMarkerSegmentIds(routeDefinition).some((commandSegmentId) => (
+      isSignalRouteCommandState(routeSegments[commandSegmentId])
+    ))
+  ))
+
   SIGNAL_ROUTE_DEFINITIONS.forEach((routeDefinition) => {
     getSignalRouteCommandMarkerSegmentIds(routeDefinition).forEach((commandSegmentId) => {
-      clearCompletedRouteCommandState(routeSegments, trainId, commandSegmentId, routeDefinition.realSegmentIds)
+      clearCompletedRouteCommandState(
+        routeSegments,
+        trainId,
+        commandSegmentId,
+        getRouteSegmentIdsForCommandClear(routeDefinition, activeRouteDefinitions),
+      )
     })
   })
+}
+
+function getRouteSegmentIdsForCommandClear(
+  routeDefinition: SignalRouteDefinition,
+  activeRouteDefinitions: readonly SignalRouteDefinition[],
+) {
+  const activeSharedSegmentIds = new Set(
+    activeRouteDefinitions
+      .filter((activeRouteDefinition) => activeRouteDefinition !== routeDefinition)
+      .flatMap((activeRouteDefinition) => activeRouteDefinition.realSegmentIds),
+  )
+
+  return routeDefinition.realSegmentIds.filter((segmentId) => (
+    !activeSharedSegmentIds.has(segmentId)
+  ))
 }
 
 function getExclusiveRailGroupSideToKeep(

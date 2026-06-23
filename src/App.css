@@ -4065,58 +4065,63 @@
 }
 
 .train-inspector-page--control {
-  min-height: 462px;
+  min-height: 1040px;
 }
 
 .train-inspector-page--information {
   display: grid;
   grid-template-columns: 1fr;
-  row-gap: 6px;
-  padding: 10px 0 28px 14px;
+  row-gap: 0;
+  min-height: 1740px;
+  padding: 8px 8px 28px 8px;
 }
 
 .train-inspector-info-row {
   display: grid;
-  grid-template-columns: 214px minmax(240px, 1fr);
+  grid-template-columns: minmax(238px, 1fr) 220px;
   align-items: center;
-  column-gap: 10px;
-  row-gap: 2px;
-  min-height: 54px;
+  column-gap: 8px;
+  min-height: 45px;
+  padding: 1px 0;
 }
 
 .train-inspector-info-label {
-  grid-column: 1 / -1;
   color: #000000;
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 800;
+  line-height: 1.05;
 }
 
 .train-inspector-info-field {
-  grid-column: 2;
   display: grid;
-  grid-template-columns: 1fr 18px;
+  grid-template-columns: 1fr 13px;
   width: 100%;
-  max-width: 280px;
-  min-height: 30px;
+  min-height: 24px;
 }
 
 .train-inspector-info-field span {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 2px 8px;
+  padding: 1px 5px;
   background: #c8c4d4;
   border: 2px solid;
   border-color: #404040 #ffffff #ffffff #404040;
-  font-size: 18px;
+  overflow: hidden;
+  font-size: 13px;
   font-weight: 800;
+  line-height: 19px;
+  white-space: nowrap;
 }
 
 .train-inspector-info-field i {
   display: block;
-  width: 18px;
-  min-height: 30px;
-  margin-left: 4px;
+  width: 13px;
+  min-height: 24px;
+  margin-left: 3px;
+}
+
+.train-inspector-info-field i.is-green {
   background: #00df00;
   border-left: 1px solid #40ff40;
   border-right: 1px solid #009800;
@@ -4126,6 +4131,18 @@
   background: #ff4a00;
   border-left-color: #ff9a66;
   border-right-color: #a82f00;
+}
+
+.train-inspector-info-field i.is-blue {
+  background: #0000d8;
+  border-left-color: #4040ff;
+  border-right-color: #000080;
+}
+
+.train-inspector-info-row.is-disabled .train-inspector-info-label,
+.train-inspector-info-row.is-disabled .train-inspector-info-field span {
+  color: #f0f0f0;
+  text-shadow: 1px 1px 0 #777777;
 }
 
 .train-inspector-fieldset {
@@ -4145,7 +4162,7 @@
 
 .train-inspector-atc {
   width: calc(100% - 2px);
-  min-height: 444px;
+  min-height: 1018px;
   padding-top: 12px;
 }
 
@@ -4201,30 +4218,79 @@
   box-shadow: inset 1px 1px 0 #808080;
 }
 
-.train-inspector-request-grid {
+.train-inspector-command-list {
   display: grid;
-  grid-template-columns: 214px minmax(270px, 1fr);
-  column-gap: 10px;
-  row-gap: 3px;
+  grid-template-columns: 1fr;
+  row-gap: 0;
   align-items: center;
   width: calc(100% - 28px);
-  margin-top: 18px;
-  padding-left: 14px;
+  margin-top: 13px;
+  padding: 0 0 24px 12px;
 }
 
-.train-inspector-request-grid > label,
-.train-inspector-request-grid > span {
-  grid-column: 1 / -1;
-  min-height: 20px;
+.train-inspector-command-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 206px;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 49px;
+}
+
+.train-inspector-command-row > span {
+  color: #000000;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.train-inspector-command-row > div {
+  display: flex;
+  justify-content: stretch;
+  min-width: 0;
+}
+
+.train-inspector-command-row.is-disabled > span {
+  color: #f0f0f0;
+  text-shadow: 1px 1px 0 #777777;
+}
+
+.train-inspector-command-row.is-disabled .train-inspector-dropdown {
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.train-inspector-command-row > div > .train-inspector-button,
+.train-inspector-command-row > div > .train-inspector-dropdown {
+  width: 100%;
+}
+
+.train-inspector-command-section {
   display: flex;
   align-items: center;
-  white-space: nowrap;
+  min-height: 28px;
+  margin: 2px 0 -1px;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 900;
 }
 
-.train-inspector-request-grid > .train-inspector-dropdown,
-.train-inspector-request-grid > .train-inspector-button {
-  grid-column: 2;
-  transform: none;
+.train-inspector-command-section::before,
+.train-inspector-command-section::after {
+  display: block;
+  height: 1px;
+  background: #808080;
+  box-shadow: 0 1px 0 #ffffff;
+  content: "";
+}
+
+.train-inspector-command-section::before {
+  width: 18px;
+  margin-right: 4px;
+}
+
+.train-inspector-command-section::after {
+  flex: 1;
+  margin-left: 4px;
 }
 
 .arrival-time-dialog__station-combo.train-inspector-dropdown {
@@ -4234,13 +4300,13 @@
 
 .arrival-time-dialog__station-trigger.train-inspector-dropdown__trigger {
   width: 100%;
-  min-height: 28px;
+  min-height: 24px;
   font-size: 13px;
 }
 
 .arrival-time-dialog__station-trigger.train-inspector-dropdown__trigger span {
-  padding: 2px 8px;
-  line-height: 22px;
+  padding: 1px 6px;
+  line-height: 20px;
 }
 
 .arrival-time-dialog__station-trigger.train-inspector-dropdown__trigger i {
@@ -4260,7 +4326,7 @@
   line-height: 29px;
 }
 
-.train-inspector-request-grid select {
+.train-inspector-command-list select {
   width: 100%;
   min-height: 28px;
   color: #000000;
@@ -5027,6 +5093,361 @@
   font-size: 14px;
 }
 
+.train-hold-dialog {
+  left: 50%;
+  top: 50%;
+  width: 560px;
+  min-height: 266px;
+  transform: translate(calc(-50% + var(--popup-drag-x, 0px)), calc(-50% + var(--popup-drag-y, 0px))) scale(0.84);
+  transform-origin: center center;
+}
+
+.train-hold-dialog .arrival-time-dialog__title {
+  height: 18px;
+  padding: 2px 6px 0;
+  font-size: 13px;
+  line-height: 14px;
+}
+
+.train-hold-dialog__body {
+  padding: 12px 14px 12px;
+}
+
+.train-hold-dialog__top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 10px;
+  align-items: start;
+}
+
+.train-hold-dialog__fieldset,
+.train-hold-dialog__status-choice {
+  min-height: 86px;
+  padding: 10px 12px 12px;
+}
+
+.train-hold-dialog .arrival-time-dialog__fieldset legend {
+  margin-left: 7px;
+  padding: 0 5px;
+  font-size: 13px;
+}
+
+.train-hold-dialog__area-grid {
+  grid-template-columns: 78px 1fr;
+  gap: 5px 8px;
+}
+
+.train-hold-dialog .arrival-time-dialog__area-grid label {
+  font-size: 13px;
+}
+
+.train-hold-dialog .arrival-time-dialog__control {
+  min-height: 27px;
+  font-size: 14px;
+}
+
+.train-hold-dialog__station-combo,
+.train-hold-dialog__station-trigger {
+  width: 78px;
+}
+
+.train-hold-dialog__station-trigger {
+  grid-template-columns: 1fr 22px;
+}
+
+.train-hold-dialog .arrival-time-dialog__station-trigger span {
+  padding: 2px 5px;
+  line-height: 21px;
+}
+
+.train-hold-dialog__station-list {
+  top: 27px;
+  grid-template-columns: 94px 24px;
+  width: 122px;
+}
+
+.train-hold-dialog__platform-list {
+  width: 100%;
+  grid-template-columns: 1fr 24px;
+}
+
+.train-hold-dialog__status-choice {
+  padding: 10px 14px 10px;
+}
+
+.train-hold-dialog__radio {
+  min-height: 28px;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.train-hold-dialog__radio input {
+  width: 14px;
+  height: 14px;
+}
+
+.train-hold-dialog__status-fieldset {
+  margin-top: 9px;
+  padding: 9px 11px 11px;
+}
+
+.train-hold-dialog__status-fieldset output {
+  min-height: 48px;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.train-hold-dialog__actions {
+  grid-template-columns: 82px 1fr 82px 82px;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.train-hold-dialog__actions .train-inspector-button {
+  height: 28px;
+  font-size: 13px;
+}
+
+.pti-dialog {
+  left: 50%;
+  top: 50%;
+  width: 760px;
+  min-height: 282px;
+  transform: translate(calc(-50% + var(--popup-drag-x, 0px)), calc(-50% + var(--popup-drag-y, 0px))) scale(0.8);
+  transform-origin: center center;
+}
+
+.pti-dialog__title {
+  height: 18px;
+  padding: 2px 6px 0;
+  font-size: 13px;
+  line-height: 14px;
+}
+
+.pti-dialog__body {
+  padding: 14px 16px 14px;
+}
+
+.pti-dialog__fieldset {
+  padding: 14px 14px 12px;
+}
+
+.pti-dialog__labels {
+  display: grid;
+  grid-template-columns: 96px 162px 204px 162px;
+  gap: 8px;
+  margin-bottom: 9px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.pti-dialog__values {
+  display: grid;
+  grid-template-columns: 96px 14px 162px 14px 204px 14px 162px;
+  gap: 8px;
+  align-items: center;
+}
+
+.pti-dialog__car-number {
+  font-size: 20px;
+  line-height: 1;
+  text-align: center;
+}
+
+.pti-dialog__separator {
+  font-size: 24px;
+  line-height: 1;
+  text-align: center;
+}
+
+.pti-dialog__digit-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.pti-dialog__digit-spinner {
+  width: 34px;
+  height: 27px;
+  grid-template-columns: 1fr 14px;
+}
+
+.pti-dialog__digit-spinner .arrival-time-dialog__spinner-input {
+  min-height: 27px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 23px;
+  text-align: center;
+}
+
+.pti-dialog__digit-spinner .arrival-time-dialog__spinner-buttons {
+  width: 14px;
+  height: 27px;
+  grid-template-rows: 13px 14px;
+}
+
+.pti-dialog__digit-spinner .arrival-time-dialog__spinner-buttons button {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+}
+
+.pti-dialog__digit-spinner .arrival-time-dialog__spinner-arrow--up {
+  border-right-width: 3px;
+  border-bottom-width: 5px;
+  border-left-width: 3px;
+}
+
+.pti-dialog__digit-spinner .arrival-time-dialog__spinner-arrow--down {
+  border-top-width: 5px;
+  border-right-width: 3px;
+  border-left-width: 3px;
+}
+
+.pti-dialog__status-fieldset {
+  margin-top: 10px;
+  padding: 10px 12px 13px;
+}
+
+.pti-dialog__status-fieldset output {
+  min-height: 46px;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+
+.pti-dialog__actions {
+  grid-template-columns: 86px 1fr 86px 86px;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pti-dialog__actions .train-inspector-button {
+  height: 28px;
+  font-size: 14px;
+}
+
+.skip-stop-dialog {
+  left: 50%;
+  top: 50%;
+  width: 640px;
+  min-height: 300px;
+  transform: translate(calc(-50% + var(--popup-drag-x, 0px)), calc(-50% + var(--popup-drag-y, 0px))) scale(0.8);
+  transform-origin: center center;
+}
+
+.skip-stop-dialog__title {
+  height: 18px;
+  padding: 2px 6px 0;
+  font-size: 13px;
+  line-height: 14px;
+}
+
+.skip-stop-dialog__body {
+  padding: 14px 16px 14px;
+}
+
+.skip-stop-dialog__top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 12px;
+  align-items: start;
+}
+
+.skip-stop-dialog__fieldset,
+.skip-stop-dialog__status-select-fieldset {
+  min-height: 112px;
+  padding: 12px 16px 15px;
+}
+
+.skip-stop-dialog .arrival-time-dialog__fieldset legend {
+  margin-left: 8px;
+  padding: 0 5px;
+  font-size: 15px;
+}
+
+.skip-stop-dialog .arrival-time-dialog__area-grid {
+  grid-template-columns: 92px 1fr;
+  gap: 6px 12px;
+}
+
+.skip-stop-dialog .arrival-time-dialog__area-grid label {
+  font-size: 14px;
+}
+
+.skip-stop-dialog .arrival-time-dialog__control {
+  min-height: 27px;
+  font-size: 15px;
+}
+
+.skip-stop-dialog__station-combo {
+  width: 92px;
+}
+
+.skip-stop-dialog__station-trigger {
+  grid-template-columns: 1fr 24px;
+  width: 92px;
+}
+
+.skip-stop-dialog .arrival-time-dialog__station-trigger span {
+  padding: 2px 5px;
+  line-height: 21px;
+}
+
+.skip-stop-dialog .arrival-time-dialog__station-trigger i::before {
+  border-top-width: 6px;
+  border-right-width: 5px;
+  border-left-width: 5px;
+}
+
+.skip-stop-dialog__platform-combo {
+  width: 100%;
+}
+
+.skip-stop-dialog__station-list {
+  top: 27px;
+  width: 122px;
+  grid-template-columns: 94px 24px;
+}
+
+.skip-stop-dialog__platform-list {
+  width: 100%;
+  grid-template-columns: 1fr 24px;
+}
+
+.skip-stop-dialog__radio {
+  min-height: 30px;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.skip-stop-dialog__radio input {
+  width: 14px;
+  height: 14px;
+}
+
+.skip-stop-dialog__status-fieldset {
+  margin-top: 10px;
+  padding: 10px 12px 13px;
+}
+
+.skip-stop-dialog__status-fieldset output {
+  min-height: 46px;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+
+.skip-stop-dialog__actions {
+  grid-template-columns: 86px 1fr 86px 86px;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.skip-stop-dialog__actions .train-inspector-button {
+  height: 28px;
+  font-size: 14px;
+}
+
 .train-inspector-panel {
   overflow: hidden;
 }
@@ -5638,6 +6059,14 @@
   font-weight: 700;
 }
 
+.line-map-command-cascade {
+  width: 0;
+  min-height: 0;
+  font-family: Tahoma, "Microsoft Sans Serif", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .line-map-cascade button {
   font: inherit;
   font-weight: 700;
@@ -5687,6 +6116,51 @@
   width: 190px;
 }
 
+.line-map-cascade-menu--command-main {
+  left: 0;
+  top: 0;
+  width: 164px;
+}
+
+.line-map-cascade-menu--command-sub {
+  left: 163px;
+  top: 49px;
+  width: 122px;
+}
+
+.line-map-cascade-menu--route-mode {
+  top: 0;
+}
+
+.line-map-command-cascade-title {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px 4px;
+  border-bottom: 1px solid #808080;
+  margin-bottom: 2px;
+  color: #000000;
+  background: #d4d0c8;
+  font-family: Tahoma, "Microsoft Sans Serif", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.line-map-cascade-menu--command-main button,
+.line-map-cascade-menu--command-sub button {
+  min-height: 20px;
+  padding: 1px 8px;
+  font-weight: 700;
+}
+
+.line-map-cascade-menu--command-main button span:first-child,
+.line-map-cascade-menu--command-sub button span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
 .line-map-cascade-menu--inspector {
   top: 0;
 }
@@ -5728,6 +6202,15 @@
 .line-map-cascade-menu button.is-active {
   color: #ffffff;
   background: #000080;
+}
+
+.line-map-route-mode-confirmation {
+  z-index: 42;
+  width: 430px;
+}
+
+.line-map-route-mode-confirmation .train-command-confirmation__grid {
+  grid-template-columns: 84px minmax(0, 1fr);
 }
 
 .line-map-signal-menu {
@@ -9637,7 +10120,7 @@
 .line-map-signal--left-stem::before {
   left: 22px;
   top: 12px;
-  width: 34px;
+  width: 21px;
   height: 2px;
 }
 

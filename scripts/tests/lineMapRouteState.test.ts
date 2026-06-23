@@ -7,8 +7,11 @@ import {
 } from '../../src/screens/line-map/model'
 import type { LineMapSignalData } from '../../src/screens/line-map/model'
 import {
+  S608_R608_803_REAL_ROUTE_SEGMENT_IDS,
+  S700_R700_610_REAL_ROUTE_SEGMENT_IDS,
   S700_REAL_ROUTE_SEGMENT_IDS,
   S704_REAL_ROUTE_SEGMENT_IDS,
+  S1102_R1102_706_REAL_ROUTE_SEGMENT_IDS,
   SIGNAL_ROUTE_DEFINITIONS,
 } from '../../src/screens/line-map/routeDefinitions'
 import { getSignalRouteSetLabels } from '../../src/screens/line-map/signalRouteState'
@@ -91,10 +94,10 @@ function state(segmentId: string, status: 'SET' | 'UNSET' | 'DISPATCHED' = 'SET'
     signal('S700'),
     { id: '312' },
     'SET',
-    'Route R709_705',
+    'Route R700_608',
   )
 
-  assert.deepEqual(getSignalRouteSetLabels('S700', updated), ['Route R709_705'])
+  assert.deepEqual(getSignalRouteSetLabels('S700', updated), ['Route R700_608'])
   assert.deepEqual(getSignalRouteSetLabels('S709', updated), [])
   S700_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
     assert.equal(updated.routeSegments[segmentId].status, 'SET')
@@ -118,6 +121,46 @@ function state(segmentId: string, status: 'SET' | 'UNSET' | 'DISPATCHED' = 'SET'
 }
 
 {
+  const updated = updateLineMapSignalTrackState(
+    createLineMapRuntimeState(),
+    signal('S608'),
+    { id: '312' },
+    'SET',
+    'Route R608_803',
+  )
+
+  assert.deepEqual(getSignalRouteSetLabels('S608', updated), ['Route R608_803'])
+  S608_R608_803_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
+    assert.equal(updated.routeSegments[segmentId].status, 'SET')
+  })
+}
+
+{
+  const lineMap: LineMapRuntimeState = {
+    ...createLineMapRuntimeState(),
+    routeSegments: {
+      ...createLineMapRuntimeState().routeSegments,
+      'rail-704': state('rail-704'),
+      'rail-705': state('rail-705'),
+    },
+  }
+  const updated = updateLineMapSignalTrackState(
+    lineMap,
+    signal('S700'),
+    { id: '312' },
+    'SET',
+    'Route R700_610',
+  )
+
+  assert.deepEqual(getSignalRouteSetLabels('S700', updated), ['Route R700_610'])
+  S700_R700_610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
+    assert.equal(updated.routeSegments[segmentId].status, 'SET')
+  })
+  assert.equal(updated.routeSegments['rail-704'], undefined)
+  assert.equal(updated.routeSegments['rail-705'], undefined)
+}
+
+{
   const lineMap: LineMapRuntimeState = {
     ...createLineMapRuntimeState(),
     routeSegments: {
@@ -138,6 +181,31 @@ function state(segmentId: string, status: 'SET' | 'UNSET' | 'DISPATCHED' = 'SET'
   assert.equal(updated.routeSegments['rail-P1103'].status, 'SET')
   assert.equal(updated.routeSegments['rail-1104'], undefined)
   assert.equal(updated.routeSegments['rail-1107'], undefined)
+}
+
+{
+  const lineMap: LineMapRuntimeState = {
+    ...createLineMapRuntimeState(),
+    routeSegments: {
+      ...createLineMapRuntimeState().routeSegments,
+      'rail-1105': state('rail-1105'),
+      'rail-1106': state('rail-1106'),
+    },
+  }
+  const updated = updateLineMapSignalTrackState(
+    lineMap,
+    signal('S1102'),
+    { id: '312' },
+    'SET',
+    'Route R1102_706',
+  )
+
+  assert.deepEqual(getSignalRouteSetLabels('S1102', updated), ['Route R1102_706'])
+  S1102_R1102_706_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
+    assert.equal(updated.routeSegments[segmentId].status, 'SET')
+  })
+  assert.equal(updated.routeSegments['rail-1105'], undefined)
+  assert.equal(updated.routeSegments['rail-1106'], undefined)
 }
 
 {

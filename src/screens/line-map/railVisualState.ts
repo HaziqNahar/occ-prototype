@@ -26,7 +26,7 @@ const STRAIGHT_RAIL_BLOCKING_SLANTED_SEGMENT_IDS = EXCLUSIVE_LINE_MAP_ROUTE_SEGM
 }, {})
 
 const ROUTE_SEGMENTS_BY_RAIL_ID = new Map(routeSegmentData.map((segment) => [
-  getRouteSegmentRailId(segment.id),
+  getRouteSegmentRailId(segment),
   segment,
 ]))
 

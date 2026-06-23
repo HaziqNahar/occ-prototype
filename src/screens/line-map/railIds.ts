@@ -4,8 +4,17 @@ import {
 } from './model'
 
 type TrackPieceRailSource = {
+  railId?: string
+  railIds?: readonly string[]
   x: number
   width: number
+}
+
+type RailOwnershipSource = {
+  id: string
+  railId?: string
+  railIds?: readonly string[]
+  routeRailIds?: readonly string[]
 }
 
 export const TRACK_GUIDE_RAIL_IDS: Record<string, readonly string[]> = {
@@ -55,6 +64,7 @@ const ROUTE_SEGMENT_RAIL_IDS: Record<string, string> = {
 const ROUTE_SEGMENT_RAIL_PART_IDS: Record<string, readonly string[]> = {
   'section02-middle-turnback': ['rail-314', 'rail-318', 'rail-320'],
   'bgk-rt1': ['rail-655', 'rail-653'],
+  'bgk-rt3': ['rail-663', 'rail-665'],
   'wlh-turnback': ['rail-416', 'rail-418', 'rail-420'],
 }
 
@@ -74,12 +84,27 @@ const STATIC_TRACK_PATH_RAIL_IDS: Record<string, string> = {
   'hbf-p101-track-106': 'rail-106',
 }
 
-export function getTrackGuideRouteRailId(railId: string) {
+const TRACK_PIECE_RAIL_IDS_BY_POSITION: Record<string, string> = {
+  'lower:section03:17:30': 'rail-500',
+  'upper:section03:785:16': 'rail-609',
+}
+
+export function getTrackGuideRouteRailId(railId: string, guide?: RailOwnershipSource) {
+  if (guide?.railIds && guide.routeRailIds) {
+    const railIndex = guide.railIds.indexOf(railId)
+    const routeRailId = railIndex >= 0 ? guide.routeRailIds[railIndex] : undefined
+
+    if (routeRailId) {
+      return routeRailId
+    }
+  }
+
   return TRACK_GUIDE_ROUTE_RAIL_IDS[railId] ?? railId
 }
 
-export function getTrackGuideRailId(guideId: string, index?: number) {
-  const mappedIds = TRACK_GUIDE_RAIL_IDS[guideId]
+export function getTrackGuideRailId(guide: RailOwnershipSource | string, index?: number) {
+  const guideId = getRailOwnershipSourceId(guide)
+  const mappedIds = getRailOwnershipRailIds(guide) ?? TRACK_GUIDE_RAIL_IDS[guideId]
 
   if (typeof index === 'number') {
     return mappedIds?.[index] ?? `rail-${normalizeRailLabel(guideId)}-${index + 1}`
@@ -92,7 +117,19 @@ export function getTrackPieceRailId(
   piece: TrackPieceRailSource,
   track: 'lower' | 'upper',
 ) {
+  if (piece.railId) {
+    return piece.railId
+  }
+
   const section = getRailSection(piece.x)
+  const explicitRailId = TRACK_PIECE_RAIL_IDS_BY_POSITION[
+    `${track}:${section.name}:${Math.round(piece.x - section.start)}:${Math.round(piece.width)}`
+  ]
+
+  if (explicitRailId) {
+    return explicitRailId
+  }
+
   const label = getTrackPieceLabel(piece, track, section.name)
 
   if (label) {
@@ -109,35 +146,70 @@ export function getBranchGuideRailId(x: number) {
   return `rail-branch-${section.name}-${relativeX}`
 }
 
-export function getRouteSegmentRailId(segmentId: string) {
+export function getRouteSegmentRailId(segment: RailOwnershipSource | string) {
+  const railId = getRailOwnershipRailId(segment)
+
+  if (railId) {
+    return railId
+  }
+
+  const segmentId = getRailOwnershipSourceId(segment)
+
   return ROUTE_SEGMENT_RAIL_IDS[segmentId] ?? `rail-${normalizeRailLabel(segmentId)}`
 }
 
-export function getRouteSegmentRailPartId(segmentId: string, index: number) {
-  const mappedIds = ROUTE_SEGMENT_RAIL_PART_IDS[segmentId]
+export function getRouteSegmentRailPartId(segment: RailOwnershipSource | string, index: number) {
+  const segmentId = getRailOwnershipSourceId(segment)
+  const mappedIds = getRailOwnershipRailIds(segment) ?? ROUTE_SEGMENT_RAIL_PART_IDS[segmentId]
 
   if (mappedIds?.[index]) {
     return mappedIds[index]
   }
 
-  const railId = getRouteSegmentRailId(segmentId)
+  const railId = getRouteSegmentRailId(segment)
 
   return index === 0 ? railId : `${railId}-${index + 1}`
 }
 
-export function getRouteSegmentRailPartIds(segmentId: string) {
-  return ROUTE_SEGMENT_RAIL_PART_IDS[segmentId] ?? []
+export function getRouteSegmentRailPartIds(segment: RailOwnershipSource | string) {
+  const segmentId = getRailOwnershipSourceId(segment)
+
+  return getRailOwnershipRailIds(segment) ?? ROUTE_SEGMENT_RAIL_PART_IDS[segmentId] ?? []
 }
 
-export function getShapedTrackRailId(pieceId: string) {
+export function getShapedTrackRailId(piece: RailOwnershipSource | string) {
+  const railId = getRailOwnershipRailId(piece)
+
+  if (railId) {
+    return railId
+  }
+
+  const pieceId = getRailOwnershipSourceId(piece)
+
   return SHAPED_TRACK_RAIL_IDS[pieceId] ?? `rail-${normalizeRailLabel(pieceId)}`
 }
 
-export function getStaticTrackPieceRailId(pieceId: string) {
+export function getStaticTrackPieceRailId(piece: RailOwnershipSource | string) {
+  const railId = getRailOwnershipRailId(piece)
+
+  if (railId) {
+    return railId
+  }
+
+  const pieceId = getRailOwnershipSourceId(piece)
+
   return STATIC_TRACK_PIECE_RAIL_IDS[pieceId] ?? `rail-${normalizeRailLabel(pieceId)}`
 }
 
-export function getStaticTrackPathRailId(pathId: string) {
+export function getStaticTrackPathRailId(path: RailOwnershipSource | string) {
+  const railId = getRailOwnershipRailId(path)
+
+  if (railId) {
+    return railId
+  }
+
+  const pathId = getRailOwnershipSourceId(path)
+
   return STATIC_TRACK_PATH_RAIL_IDS[pathId] ?? `rail-${normalizeRailLabel(pathId)}`
 }
 
@@ -184,4 +256,16 @@ function getTrackPieceLabel(
 
 export function normalizeRailLabel(label: string) {
   return label.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function getRailOwnershipSourceId(source: RailOwnershipSource | string) {
+  return typeof source === 'string' ? source : source.id
+}
+
+function getRailOwnershipRailId(source: RailOwnershipSource | string) {
+  return typeof source === 'string' ? undefined : source.railId
+}
+
+function getRailOwnershipRailIds(source: RailOwnershipSource | string) {
+  return typeof source === 'string' ? undefined : source.railIds
 }

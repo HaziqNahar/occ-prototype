@@ -7,40 +7,36 @@ import {
   ARRIVAL_TIME_STATION_VISIBLE_ROWS,
   PLATFORM_SIDING_SCROLL_TRACK_HEIGHT,
   PLATFORM_SIDING_VISIBLE_ROWS,
-  getChangeEndsPlatformSidingMenuOptions,
+  getPlatformSidingMenuOptions,
 } from './trainTimeOptions'
 import usePopupDrag from './usePopupDrag'
 import Win98HtmlButton from './Win98HtmlButton'
 
-function ChangeEndsDialog({
+function TrainHoldDialog({
   currentDirection,
-  defaultStation,
   onApply,
   onClose,
   train,
 }: {
   currentDirection: 'NB' | 'SB'
-  defaultStation: string
   onApply: (message: string) => void
   onClose: () => void
   train: TrainState
 }) {
   const popupDrag = usePopupDrag()
   const trainRef = `EMU/${train.id.padStart(3, '0')}/TRN/XXXXXXXX`
-  const [station, setStation] = useState(defaultStation)
+  const [station, setStation] = useState('')
   const [stationDropdownOpen, setStationDropdownOpen] = useState(false)
   const [stationScrollIndex, setStationScrollIndex] = useState(0)
   const [stationScrollDrag, setStationScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [platformSiding, setPlatformSiding] = useState(() => {
-    const options = getChangeEndsPlatformSidingMenuOptions(defaultStation, currentDirection)
-    return options[0] ?? ''
-  })
+  const [platformSiding, setPlatformSiding] = useState('')
   const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false)
   const [platformScrollIndex, setPlatformScrollIndex] = useState(0)
   const [platformScrollDrag, setPlatformScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
+  const [holdStatus, setHoldStatus] = useState<'Request' | 'Release'>('Request')
   const [status, setStatus] = useState('')
   const stationOptions = ARRIVAL_TIME_STATION_MENU_OPTIONS
-  const platformOptions = getChangeEndsPlatformSidingMenuOptions(station, currentDirection)
+  const platformOptions = getPlatformSidingMenuOptions(station, currentDirection)
   const stationScrollMax = Math.max(0, stationOptions.length - ARRIVAL_TIME_STATION_VISIBLE_ROWS)
   const platformScrollMax = Math.max(0, platformOptions.length - PLATFORM_SIDING_VISIBLE_ROWS)
   const visibleStationOptions = stationOptions.slice(stationScrollIndex, stationScrollIndex + ARRIVAL_TIME_STATION_VISIBLE_ROWS)
@@ -71,11 +67,13 @@ function ChangeEndsDialog({
   }
 
   const selectStation = (nextStation: string) => {
+    const nextPlatformOptions = getPlatformSidingMenuOptions(nextStation, currentDirection)
+
     setStation(nextStation)
     setStationDropdownOpen(false)
     setPlatformDropdownOpen(false)
     setPlatformScrollIndex(0)
-    setPlatformSiding(getChangeEndsPlatformSidingMenuOptions(nextStation, currentDirection)[0] ?? '')
+    setPlatformSiding(nextPlatformOptions[0] ?? '')
   }
 
   const selectPlatformSiding = (nextPlatformSiding: string) => {
@@ -153,33 +151,35 @@ function ChangeEndsDialog({
     setPlatformScroll(platformScrollDrag.startIndex + Math.round(dragRatio * platformScrollMax))
   }
 
-  const applyChangeEnds = () => {
-    const nextStatus = `Change of ends request ${station} ${platformSiding}\nCommand successful`
+  const applyTrainHold = () => {
+    const target = [station, platformSiding].filter(Boolean).join(' ')
+    const nextStatus = `Train hold ${holdStatus.toLowerCase()}${target ? ` ${target}` : ''}\nCommand successful`
+
     setStatus(nextStatus)
     onApply(nextStatus)
   }
 
   return (
     <div
-      className="arrival-time-dialog change-ends-dialog"
+      className="arrival-time-dialog train-hold-dialog"
       onContextMenu={(event) => event.preventDefault()}
       onPointerDown={(event) => event.stopPropagation()}
       style={popupDrag.style}
     >
-      <div className="arrival-time-dialog__title" {...popupDrag.titleBarProps}>SIG Change End Request for Train : {trainRef}</div>
-      <div className="arrival-time-dialog__body change-ends-dialog__body">
-        <div className="change-ends-dialog__top-row">
-          <fieldset className="arrival-time-dialog__fieldset change-ends-dialog__fieldset">
+      <div className="arrival-time-dialog__title" {...popupDrag.titleBarProps}>SIG Train Hold for Train : {trainRef}</div>
+      <div className="arrival-time-dialog__body train-hold-dialog__body">
+        <div className="train-hold-dialog__top-row">
+          <fieldset className="arrival-time-dialog__fieldset train-hold-dialog__fieldset">
             <legend>Area Selection</legend>
-            <div className="arrival-time-dialog__area-grid">
-              <label htmlFor="change-ends-station">Station</label>
-              <label htmlFor="change-ends-platform">Platform / Siding</label>
-              <div className="arrival-time-dialog__station-combo change-ends-dialog__station-combo">
+            <div className="arrival-time-dialog__area-grid train-hold-dialog__area-grid">
+              <label htmlFor="train-hold-station">Station</label>
+              <label htmlFor="train-hold-platform">Platform / Siding</label>
+              <div className="arrival-time-dialog__station-combo train-hold-dialog__station-combo">
                 <button
                   aria-expanded={stationDropdownOpen}
                   aria-haspopup="listbox"
-                  className="arrival-time-dialog__control arrival-time-dialog__station-trigger change-ends-dialog__station-trigger"
-                  id="change-ends-station"
+                  className="arrival-time-dialog__control arrival-time-dialog__station-trigger train-hold-dialog__station-trigger"
+                  id="train-hold-station"
                   onClick={() => setStationDropdownOpen((open) => !open)}
                   type="button"
                 >
@@ -188,7 +188,7 @@ function ChangeEndsDialog({
                 </button>
                 {stationDropdownOpen ? (
                   <div
-                    className="arrival-time-dialog__station-list change-ends-dialog__station-list"
+                    className="arrival-time-dialog__station-list train-hold-dialog__station-list"
                     onWheel={(event) => {
                       event.preventDefault()
                       setStationScroll(stationScrollIndex + (event.deltaY > 0 ? 1 : -1))
@@ -246,7 +246,7 @@ function ChangeEndsDialog({
                   aria-expanded={platformDropdownOpen}
                   aria-haspopup="listbox"
                   className="arrival-time-dialog__control arrival-time-dialog__station-trigger arrival-time-dialog__platform-trigger"
-                  id="change-ends-platform"
+                  id="train-hold-platform"
                   onClick={() => setPlatformDropdownOpen((open) => !open)}
                   type="button"
                 >
@@ -255,7 +255,7 @@ function ChangeEndsDialog({
                 </button>
                 {platformDropdownOpen ? (
                   <div
-                    className="arrival-time-dialog__station-list arrival-time-dialog__platform-list change-ends-dialog__platform-list"
+                    className="arrival-time-dialog__station-list arrival-time-dialog__platform-list train-hold-dialog__platform-list"
                     onWheel={(event) => {
                       event.preventDefault()
                       setPlatformScroll(platformScrollIndex + (event.deltaY > 0 ? 1 : -1))
@@ -311,28 +311,38 @@ function ChangeEndsDialog({
             </div>
           </fieldset>
 
-          <fieldset className="arrival-time-dialog__fieldset change-ends-dialog__direction-fieldset">
-            <legend>Current train direction</legend>
-            <label className="arrival-time-dialog__radio change-ends-dialog__radio">
-              <input checked={currentDirection === 'NB'} name="change-ends-direction" readOnly type="radio" />
-              <span>NB</span>
+          <fieldset className="arrival-time-dialog__fieldset train-hold-dialog__status-choice">
+            <legend>Hold Status</legend>
+            <label className="arrival-time-dialog__radio train-hold-dialog__radio">
+              <input
+                checked={holdStatus === 'Request'}
+                name="train-hold-status"
+                onChange={() => setHoldStatus('Request')}
+                type="radio"
+              />
+              <span>Request</span>
             </label>
-            <label className="arrival-time-dialog__radio change-ends-dialog__radio">
-              <input checked={currentDirection === 'SB'} name="change-ends-direction" readOnly type="radio" />
-              <span>SB</span>
+            <label className="arrival-time-dialog__radio train-hold-dialog__radio">
+              <input
+                checked={holdStatus === 'Release'}
+                name="train-hold-status"
+                onChange={() => setHoldStatus('Release')}
+                type="radio"
+              />
+              <span>Release</span>
             </label>
           </fieldset>
         </div>
 
-        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--status change-ends-dialog__status-fieldset">
+        <fieldset className="arrival-time-dialog__fieldset arrival-time-dialog__fieldset--status train-hold-dialog__status-fieldset">
           <legend>Status</legend>
           <output>{status}</output>
         </fieldset>
 
-        <div className="arrival-time-dialog__actions change-ends-dialog__actions">
+        <div className="arrival-time-dialog__actions train-hold-dialog__actions">
           <Win98HtmlButton onClick={() => setStatus('Help selected')}>Help</Win98HtmlButton>
           <span />
-          <Win98HtmlButton onClick={applyChangeEnds}>Apply</Win98HtmlButton>
+          <Win98HtmlButton onClick={applyTrainHold}>Apply</Win98HtmlButton>
           <Win98HtmlButton onClick={onClose}>Close</Win98HtmlButton>
         </div>
       </div>
@@ -340,4 +350,4 @@ function ChangeEndsDialog({
   )
 }
 
-export default ChangeEndsDialog
+export default TrainHoldDialog
