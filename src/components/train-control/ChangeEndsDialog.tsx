@@ -155,8 +155,8 @@ function ChangeEndsDialog({
 
   const applyChangeEnds = () => {
     const nextStatus = `Change of ends request ${station} ${platformSiding}\nCommand successful`
-    setStatus(nextStatus)
     onApply(nextStatus)
+    onClose()
   }
 
   return (

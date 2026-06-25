@@ -79,8 +79,8 @@ function PtiInitialisationDialog({
     const destinationNumber = destinationNumberDigits.join('')
     const nextStatus = `PTI initialisation ${trainNumber} - ${scheduleNumber} - ${destinationNumber}\nCommand successful`
 
-    setStatus(nextStatus)
     onApply(nextStatus)
+    onClose()
   }
 
   return (

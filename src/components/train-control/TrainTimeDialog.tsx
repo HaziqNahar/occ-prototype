@@ -220,7 +220,6 @@ function TrainTimeDialog({
       station,
     }
 
-    setStatus(nextStatus)
     onApply(nextStatus, selection)
     setTimeConfirmationCommand(null)
 

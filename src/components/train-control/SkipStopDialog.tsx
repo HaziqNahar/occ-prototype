@@ -157,8 +157,8 @@ function SkipStopDialog({
     const actionLabel = skipStopStatus === 'request' ? 'request' : 'release'
     const nextStatus = `Skip stop ${actionLabel} ${station} ${platformSiding}\nCommand successful`
 
-    setStatus(nextStatus)
     onApply(nextStatus)
+    onClose()
   }
 
   return (

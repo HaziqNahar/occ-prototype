@@ -155,8 +155,8 @@ function TrainHoldDialog({
     const target = [station, platformSiding].filter(Boolean).join(' ')
     const nextStatus = `Train hold ${holdStatus.toLowerCase()}${target ? ` ${target}` : ''}\nCommand successful`
 
-    setStatus(nextStatus)
     onApply(nextStatus)
+    onClose()
   }
 
   return (

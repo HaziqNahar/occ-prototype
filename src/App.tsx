@@ -2021,6 +2021,14 @@ function ItamaStatusPanel({
   )
 }
 
+type TrainControlSubDialog =
+  | 'arrival-time'
+  | 'departure-time'
+  | 'pti'
+  | 'change-ends'
+  | 'train-hold'
+  | 'skip-stop'
+
 function TrainInspectorPanel({
   arrivalTimeSelection,
   onClose,
@@ -2080,11 +2088,7 @@ function TrainInspectorPanel({
     trainId: string
   } | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
-  const [ptiDialogOpen, setPtiDialogOpen] = useState(false)
-  const [trainTimeDialogKind, setTrainTimeDialogKind] = useState<'arrival' | 'departure' | null>(null)
-  const [changeEndsDialogOpen, setChangeEndsDialogOpen] = useState(false)
-  const [trainHoldDialogOpen, setTrainHoldDialogOpen] = useState(false)
-  const [skipStopDialogOpen, setSkipStopDialogOpen] = useState(false)
+  const [activeTrainControlDialog, setActiveTrainControlDialog] = useState<TrainControlSubDialog | null>(null)
   const [displayedItamaStatusOverride, setDisplayedItamaStatusOverride] = useState<{
     baseStatus: TrainItamaDisplayStatus
     trainId: string
@@ -2161,6 +2165,14 @@ function TrainInspectorPanel({
 
   const recordStatus = (message: string) => setStatusMessage(message)
 
+  const closeTrainControlDialog = () => setActiveTrainControlDialog(null)
+
+  const openTrainControlDialog = (dialog: TrainControlSubDialog, status: string) => {
+    setConfirmationCommand(null)
+    setActiveTrainControlDialog(dialog)
+    setStatusMessage(status)
+  }
+
   const updateControlSelection = (key: string, label: string, nextValue: string) => {
     setControlSelections((current) => ({
       ...current,
@@ -2170,53 +2182,26 @@ function TrainInspectorPanel({
   }
 
   const openTrainTimeDialog = (kind: 'arrival' | 'departure') => {
-    setConfirmationCommand(null)
-    setPtiDialogOpen(false)
-    setChangeEndsDialogOpen(false)
-    setTrainHoldDialogOpen(false)
-    setSkipStopDialogOpen(false)
-    setTrainTimeDialogKind(kind)
-    setStatusMessage(`${kind === 'arrival' ? 'Arrival' : 'Departure'} time selected`)
+    openTrainControlDialog(
+      kind === 'arrival' ? 'arrival-time' : 'departure-time',
+      `${kind === 'arrival' ? 'Arrival' : 'Departure'} time selected`,
+    )
   }
 
   const openPtiDialog = () => {
-    setConfirmationCommand(null)
-    setTrainTimeDialogKind(null)
-    setChangeEndsDialogOpen(false)
-    setTrainHoldDialogOpen(false)
-    setSkipStopDialogOpen(false)
-    setPtiDialogOpen(true)
-    setStatusMessage('PTI initialisation selected')
+    openTrainControlDialog('pti', 'PTI initialisation selected')
   }
 
   const openChangeEndsDialog = () => {
-    setConfirmationCommand(null)
-    setPtiDialogOpen(false)
-    setTrainTimeDialogKind(null)
-    setTrainHoldDialogOpen(false)
-    setSkipStopDialogOpen(false)
-    setChangeEndsDialogOpen(true)
-    setStatusMessage('Change of ends request selected')
+    openTrainControlDialog('change-ends', 'Change of ends request selected')
   }
 
   const openTrainHoldDialog = () => {
-    setConfirmationCommand(null)
-    setPtiDialogOpen(false)
-    setTrainTimeDialogKind(null)
-    setChangeEndsDialogOpen(false)
-    setSkipStopDialogOpen(false)
-    setTrainHoldDialogOpen(true)
-    setStatusMessage('Train hold selected')
+    openTrainControlDialog('train-hold', 'Train hold selected')
   }
 
   const openSkipStopDialog = () => {
-    setConfirmationCommand(null)
-    setPtiDialogOpen(false)
-    setTrainTimeDialogKind(null)
-    setChangeEndsDialogOpen(false)
-    setTrainHoldDialogOpen(false)
-    setSkipStopDialogOpen(true)
-    setStatusMessage('Skip stop selected')
+    openTrainControlDialog('skip-stop', 'Skip stop selected')
   }
 
   const updateInspectorScroll = useCallback(() => {
@@ -2521,6 +2506,11 @@ function TrainInspectorPanel({
       OK
     </Win98HtmlButton>
   )
+  const trainTimeDialogKind = activeTrainControlDialog === 'arrival-time'
+    ? 'arrival'
+    : activeTrainControlDialog === 'departure-time'
+      ? 'departure'
+      : null
 
   return (
     <div
@@ -2768,48 +2758,48 @@ function TrainInspectorPanel({
             }
           }}
           onConfirmDeparture={onConfirmDepartureTime}
-          onClose={() => setTrainTimeDialogKind(null)}
+          onClose={closeTrainControlDialog}
           train={train}
         />
       ) : null}
 
-      {ptiDialogOpen ? (
+      {activeTrainControlDialog === 'pti' ? (
         <PtiInitialisationDialog
           key={`${train.id}-pti`}
           onApply={(message) => setStatusMessage(message)}
-          onClose={() => setPtiDialogOpen(false)}
+          onClose={closeTrainControlDialog}
           train={train}
         />
       ) : null}
 
-      {changeEndsDialogOpen ? (
+      {activeTrainControlDialog === 'change-ends' ? (
         <ChangeEndsDialog
           currentDirection={currentDirection}
           defaultStation={nearestPlatform.code}
           key={`${train.id}-${nearestPlatform.code}-${currentDirection}`}
           onApply={(message) => setStatusMessage(message)}
-          onClose={() => setChangeEndsDialogOpen(false)}
+          onClose={closeTrainControlDialog}
           train={train}
         />
       ) : null}
 
-      {trainHoldDialogOpen ? (
+      {activeTrainControlDialog === 'train-hold' ? (
         <TrainHoldDialog
           currentDirection={currentDirection}
           key={`${train.id}-${currentDirection}-train-hold`}
           onApply={(message) => setStatusMessage(message)}
-          onClose={() => setTrainHoldDialogOpen(false)}
+          onClose={closeTrainControlDialog}
           train={train}
         />
       ) : null}
 
-      {skipStopDialogOpen ? (
+      {activeTrainControlDialog === 'skip-stop' ? (
         <SkipStopDialog
           currentDirection={currentDirection}
           defaultStation={nearestPlatform.code}
           key={`${train.id}-${nearestPlatform.code}-${currentDirection}-skip-stop`}
           onApply={(message) => setStatusMessage(message)}
-          onClose={() => setSkipStopDialogOpen(false)}
+          onClose={closeTrainControlDialog}
           train={train}
         />
       ) : null}
