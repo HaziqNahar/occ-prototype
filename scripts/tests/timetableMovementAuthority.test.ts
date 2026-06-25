@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { createInitialSession } from '../../src/sessionState'
 import {
   createAllowedTimetablePlaybackPlans,
+  createTimetableMovementAuthoritiesForRows,
   createTimetableMovementAuthorities,
 } from '../../src/screens/line-map/timetableMovementAuthority'
 import type { OccSessionState, TimetableRow } from '../../src/types'
@@ -64,4 +65,85 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.equal(authority.routeMode, 'OCCM')
   assert.equal(authority.blockedReason, 'SKG route mode is OCCM/manual')
   assert.deepEqual(createAllowedTimetablePlaybackPlans(session, { SKG: 'OCCM' }, new Date(2026, 0, 1, 10, 6, 0)), [])
+}
+
+{
+  const session = {
+    ...sessionWithRows([timetableRow()]),
+    trains: [
+      {
+        direction: 'left',
+        id: '999',
+        lineMapVisible: true,
+        occupancySegmentId: 'rail-1109',
+        service: 'SB',
+        status: 'RUN',
+        timetablePlayback: true,
+        x: 0,
+        y: 0,
+      },
+    ],
+  }
+  const [authority] = createTimetableMovementAuthorities(session, {}, new Date(2026, 0, 1, 10, 0, 0))
+
+  assert.ok(authority)
+  assert.equal(authority.allowed, true)
+  assert.equal(authority.blockedReason, undefined)
+  assert.deepEqual(createAllowedTimetablePlaybackPlans(session, {}, new Date(2026, 0, 1, 10, 0, 0)), [authority.plan])
+}
+
+{
+  const [authority] = createTimetableMovementAuthoritiesForRows([
+    timetableRow({
+      destinationPoint: 'HBF',
+      destinationTime: '10:20:00',
+      originPoint: 'PGC',
+      originTime: '10:00:00',
+      stationPoint: 'PGLS',
+    }),
+  ], {}, new Date(2026, 0, 1, 10, 2, 0))
+
+  assert.ok(authority)
+  assert.equal(authority.currentRail, 'rail-1106')
+  assert.equal(authority.allowed, true)
+  assert.equal(authority.blockedReason, undefined)
+}
+
+{
+  const session = {
+    ...sessionWithRows([
+      timetableRow({
+        destinationPoint: 'PGCN',
+        destinationTime: '05:38:13',
+        originPoint: 'HBFN',
+        originTime: '05:01:00',
+        run: 'NB',
+        sched: '1000',
+        stationPoint: 'SKG',
+        stationTime: '05:33:20',
+        train: '301',
+      }),
+    ]),
+    trains: [
+      {
+        direction: 'right',
+        id: '314',
+        lineMapVisible: true,
+        occupancySegmentId: 'rail-705',
+        service: 'NB',
+        status: 'WAIT',
+        timetablePlayback: false,
+        x: 0,
+        y: 0,
+      },
+    ],
+  }
+  const [authority] = createTimetableMovementAuthorities(session, {}, new Date(2026, 0, 1, 5, 35, 0))
+
+  assert.ok(authority)
+  assert.equal(authority.trainId, '301')
+  assert.equal(authority.currentRail, 'rail-703')
+  assert.equal(authority.nextRail, 'rail-705')
+  assert.equal(authority.allowed, true)
+  assert.equal(authority.blockedReason, undefined)
 }

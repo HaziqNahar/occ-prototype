@@ -62,6 +62,7 @@ export function warnLineMapRouteValidationIssues() {
 }
 
 type LineMapRouteValidationOptions = {
+  allowLogicalExclusiveRailPairs?: boolean
   routePathDefinitions?: readonly LineMapRoutePathDefinition[]
   routeDefinitions?: readonly SignalRouteDefinition[]
 }
@@ -97,7 +98,7 @@ export function validateLineMapRouteDefinitions(options: LineMapRouteValidationO
       ])
     })
 
-    validateSignalRouteDefinition(routeDefinition, signalLabels, knownRailIds, issues)
+    validateSignalRouteDefinition(routeDefinition, signalLabels, knownRailIds, issues, options)
   })
 
   signalRouteKeys.forEach((count, routeKey) => {
@@ -262,18 +263,13 @@ function validateTimetableRoutePathDefinition(
     issues.push(`${routePath.id} has no timetable steps`)
   }
 
-  if (routePath.routeLabels.length === 0) {
-    issues.push(`${routePath.id} has no backing signal route labels`)
-  }
-
-  validateRoutePathRouteLabels(routePath.id, routePath.routeLabels, issues)
+  validateRoutePathRouteLabels(routePath.id, routePath.signalRouteRefs ?? [], issues)
 
   if (routePath.disallowGuideRails !== true) {
     issues.push(`${routePath.id} must explicitly opt into or out of guide rails`)
   }
 
   validateRoutePathSteps(`${routePath.id} timetable`, routePath.steps, knownRailIds, issues)
-  validateTimetableRoutePathBackedBySignalRoutes(routePath, issues)
 
   if (routePath.disallowGuideRails) {
     routePath.steps.forEach((step) => {
@@ -339,25 +335,6 @@ function validateRoutePathRouteLabels(
   })
 }
 
-function validateTimetableRoutePathBackedBySignalRoutes(
-  routePath: TimetableLineMapRoutePathDefinition,
-  issues: string[],
-) {
-  const routeSegmentIds = getSignalRouteSegmentIds(routePath.routeLabels)
-
-  if (routeSegmentIds.length === 0) {
-    return
-  }
-
-  const routeSegmentIdSet = new Set(routeSegmentIds)
-  const timetableStepSegmentIds = routePath.steps.map((step) => step.segmentId)
-  const unexpectedStepIds = timetableStepSegmentIds.filter((segmentId) => !routeSegmentIdSet.has(segmentId))
-
-  if (unexpectedStepIds.length > 0) {
-    issues.push(`${routePath.id} has timetable steps outside its signal route definitions: ${unexpectedStepIds.join(', ')}`)
-  }
-}
-
 function validateRoutePathSteps(
   label: string,
   steps: readonly { segmentId: string }[],
@@ -417,6 +394,7 @@ function validateSignalRouteDefinition(
   signalLabels: ReadonlySet<string>,
   knownRailIds: ReadonlySet<string>,
   issues: string[],
+  options: LineMapRouteValidationOptions,
 ) {
   const routeName = `${routeDefinition.signalLabel} ${routeDefinition.routeLabel}`
 
@@ -455,7 +433,7 @@ function validateSignalRouteDefinition(
   validateNoLegacyOrRemovedRouteIds(`${routeName} real rails`, routeDefinition.realSegmentIds, issues)
   validateNoLegacyOrRemovedRouteIds(`${routeName} command segments`, routeDefinition.commandSegmentIds, issues)
   validateNoLegacyOrRemovedRouteIds(`${routeName} command-state segments`, routeDefinition.commandStateSegmentIds, issues)
-  validateNoExclusiveRouteSegmentConflicts(routeDefinition, routeName, issues)
+  validateNoExclusiveRouteSegmentConflicts(routeDefinition, routeName, issues, options)
   validatePgcCrossoverPairing(routeDefinition, routeName, issues)
 
   routeDefinition.realSegmentIds.forEach((segmentId) => {
@@ -498,8 +476,13 @@ function validateNoExclusiveRouteSegmentConflicts(
   routeDefinition: SignalRouteDefinition,
   routeName: string,
   issues: string[],
+  options: LineMapRouteValidationOptions,
 ) {
   const routeRailIds = new Set(routeDefinition.realSegmentIds)
+  const allowedExclusiveRailPairKeys = new Set(
+    (options.allowLogicalExclusiveRailPairs ? routeDefinition.allowedLogicalExclusiveRailPairs ?? [] : [])
+      .map(([left, right]) => getExclusiveRailPairKey(left, right)),
+  )
 
   EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
     const preferredRails = group.sides[0].filter((railId) => routeRailIds.has(railId))
@@ -509,8 +492,22 @@ function validateNoExclusiveRouteSegmentConflicts(
       return
     }
 
+    const hasUnallowedConflict = preferredRails.some((preferredRail) => (
+      conflictingRails.some((conflictingRail) => (
+        !allowedExclusiveRailPairKeys.has(getExclusiveRailPairKey(preferredRail, conflictingRail))
+      ))
+    ))
+
+    if (!hasUnallowedConflict) {
+      return
+    }
+
     issues.push(`${routeName} sets mutually exclusive rails ${preferredRails.join(', ')} and ${conflictingRails.join(', ')}`)
   })
+}
+
+function getExclusiveRailPairKey(left: string, right: string) {
+  return [left, right].sort().join('|')
 }
 
 function validatePgcCrossoverPairing(

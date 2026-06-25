@@ -14,7 +14,15 @@ type TimetableRouteCoverage = {
   rowCount: number
 }
 
-export function createTimetableRouteAuditReport() {
+export type TimetableRouteAudit = {
+  coverages: readonly TimetableRouteCoverage[]
+  resolvedRows: readonly { path: TimetableRailPathResolution; row: TimetableRow }[]
+  rows: readonly TimetableRow[]
+  unresolvedRows: readonly TimetableRow[]
+  unusedRoutePaths: readonly (typeof TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS)[number][]
+}
+
+export function createTimetableRouteAudit(): TimetableRouteAudit {
   const rows = createNelTimetableRows()
   const resolvedRows: Array<{ path: TimetableRailPathResolution; row: TimetableRow }> = []
   const unresolvedRows: TimetableRow[] = []
@@ -34,6 +42,24 @@ export function createTimetableRouteAuditReport() {
   const usedRoutePathIds = new Set(coverages.map((coverage) => coverage.path.id))
   const unusedRoutePaths = TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS
     .filter((routePath) => !usedRoutePathIds.has(routePath.id))
+
+  return {
+    coverages,
+    resolvedRows,
+    rows,
+    unresolvedRows,
+    unusedRoutePaths,
+  }
+}
+
+export function createTimetableRouteAuditReport() {
+  const {
+    coverages,
+    resolvedRows,
+    rows,
+    unresolvedRows,
+    unusedRoutePaths,
+  } = createTimetableRouteAudit()
 
   return [
     'Traffic Timetable Route Audit',
@@ -90,9 +116,9 @@ function formatCoverage(coverage: TimetableRouteCoverage) {
     `rows: ${coverage.rowCount}`,
     `route: ${coverage.path.id}`,
     `sample: Train ${coverage.firstRow.train} Schedule ${coverage.firstRow.sched}`,
-    `signal routes: ${coverage.path.routeLabels.join(', ')}`,
-    `rails: ${firstRail} -> ${lastRail}`,
-  ].join(' | ')
+    coverage.path.signalRouteRefs.length > 0 ? `optional signal refs: ${coverage.path.signalRouteRefs.join(', ')}` : undefined,
+    `station rails: ${firstRail} -> ${lastRail}`,
+  ].filter((part): part is string => typeof part === 'string').join(' | ')
 }
 
 function formatResolvedStationRoute(path: TimetableRailPathResolution) {

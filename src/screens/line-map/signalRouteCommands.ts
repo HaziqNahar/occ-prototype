@@ -27,17 +27,11 @@ import {
 
 export function getSignalRouteTargetTrain(trains: readonly TrainState[], selectedTrainId: string) {
   return trains.find((train) => train.id === selectedTrainId)
-    ?? trains.find((train) => train.id === '314')
-    ?? trains.find((train) => train.id === '317')
     ?? trains[0]
 }
 
 export function hasSignalRouteCommand(signal: Pick<LineMapSignalData, 'label'>, routeLabel: string) {
   return isSignalRouteDefinitionCommandable(getSignalRouteDefinition(signal.label, routeLabel))
-}
-
-export function shouldResetTrainRouteIndexForSignal(signal: Pick<LineMapSignalData, 'label'>) {
-  return signal.label === 'S610'
 }
 
 export function createSignalRouteSetOverrideSegments(

@@ -12,6 +12,9 @@ import {
   createLineMapBaseRailVisualStates,
   getLineMapBaseRailVisualState,
 } from '../../src/screens/line-map/lineMapBaseRailVisualState'
+import {
+  getExclusiveLineMapRailSegmentIds,
+} from '../../src/screens/line-map/lineMapRailStateAuthority'
 
 function routeState(
   segmentId: string,
@@ -30,6 +33,7 @@ function routeState(
 function lineMap(routeSegments: LineMapRuntimeState['routeSegments']): LineMapRuntimeState {
   return {
     layoutVersion: LINE_MAP_LAYOUT_VERSION,
+    platformDoorStates: {},
     routeSegments,
   }
 }
@@ -38,6 +42,7 @@ function lineMap(routeSegments: LineMapRuntimeState['routeSegments']): LineMapRu
   const fresh = createLineMapRuntimeState()
 
   assert.equal(fresh.layoutVersion, LINE_MAP_LAYOUT_VERSION)
+  assert.deepEqual(fresh.platformDoorStates, {})
   assert.deepEqual(fresh.routeSegments, {})
   assert.equal(fresh.routeSegments['rail-P609'], undefined)
   assert.equal(getLineMapBaseRailVisualState('rail-651')?.status, 'SET')
@@ -50,6 +55,12 @@ function lineMap(routeSegments: LineMapRuntimeState['routeSegments']): LineMapRu
 
   assert.equal(defaultState?.status, 'UNSET')
   assert.equal(getDefaultLineMapRouteSegmentState('rail-not-real'), undefined)
+}
+
+{
+  assert.deepEqual(getExclusiveLineMapRailSegmentIds(['rail-705']).sort(), ['rail-705', 'rail-P701'].sort())
+  assert.deepEqual(getExclusiveLineMapRailSegmentIds(['rail-P608']).sort(), ['rail-614', 'rail-P608'].sort())
+  assert.deepEqual(getExclusiveLineMapRailSegmentIds(['rail-1106']).sort(), ['rail-1106', 'rail-P1102'].sort())
 }
 
 {

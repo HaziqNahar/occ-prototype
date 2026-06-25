@@ -4,6 +4,7 @@ import {
 } from './lineMapRoutePaths'
 import type {
   TimetableLineMapRoutePathDefinition,
+  TimetablePlatformStopDefinition,
   TimetableRouteLocation,
   TimetableRoutePathMatcher,
 } from './lineMapRoutePaths'
@@ -20,8 +21,9 @@ export type TimetableRailPathResolution = {
   from: TimetableRouteLocation
   id: string
   panelCode: string
+  platformStops: readonly TimetablePlatformStopDefinition[]
   routeLabel: string
-  routeLabels: readonly string[]
+  signalRouteRefs: readonly string[]
   steps: readonly TrainRouteAnimationStep[]
   to: TimetableRouteLocation
   via?: readonly TimetableRouteLocation[]
@@ -94,8 +96,9 @@ export function resolveTimetableRailPath(row: TimetableRailPathRow): TimetableRa
       from: routePath.from,
       id: routePath.id,
       panelCode: routePath.panelCode,
+      platformStops: routePath.platformStops ?? [],
       routeLabel: routePath.routeLabel,
-      routeLabels: routePath.routeLabels,
+      signalRouteRefs: routePath.signalRouteRefs ?? [],
       steps: routePath.steps,
       to: routePath.to,
       via: routePath.via,

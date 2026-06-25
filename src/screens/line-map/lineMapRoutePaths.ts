@@ -1,10 +1,9 @@
 import {
   PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
+  PGL_TO_SKG_MAINLINE_ROUTE_STEPS,
   SKG_TO_PGC_MAINLINE_ROUTE_STEPS,
-  TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
-  TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS,
+  SKG_TO_PGL_MAINLINE_ROUTE_STEPS,
   TRAIN_312_TO_RT2_DEPOT_TIMETABLE_ROUTE_STEPS,
-  TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from './trainMovementRoutes'
 import type { TrainRouteAnimationStep } from './trainMovementRoutes'
@@ -51,6 +50,12 @@ export type TimetableRouteLocation =
   | 'SKG'
   | 'WLH'
 
+export type TimetablePlatformStopDefinition = {
+  platformCode: Extract<TimetableRouteLocation, 'BGK' | 'PGC' | 'PGL' | 'SKG'>
+  stepIndex: number
+  track: 'NB' | 'SB'
+}
+
 export type TimetableRoutePathMatcher = {
   anyOf?: readonly TimetableRoutePathMatcher[]
   destinationAny?: readonly TimetableRouteLocation[]
@@ -67,7 +72,8 @@ export type TimetableLineMapRoutePathDefinition = {
   owner: 'timetable'
   panelCode: string
   routeLabel: string
-  routeLabels: readonly string[]
+  signalRouteRefs?: readonly string[]
+  platformStops?: readonly TimetablePlatformStopDefinition[]
   steps: readonly TrainRouteAnimationStep[]
   to: TimetableRouteLocation
   via?: readonly TimetableRouteLocation[]
@@ -78,22 +84,6 @@ export type LineMapRoutePathDefinition = ManualLineMapRoutePathDefinition | Time
 export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoutePathDefinition[] = [
   {
     destinationKind: 'RT2_DEPOT',
-    id: 'manual-train-312-s1104-to-rt2-depot',
-    movementRouteSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
-    owner: 'manual',
-    requiresStartAtFirstStep: true,
-    routeLabel: 'Route R608_803',
-    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
-    stateRouteStepIndexOffset: TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS.length - 1,
-    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
-      ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
-      TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS,
-    ),
-    trainIds: ['312'],
-  },
-  {
-    destinationKind: 'RT2_DEPOT',
-    excludedTrainIds: ['312'],
     id: 'manual-s608-to-rt2-depot',
     movementRouteSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
     owner: 'manual',
@@ -104,32 +94,6 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
       ['Route R608_803'],
       TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
     ),
-  },
-  {
-    destinationKind: 'ANY',
-    id: 'manual-train-314-s610-to-rt2',
-    movementRouteSteps: TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
-    owner: 'manual',
-    routeLabel: 'Route R610_652',
-    routeLabels: ['Route R610_652'],
-    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
-      ['Route R610_652'],
-      TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
-    ),
-    trainIds: ['314'],
-  },
-  {
-    destinationKind: 'ANY',
-    id: 'manual-train-312-s1104-to-s608',
-    movementRouteSteps: TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
-    owner: 'manual',
-    routeLabel: 'Route R1104_704 / R704_700 / R700_608',
-    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608'],
-    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
-      ['Route R1104_704', 'Route R704_700', 'Route R700_608'],
-      TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
-    ),
-    trainIds: ['312'],
   },
 ] as const
 
@@ -148,10 +112,37 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     owner: 'timetable',
     panelCode: 'SKG',
     routeLabel: 'Timetable path PGC/SKG to RT2 depot',
-    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
+    signalRouteRefs: ['Route R1104_704', 'Route R704_700', 'Route R700_608', 'Route R608_803'],
     steps: TRAIN_312_TO_RT2_DEPOT_TIMETABLE_ROUTE_STEPS,
     to: 'RT2_DEPOT',
     via: ['SKG'],
+  },
+  {
+    disallowGuideRails: true,
+    from: 'SKG',
+    id: 'timetable-skg-to-pgl-upper-mainline',
+    match: {
+      anyOf: [
+        { originAny: ['SKG'] },
+        { stationAny: ['SKG'] },
+      ],
+      destinationAny: ['PGL'],
+      run: 'NB',
+    },
+    owner: 'timetable',
+    panelCode: 'SKG',
+    routeLabel: 'Timetable path SKG to PGL upper mainline',
+    platformStops: [
+      { platformCode: 'SKG', stepIndex: 0, track: 'NB' },
+      { platformCode: 'PGL', stepIndex: 7, track: 'NB' },
+    ],
+    signalRouteRefs: [
+      'Route R619_701',
+      'Route R701_705',
+      'Route R705_707',
+    ],
+    steps: SKG_TO_PGL_MAINLINE_ROUTE_STEPS,
+    to: 'PGL',
   },
   {
     disallowGuideRails: true,
@@ -162,13 +153,18 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
         { originAny: ['SKG'] },
         { stationAny: ['SKG'] },
       ],
-      destinationAny: ['PGC', 'PGL'],
+      destinationAny: ['PGC'],
       run: 'NB',
     },
     owner: 'timetable',
     panelCode: 'SKG',
     routeLabel: 'Timetable path SKG to PGC upper mainline',
-    routeLabels: [
+    platformStops: [
+      { platformCode: 'SKG', stepIndex: 0, track: 'NB' },
+      { platformCode: 'PGL', stepIndex: 7, track: 'NB' },
+      { platformCode: 'PGC', stepIndex: 14, track: 'NB' },
+    ],
+    signalRouteRefs: [
       'Route R619_701',
       'Route R701_705',
       'Route R705_707',
@@ -185,14 +181,39 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     id: 'timetable-pgc-to-skg-lower-mainline',
     match: {
       destinationAny: ['SKG', 'HBF'],
-      originAny: ['PGC', 'PGL'],
+      originAny: ['PGC'],
       run: 'SB',
     },
     owner: 'timetable',
     panelCode: 'PGC',
     routeLabel: 'Timetable path PGC to SKG lower mainline',
-    routeLabels: ['Route R1102_704', 'Route R704_700', 'Route R700_608'],
+    platformStops: [
+      { platformCode: 'PGC', stepIndex: 0, track: 'SB' },
+      { platformCode: 'PGL', stepIndex: 7, track: 'SB' },
+      { platformCode: 'SKG', stepIndex: 15, track: 'SB' },
+    ],
+    signalRouteRefs: ['Route R1102_704', 'Route R704_700', 'Route R700_608'],
     steps: PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
+    to: 'SKG',
+  },
+  {
+    disallowGuideRails: true,
+    from: 'PGL',
+    id: 'timetable-pgl-to-skg-lower-mainline',
+    match: {
+      destinationAny: ['SKG', 'HBF'],
+      originAny: ['PGL'],
+      run: 'SB',
+    },
+    owner: 'timetable',
+    panelCode: 'PGL',
+    routeLabel: 'Timetable path PGL to SKG lower mainline',
+    platformStops: [
+      { platformCode: 'PGL', stepIndex: 0, track: 'SB' },
+      { platformCode: 'SKG', stepIndex: 8, track: 'SB' },
+    ],
+    signalRouteRefs: ['Route R700_608'],
+    steps: PGL_TO_SKG_MAINLINE_ROUTE_STEPS,
     to: 'SKG',
   },
 ] as const
@@ -201,11 +222,6 @@ export const LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly LineMapRoutePathDefinitio
   ...MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS,
   ...TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS,
 ] as const
-
-export const TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID: Record<string, readonly TrainRouteAnimationStep[]> = {
-  '312': TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS,
-  '314': TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
-}
 
 export function getManualLineMapRoutePath(
   trainId: string,

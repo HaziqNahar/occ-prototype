@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import type { TrainTimeSelection } from '../../src/components/train-control/trainTimeOptions'
 import { createLineMapRuntimeState } from '../../src/screens/line-map/lineMapRuntimeState'
 import {
-  TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
 import type { TimetablePlaybackPlan } from '../../src/screens/line-map/timetablePlayback'
@@ -10,6 +9,7 @@ import {
   applyManualTrainRouteStepState,
   applyTimetablePlaybackStepState,
   clearManualTrainRouteSegmentOverrides,
+  completeTimetablePlaybackStepState,
   createManualTrainRoutePlan,
 } from '../../src/screens/line-map/trainMovementState'
 import type { LineMapRuntimeState, TrainState } from '../../src/types'
@@ -57,9 +57,9 @@ function routeState(segmentId: string) {
 }
 
 {
-  const firstStep = TRAIN_314_S610_TO_RT2_ROUTE_STEPS[0]
+  const firstStep = TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS[0]
   const plan = createManualTrainRoutePlan({
-    arrivalDestinations: { '314': arrivalSelection() },
+    arrivalDestinations: { '314': arrivalSelection('NED', 'RT2D') },
     lineMap: createLineMapRuntimeState(),
     trainId: '314',
     trains: [train('314', { x: firstStep.point.x, y: firstStep.point.y })],
@@ -69,14 +69,14 @@ function routeState(segmentId: string) {
 
   if (plan.allowed) {
     assert.equal(plan.currentStepIndex, 0)
-    assert.equal(plan.lastStepIndex, TRAIN_314_S610_TO_RT2_ROUTE_STEPS.length - 1)
+    assert.equal(plan.lastStepIndex, TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.length - 1)
   }
 }
 
 {
-  const firstStep = TRAIN_314_S610_TO_RT2_ROUTE_STEPS[0]
+  const firstStep = TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS[0]
   const plan = createManualTrainRoutePlan({
-    arrivalDestinations: { '314': arrivalSelection() },
+    arrivalDestinations: { '314': arrivalSelection('NED', 'RT2D') },
     lineMap: createLineMapRuntimeState(),
     trainId: '314',
     trains: [train('314', { x: firstStep.point.x, y: firstStep.point.y })],
@@ -91,24 +91,24 @@ function routeState(segmentId: string) {
       trains: [train('314')],
     }, '314', plan.authority, 0)
 
-    assert.equal(first.lineMap.routeSegments['rail-705'].status, 'DISPATCHED')
-    assert.equal(first.lineMap.routeSegments['rail-703'].status, 'DISPATCHED')
-    assert.equal(first.lineMap.routeSegments['rail-701'].status, 'SET')
-    assert.equal(first.trains[0].occupancySegmentId, 'rail-705')
+    assert.equal(first.lineMap.routeSegments['rail-618'].status, 'DISPATCHED')
+    assert.equal(first.lineMap.routeSegments['rail-616'].status, 'DISPATCHED')
+    assert.equal(first.lineMap.routeSegments['rail-614'].status, 'SET')
+    assert.equal(first.trains[0].occupancySegmentId, 'rail-618')
     assert.equal(first.trains[0].isMoving, true)
 
     const middle = applyManualTrainRouteStepState(first, '314', plan.authority, 2)
 
-    assert.equal(middle.lineMap.routeSegments['rail-705'].status, 'UNSET')
-    assert.equal(middle.lineMap.routeSegments['rail-703'].status, 'UNSET')
-    assert.equal(middle.lineMap.routeSegments['rail-701'].status, 'DISPATCHED')
-    assert.equal(middle.lineMap.routeSegments['rail-621'].status, 'DISPATCHED')
+    assert.equal(middle.lineMap.routeSegments['rail-618'].status, 'UNSET')
+    assert.equal(middle.lineMap.routeSegments['rail-616'].status, 'UNSET')
+    assert.equal(middle.lineMap.routeSegments['rail-614'].status, 'DISPATCHED')
+    assert.equal(middle.lineMap.routeSegments['rail-P606'].status, 'DISPATCHED')
 
     const finalStepIndex = plan.lastStepIndex
     const final = applyManualTrainRouteStepState(middle, '314', plan.authority, finalStepIndex)
-    const finalStep = TRAIN_314_S610_TO_RT2_ROUTE_STEPS[finalStepIndex]
+    const finalStep = TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS[finalStepIndex]
 
-    assert.equal(final.lineMap.routeSegments['rail-703'].status, 'UNSET')
+    assert.equal(final.lineMap.routeSegments['rail-616'].status, 'UNSET')
     assert.equal(final.lineMap.routeSegments[finalStep.segmentId].status, 'DISPATCHED')
     assert.equal(final.trains[0].occupancySegmentId, finalStep.segmentId)
     assert.equal(final.trains[0].x, finalStep.point.x)
@@ -118,9 +118,9 @@ function routeState(segmentId: string) {
 }
 
 {
-  const firstStep = TRAIN_314_S610_TO_RT2_ROUTE_STEPS[0]
+  const firstStep = TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS[0]
   const plan = createManualTrainRoutePlan({
-    arrivalDestinations: { '314': arrivalSelection() },
+    arrivalDestinations: { '314': arrivalSelection('NED', 'RT2D') },
     lineMap: createLineMapRuntimeState(),
     trainId: '314',
     trains: [train('314', { x: firstStep.point.x, y: firstStep.point.y })],
@@ -130,14 +130,14 @@ function routeState(segmentId: string) {
 
   if (plan.allowed) {
     const current: LineMapRuntimeState['routeSegments'] = {
-      'rail-705': routeState('rail-705'),
-      'rail-703': routeState('rail-703'),
+      'rail-618': routeState('rail-618'),
+      'rail-616': routeState('rail-616'),
       unrelated: routeState('unrelated'),
     }
     const cleared = clearManualTrainRouteSegmentOverrides(current, plan.authority)
 
-    assert.equal(cleared['rail-705'], undefined)
-    assert.equal(cleared['rail-703'], undefined)
+    assert.equal(cleared['rail-618'], undefined)
+    assert.equal(cleared['rail-616'], undefined)
     assert.equal(cleared.unrelated.status, 'SET')
   }
 }
@@ -149,13 +149,15 @@ function routeState(segmentId: string) {
     from: 'PGC',
     panelCode: 'SKG',
     routeLabel: 'Route R608_803',
-    routeLabels: ['Route R608_803'],
     routeSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    platformStops: [],
     scheduleNumber: '001',
     service: 'SB',
+    signalRouteRefs: ['Route R608_803'],
     startSeconds: 0,
     stationRouteId: 'timetable-pgc-skg-to-rt2-depot',
     stepOffsetsMs: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map(() => 0),
+    stepSignedOffsetsMs: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map(() => 0),
     steps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
     to: 'RT2_DEPOT',
     trainId: '312',
@@ -179,4 +181,63 @@ function routeState(segmentId: string) {
   assert.equal(final.lineMap.routeSegments['rail-652'].status, 'UNSET')
   assert.equal(final.trains[0].lineMapVisible, false)
   assert.equal(final.trains[0].status, 'WAIT')
+}
+
+{
+  const plan: TimetablePlaybackPlan = {
+    endSeconds: 1200,
+    firstStepIndex: 0,
+    from: 'PGC',
+    panelCode: 'SKG',
+    routeLabel: 'Route R608_803',
+    routeSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    platformStops: [{ platformCode: 'SKG', stepIndex: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.length - 1, track: 'SB' }],
+    scheduleNumber: '001',
+    service: 'SB',
+    signalRouteRefs: ['Route R608_803'],
+    startSeconds: 0,
+    stationRouteId: 'timetable-pgc-skg-to-rt2-depot',
+    stepOffsetsMs: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map(() => 0),
+    stepSignedOffsetsMs: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map(() => 0),
+    steps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    to: 'RT2_DEPOT',
+    trainId: '312',
+    via: ['SKG'],
+  }
+  const first = applyTimetablePlaybackStepState({
+    lineMap: createLineMapRuntimeState(),
+    selectedTrainId: '',
+    trains: [],
+  }, plan, plan.steps[0], 0, plan.steps.length - 1)
+  const finalStepIndex = plan.steps.length - 1
+  const finalStep = plan.steps[finalStepIndex]
+  const finalStop = applyTimetablePlaybackStepState(first, plan, finalStep, finalStepIndex, finalStepIndex, true)
+  const finalStopWithDoorState = {
+    ...finalStop,
+    lineMap: {
+      ...finalStop.lineMap,
+      platformDoorStates: {
+        'SKG-SB': {
+          platformCode: 'SKG',
+          status: 'CYCLING',
+          track: 'SB',
+          trainId: '312',
+          updatedAt: 1,
+        },
+      },
+    },
+  }
+
+  assert.equal(finalStop.lineMap.routeSegments[finalStep.segmentId].status, 'DISPATCHED')
+  assert.equal(finalStop.trains[0].lineMapVisible, true)
+  assert.equal(finalStop.trains[0].occupancySegmentId, finalStep.segmentId)
+  assert.equal(finalStop.trains[0].isMoving, false)
+
+  const cleaned = completeTimetablePlaybackStepState(finalStopWithDoorState, plan)
+
+  assert.equal(cleaned.lineMap.routeSegments[finalStep.segmentId].status, 'UNSET')
+  assert.deepEqual(cleaned.lineMap.platformDoorStates, {})
+  assert.equal(cleaned.trains[0].lineMapVisible, false)
+  assert.equal(cleaned.trains[0].occupancySegmentId, undefined)
+  assert.equal(cleaned.trains[0].timetablePlayback, false)
 }

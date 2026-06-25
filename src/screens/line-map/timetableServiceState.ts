@@ -1,4 +1,5 @@
 import type { TimetableRow } from '../../types'
+import { createTimetableExecutorSnapshot, createTimetableTrainDuties } from './timetableExecutor'
 import { resolveTimetableRailPath } from './timetablePathResolver'
 import type { TimetableRailPathResolution } from './timetablePathResolver'
 
@@ -63,6 +64,12 @@ export function shouldUseTimetableOriginTime(row: TimetableRow) {
 }
 
 export function getTimetableRowStartSeconds(row: TimetableRow) {
+  if (shouldUseTimetableStationStartTime(row)) {
+    return parseTimetableSeconds(row.stationTime)
+      ?? parseTimetableSeconds(row.originTime)
+      ?? parseTimetableSeconds(row.destinationTime)
+  }
+
   return shouldUseTimetableOriginTime(row)
     ? parseTimetableSeconds(row.originTime)
     : parseTimetableSeconds(row.stationTime)
@@ -71,6 +78,12 @@ export function getTimetableRowStartSeconds(row: TimetableRow) {
 }
 
 export function getTimetableRowEndSeconds(row: TimetableRow) {
+  if (shouldUseTimetableStationEndTime(row)) {
+    return parseTimetableSeconds(row.stationTime)
+      ?? parseTimetableSeconds(row.destinationTime)
+      ?? parseTimetableSeconds(row.originTime)
+  }
+
   return parseTimetableSeconds(row.destinationTime)
     ?? parseTimetableSeconds(row.stationTime)
     ?? parseTimetableSeconds(row.originTime)
@@ -109,12 +122,44 @@ export function getTimetableRowSelectedStation(row: TimetableRow) {
     || 'SKG'
 }
 
+function isCurrentLineMapNorthboundScopeRow(row: TimetableRow) {
+  const station = normalizeTimetablePointCode(row.stationPoint) || normalizeTimetablePointCode(row.selectedStation ?? '')
+  const destination = normalizeTimetablePointCode(row.destinationPoint)
+
+  return row.run === 'NB'
+    && station === 'SKG'
+    && (destination === 'PGC' || destination === 'PGL')
+}
+
+function isCurrentLineMapSouthboundScopeRow(row: TimetableRow) {
+  const destination = normalizeTimetablePointCode(row.destinationPoint)
+  const origin = normalizeTimetablePointCode(row.originPoint)
+  const station = normalizeTimetablePointCode(row.stationPoint) || normalizeTimetablePointCode(row.selectedStation ?? '')
+
+  return row.run === 'SB'
+    && Boolean(destination)
+    && (origin === 'PGC' || origin === 'PGL')
+    && station === 'SKG'
+}
+
+export function shouldUseTimetableStationStartTime(row: TimetableRow) {
+  return isCurrentLineMapNorthboundScopeRow(row)
+}
+
+export function shouldUseTimetableStationEndTime(row: TimetableRow) {
+  return isCurrentLineMapSouthboundScopeRow(row)
+}
+
+function isTimetableServiceRow(row: TimetableRow) {
+  return Boolean(row.train && (row.run === 'NB' || row.run === 'SB'))
+}
+
 export function getTimetableServiceTrainIds(rows: readonly TimetableRow[]) {
-  return Array.from(new Set(
-    rows
-      .filter((row) => row.train && (row.run === 'NB' || row.run === 'SB'))
-      .map((row) => row.train),
-  ))
+  return createTimetableTrainDuties(rows, {
+    getEndSeconds: getTimetableRowPlaybackEndSeconds,
+    getStartSeconds: getTimetableRowStartSeconds,
+    isServiceRow: isTimetableServiceRow,
+  }).map((duty) => duty.trainId)
 }
 
 export function createTimetableServiceDecisions(
@@ -122,14 +167,13 @@ export function createTimetableServiceDecisions(
   now: Date,
 ): TimetableServiceDecision[] {
   const nowSeconds = getSecondsIntoTimetableDay(now)
+  const snapshot = createTimetableExecutorSnapshot(rows, nowSeconds, {
+    getEndSeconds: getTimetableRowPlaybackEndSeconds,
+    getStartSeconds: getTimetableRowStartSeconds,
+    isServiceRow: isTimetableServiceRow,
+  })
 
-  return getTimetableServiceTrainIds(rows).flatMap((trainId) => {
-    const serviceRow = pickActiveTimetableServiceRow(rows, trainId, nowSeconds)
-
-    if (!serviceRow) {
-      return []
-    }
-
+  return snapshot.activeRows.flatMap((serviceRow) => {
     const route = resolveTimetableRailPath(serviceRow.row)
 
     if (!route) {
@@ -142,40 +186,7 @@ export function createTimetableServiceDecisions(
       route,
       startSeconds: serviceRow.startSeconds,
       status: 'RUNNING' as const,
-      trainId,
+      trainId: serviceRow.trainId,
     }]
   })
-}
-
-function pickActiveTimetableServiceRow(
-  rows: readonly TimetableRow[],
-  trainId: string,
-  nowSeconds: number,
-) {
-  const trainRows = rows
-    .filter((row) => row.train === trainId && (row.run === 'NB' || row.run === 'SB'))
-    .flatMap((row) => {
-      const startSeconds = getTimetableRowStartSeconds(row)
-
-      if (startSeconds === undefined) {
-        return []
-      }
-
-      const endSeconds = getTimetableRowPlaybackEndSeconds(row, startSeconds)
-
-      if (endSeconds === undefined) {
-        return []
-      }
-
-      return [{
-        endSeconds,
-        row,
-        startSeconds,
-      }]
-    })
-    .sort((left, right) => left.startSeconds - right.startSeconds)
-
-  return trainRows.find((entry) => (
-    entry.startSeconds <= nowSeconds && nowSeconds <= Math.max(entry.startSeconds, entry.endSeconds)
-  ))
 }

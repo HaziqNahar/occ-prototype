@@ -20,6 +20,12 @@ export function getSignalRouteCommandLabels(signalLabel: string) {
     .map((route) => route.routeLabel)
 }
 
+export function getSignalRouteFleetControlDisabledLabels(signalLabel: string) {
+  return getDefinedSignalRoutes(signalLabel)
+    .filter((route) => route.fleetControlDisabled)
+    .map((route) => route.routeLabel)
+}
+
 export function getSignalRouteDefinition(signalLabel: string, routeLabel: string): SignalRouteDefinition | undefined {
   return getDefinedSignalRoute(signalLabel, routeLabel)
 }

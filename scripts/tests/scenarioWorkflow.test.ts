@@ -16,6 +16,7 @@ function updateLineMapRouteState(
 ): LineMapRuntimeState {
   return {
     layoutVersion: lineMap?.layoutVersion ?? 1,
+    platformDoorStates: lineMap?.platformDoorStates ?? {},
     routeSegments: {
       ...(lineMap?.routeSegments ?? {}),
       [`scenario-${train.id}`]: {

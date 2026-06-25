@@ -3,18 +3,13 @@ import {
   LINE_MAP_ROUTE_PATH_DEFINITIONS,
   MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS,
   TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS,
-  TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID,
   getManualLineMapRoutePath,
   getManualLineMapRoutePathSegmentIds,
-  getManualLineMapRoutePathStateStepIndex,
-  getSignalRouteSegmentIds,
 } from '../../src/screens/line-map/lineMapRoutePaths'
 import { resolveTimetableRailPath } from '../../src/screens/line-map/timetablePathResolver'
 import { isTimetableIneligibleGuideRailId } from '../../src/screens/line-map/timetableRouteStateCleanup'
 import {
-  TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
-  TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS,
-  TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
+  TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
 
 assert.equal(
@@ -23,27 +18,18 @@ assert.equal(
 )
 
 {
-  const path = getManualLineMapRoutePath('314', 'ANY')
-
-  assert.equal(path?.id, 'manual-train-314-s610-to-rt2')
-  assert.equal(path?.routeLabel, 'Route R610_652')
-  assert.deepEqual(path?.routeLabels, ['Route R610_652'])
-  assert.strictEqual(path?.movementRouteSteps, TRAIN_314_S610_TO_RT2_ROUTE_STEPS)
-}
-
-{
   const path = getManualLineMapRoutePath('312', 'RT2_DEPOT')
 
-  assert.equal(path?.id, 'manual-train-312-s1104-to-rt2-depot')
+  assert.equal(path?.id, 'manual-s608-to-rt2-depot')
   assert.deepEqual(
     path?.stateRouteSteps.map((step) => step.segmentId),
-    TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS.map((step) => step.segmentId),
+    TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map((step) => step.segmentId),
   )
-  assert.equal(getManualLineMapRoutePathStateStepIndex(path!, 1), TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS.length)
+  assert.strictEqual(path?.movementRouteSteps, TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS)
 }
 
 assert.equal(getManualLineMapRoutePath('999', 'ANY'), undefined)
-assert.deepEqual(Object.keys(TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID).sort(), ['312', '314'])
+assert.equal(getManualLineMapRoutePath('314', 'ANY'), undefined)
 
 MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
   const stateSegmentIds = path.stateRouteSteps.map((step) => step.segmentId)
@@ -73,6 +59,24 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
 
 {
   const path = resolveTimetableRailPath({
+    destinationPoint: 'PGL',
+    originPoint: 'SKG',
+    run: 'NB',
+    stationPoint: 'SKGS',
+  })
+
+  assert.equal(path?.routeLabel, 'Timetable path SKG to PGL upper mainline')
+  assert.equal(path?.from, 'SKG')
+  assert.equal(path?.to, 'PGL')
+  assert.deepEqual(path?.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
+    'SKG:0:NB',
+    'PGL:7:NB',
+  ])
+  assert.equal(path?.steps.at(-1)?.segmentId, 'rail-709')
+}
+
+{
+  const path = resolveTimetableRailPath({
     destinationPoint: 'PGC',
     originPoint: 'SKG',
     run: 'NB',
@@ -82,6 +86,11 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
   assert.equal(path?.routeLabel, 'Timetable path SKG to PGC upper mainline')
   assert.equal(path?.from, 'SKG')
   assert.equal(path?.to, 'PGC')
+  assert.deepEqual(path?.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
+    'SKG:0:NB',
+    'PGL:7:NB',
+    'PGC:14:NB',
+  ])
 }
 
 {
@@ -95,19 +104,36 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
   assert.equal(path?.routeLabel, 'Timetable path PGC to SKG lower mainline')
   assert.equal(path?.from, 'PGC')
   assert.equal(path?.to, 'SKG')
+  assert.deepEqual(path?.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
+    'PGC:0:SB',
+    'PGL:7:SB',
+    'SKG:15:SB',
+  ])
+}
+
+{
+  const path = resolveTimetableRailPath({
+    destinationPoint: 'HBF',
+    originPoint: 'PGL',
+    run: 'SB',
+    stationPoint: 'SKGS',
+  })
+
+  assert.equal(path?.routeLabel, 'Timetable path PGL to SKG lower mainline')
+  assert.equal(path?.from, 'PGL')
+  assert.equal(path?.to, 'SKG')
+  assert.deepEqual(path?.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
+    'PGL:0:SB',
+    'SKG:8:SB',
+  ])
+  assert.equal(path?.steps[0]?.segmentId, 'rail-710')
+  assert.equal(path?.steps.at(-1)?.segmentId, 'rail-618')
 }
 
 TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((routePath) => {
-  assert.equal(routePath.routeLabels.length > 0, true, `${routePath.id} should name its signal route chain`)
-
-  const backingRouteSegmentIds = new Set(getSignalRouteSegmentIds(routePath.routeLabels))
+  assert.equal(routePath.steps.length > 0, true, `${routePath.id} should have station route rails`)
 
   routePath.steps.forEach((step) => {
-    assert.equal(
-      backingRouteSegmentIds.has(step.segmentId),
-      true,
-      `${routePath.id} timetable step ${step.segmentId} must be backed by a signal route`,
-    )
     assert.equal(step.segmentId.startsWith('rail-P'), false, `${routePath.id} should not timetable-drive P-rails`)
     assert.notEqual(step.segmentId, 'rail-1115', `${routePath.id} should not timetable-drive rail-1115`)
   })

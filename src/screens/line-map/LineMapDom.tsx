@@ -739,7 +739,7 @@ function LineMapSchematicBase({
       {cycleData.map((cycle) => (
         <CycleControl key={`${cycle.x}-${cycle.y}`} x={cycle.x} y={cycle.y} />
       ))}
-      {platformData.map((platform) => <PlatformPanel key={platform.code} platform={platform} />)}
+      {platformData.map((platform) => <PlatformPanel key={platform.code} lineMap={lineMap} platform={platform} />)}
       {commandData.map((command) => (
         <CommandPanel
           key={`command-${command.code}`}
@@ -1917,10 +1917,27 @@ function CycleControl({ x, y }: { x: number; y: number }) {
   )
 }
 
-function PlatformPanel({ platform }: { platform: (typeof platformData)[number] }) {
+function getPlatformGreenClassName(status?: LineMapRuntimeState['platformDoorStates'][string]['status']) {
+  return [
+    'line-map-platform-green',
+    status === 'UNKNOWN' ? 'line-map-platform-green--unknown' : '',
+    status === 'CYCLING' ? 'line-map-platform-green--cycling' : '',
+  ].filter(Boolean).join(' ')
+}
+
+function PlatformPanel({
+  lineMap,
+  platform,
+}: {
+  lineMap: LineMapRuntimeState
+  platform: (typeof platformData)[number]
+}) {
+  const northDoorStatus = lineMap.platformDoorStates[`${platform.code}-NB`]?.status
+  const southDoorStatus = lineMap.platformDoorStates[`${platform.code}-SB`]?.status
+
   return (
-      <div className="line-map-platform-panel" style={{ left: platform.x - 36, top: platform.y }}>
-        <div className="line-map-platform-green" />
+    <div className="line-map-platform-panel" style={{ left: platform.x - 36, top: platform.y }}>
+      <div className={getPlatformGreenClassName(northDoorStatus)} />
       <div className="line-map-platform-grid line-map-platform-grid--north">
         <span>PSD</span>
         <span>PH</span>
@@ -1938,7 +1955,7 @@ function PlatformPanel({ platform }: { platform: (typeof platformData)[number] }
         <span>PSD</span>
         <span>PH</span>
       </div>
-      <div className="line-map-platform-green" />
+      <div className={getPlatformGreenClassName(southDoorStatus)} />
     </div>
   )
 }
@@ -2267,7 +2284,7 @@ function findNearbyTrainForMapArrow(
   const arrowLane = getMapArrowLane(arrow.y)
 
   return trains.reduce<TrainState | undefined>((nearestTrain, train) => {
-    if (train.lineMapVisible === false || getTrainMapArrowLane(train) !== arrowLane) {
+    if (train.lineMapVisible === false || !train.isMoving || getTrainMapArrowLane(train) !== arrowLane) {
       return nearestTrain
     }
 
@@ -2351,15 +2368,13 @@ function TrainHotspot({
 }) {
   const isNotGranted = !isTrainItamaGranted(train)
   const markerDirection = train.direction
-  const compactPglTrainCluster = isPglUpperTrainCluster(train)
   const markerTop = getTrainMarkerTop(train) + (markerOffset?.y ?? 0)
   const markerLeft = getTrainMarkerLeft(train) + (markerOffset?.x ?? 0)
-  const compactMarkerClass = compactPglTrainCluster ? ' line-map-train-marker--compact-pgl-cluster' : ''
 
   return (
     <>
       <span
-        className={`line-map-train-marker line-map-train-marker--${markerDirection}${compactMarkerClass}${isNotGranted ? ' line-map-train-marker--not-granted' : ''}`}
+        className={`line-map-train-marker line-map-train-marker--${markerDirection}${isNotGranted ? ' line-map-train-marker--not-granted' : ''}`}
         data-selected={selected ? 'true' : 'false'}
         style={{
           '--line-map-train-arrow-color': getTrainArrowColor(train),
@@ -2440,12 +2455,6 @@ function getTrainMarkerTop(train: TrainState) {
 
 function getTrainMarkerLeft(train: TrainState) {
   return train.x - 24
-}
-
-function isPglUpperTrainCluster(train: TrainState) {
-  return train.y <= MAIN_UPPER_TRACK_Y + 8
-    && train.x >= MAP_SECTION_OFFSETS.section04 + 60
-    && train.x <= MAP_SECTION_OFFSETS.section04 + 150
 }
 
 function getTrainArrowColor(train: TrainState) {

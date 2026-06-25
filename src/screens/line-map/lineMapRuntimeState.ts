@@ -37,6 +37,7 @@ const DEFAULT_P_ROUTE_SEGMENT_IDS: ReadonlySet<string> = new Set(
 export function createLineMapRuntimeState(): LineMapRuntimeState {
   return {
     layoutVersion: LINE_MAP_LAYOUT_VERSION,
+    platformDoorStates: {},
     routeSegments: {},
   }
 }
@@ -61,6 +62,7 @@ export function normalizeLineMapRuntimeState(lineMap: Partial<LineMapRuntimeStat
 
   return {
     layoutVersion: LINE_MAP_LAYOUT_VERSION,
+    platformDoorStates: lineMap?.platformDoorStates ?? {},
     routeSegments: migrateLineMapRouteSegments(lineMap?.routeSegments),
   }
 }

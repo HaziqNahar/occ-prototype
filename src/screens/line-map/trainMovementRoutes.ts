@@ -14,7 +14,7 @@ export const TRAIN_MARKER_UPPER_ROUTE_Y = 205
 export const TRAIN_MARKER_LOWER_ROUTE_Y = 508
 export const TRAIN_FLAT_RAIL_OCCUPANCY_TOLERANCE = 48
 export const TRAIN_ROUTE_STEP_POSITION_TOLERANCE = 8
-export const TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS = 2500
+export const MANUAL_TRAIN_ROUTE_STEP_DURATION_MS = 2500
 
 export const TRAIN_314_S610_TO_RT2_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
   {
@@ -157,6 +157,10 @@ export const SKG_TO_PGC_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[]
   },
 ] as const
 
+export const SKG_TO_PGL_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = (
+  SKG_TO_PGC_MAINLINE_ROUTE_STEPS.slice(0, 8)
+)
+
 export const PGC_TO_SKG_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
   {
     segmentId: 'rail-1108',
@@ -223,6 +227,10 @@ export const PGC_TO_SKG_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[]
     point: { x: MAP_SECTION_OFFSETS.section03 + 1194, y: TRAIN_MARKER_LOWER_ROUTE_Y },
   },
 ] as const
+
+export const PGL_TO_SKG_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = (
+  PGC_TO_SKG_MAINLINE_ROUTE_STEPS.slice(7)
+)
 
 export const TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
   {

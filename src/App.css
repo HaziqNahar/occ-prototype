@@ -5838,11 +5838,6 @@
   width: 14px;
 }
 
-.line-map-train-marker--compact-pgl-cluster b {
-  height: 17px;
-  font-size: 14px;
-}
-
 .line-map-live-clock {
   position: absolute;
   left: 1120px;
@@ -6413,6 +6408,12 @@
   background: #00e02c;
   border-left: 1px solid #008f15;
   border-right: 1px solid #55ff70;
+}
+
+.sig-route-row i.is-disabled {
+  background: #000000;
+  border-left-color: #000000;
+  border-right-color: #000000;
 }
 
 .sig-route-scrollbar {
@@ -7156,6 +7157,16 @@
   vertical-align: -2px;
 }
 
+.timetable-dom-filters .timetable-dom-clock-summary {
+  width: 164px;
+}
+
+.timetable-dom-filters .timetable-dom-clock-button {
+  width: 82px;
+  height: 25px;
+  font-size: 12px;
+}
+
 .timetable-dom-headings {
   position: absolute;
   left: 16px;
@@ -7638,8 +7649,8 @@
 }
 
 .scada-dom-root--timetable .timetable-dom-row {
-  grid-template-columns: 34px 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
-  width: 1222px;
+  grid-template-columns: 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
+  width: 1188px;
 }
 
 .scada-dom-root--timetable .timetable-dom-row > span {
@@ -7662,12 +7673,12 @@
   white-space: normal;
 }
 
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(3),
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(13),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(17) {
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16) {
   justify-content: center;
   text-align: center;
 }
@@ -7689,12 +7700,12 @@
   background: #b7bed2;
 }
 
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(3),
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(13),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(17) {
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16) {
   text-align: center;
 }
 
@@ -8093,8 +8104,8 @@
 }
 
 .scada-dom-root--timetable .timetable-dom-row {
-  grid-template-columns: 34px 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
-  width: 1222px;
+  grid-template-columns: 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
+  width: 1188px;
 }
 
 .scada-dom-root--timetable .timetable-dom-row > span {
@@ -8119,12 +8130,12 @@
   white-space: normal;
 }
 
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(3),
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(13),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(17) {
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16) {
   justify-content: center;
   text-align: center;
 }
@@ -8147,12 +8158,12 @@
   color: #fff;
 }
 
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(3),
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(13),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(17) {
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16) {
   text-align: center;
 }
 
@@ -8653,8 +8664,8 @@
 }
 
 .scada-dom-root--timetable .timetable-dom-row {
-  grid-template-columns: 34px 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
-  width: 1222px;
+  grid-template-columns: 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
+  width: 1188px;
 }
 
 .scada-dom-root--timetable .timetable-dom-row--head {
@@ -9870,6 +9881,79 @@
       #000000 0 2px,
       #405e75 2px 4px,
       #00c800 4px 100%
+    );
+}
+
+.line-map-platform-green.line-map-platform-green--unknown,
+.line-map-platform-green.line-map-platform-green--cycling {
+  position: relative;
+  overflow: hidden;
+  background: #405e75;
+}
+
+.line-map-platform-green.line-map-platform-green--unknown::after {
+  position: absolute;
+  inset: 0;
+  color: #00ff00;
+  content: "????";
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 11px;
+  text-align: center;
+}
+
+.line-map-platform-green:first-child.line-map-platform-green--unknown::after {
+  line-height: 13px;
+}
+
+.line-map-platform-green.line-map-platform-green--cycling {
+  background:
+    linear-gradient(
+      to right,
+      #00c800 0 34%,
+      #405e75 34% 43%,
+      #00c800 43% 57%,
+      #405e75 57% 66%,
+      #00c800 66% 100%
+    );
+}
+
+.line-map-platform-green:first-child.line-map-platform-green--cycling {
+  background:
+    linear-gradient(
+      to bottom,
+      #405e75 0 2px,
+      transparent 2px 9px,
+      #405e75 9px 11px,
+      #000000 11px 100%
+    ),
+    linear-gradient(
+      to right,
+      #00c800 0 34%,
+      #405e75 34% 43%,
+      #00c800 43% 57%,
+      #405e75 57% 66%,
+      #00c800 66% 100%
+    );
+}
+
+.line-map-platform-green:last-child.line-map-platform-green--cycling {
+  background:
+    linear-gradient(
+      to bottom,
+      #000000 0 2px,
+      #405e75 2px 4px,
+      transparent 4px 100%
+    ),
+    linear-gradient(
+      to right,
+      #00c800 0 34%,
+      #405e75 34% 43%,
+      #00c800 43% 57%,
+      #405e75 57% 66%,
+      #00c800 66% 100%
     );
 }
 

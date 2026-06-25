@@ -1,8 +1,10 @@
 import { MAP_SECTION_OFFSETS } from './model'
 
 export type SignalRouteDefinition = {
+  allowedLogicalExclusiveRailPairs?: readonly (readonly [string, string])[]
   commandSegmentIds: readonly string[]
   commandStateSegmentIds: readonly string[]
+  fleetControlDisabled?: boolean
   keepRealSegmentsUnsetOnUnset?: boolean
   pendingImplementation?: boolean
   realSegmentIds: readonly string[]
@@ -436,6 +438,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S608_R608_602_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S608_R608_602_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S608_R608_602_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R608_602',
     signalLabel: 'S608',
@@ -443,6 +446,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S608_R608_803_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S608_R608_803_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S608_R608_803_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R608_803',
     signalLabel: 'S608',
@@ -457,6 +461,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S613_R613_621_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S613_R613_621_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S613_R613_621_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R613_621',
     signalLabel: 'S613',
@@ -478,6 +483,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S655_R655_617_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S655_R655_617_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S655_R655_617_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R655_617',
     signalLabel: 'S655',
@@ -493,6 +499,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S700_R700_610_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S700_R700_610_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     keepRealSegmentsUnsetOnUnset: true,
     realSegmentIds: S700_R700_610_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R700_610',
@@ -508,6 +515,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S701_R701_709_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S701_R701_709_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S701_R701_709_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R701_709',
     signalLabel: 'S701',
@@ -537,6 +545,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1101_R1101_1105_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1101_R1101_1105_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1101_R1101_1105_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1101_1105',
     signalLabel: 'S1101',
@@ -544,6 +553,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1101_R1101_1109_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1101_R1101_1109_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1101_R1101_1109_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1101_1109',
     signalLabel: 'S1101',
@@ -551,6 +561,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1102_R1102_704_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1102_R1102_704_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1102_R1102_704_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1102_704',
     signalLabel: 'S1102',
@@ -558,6 +569,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1102_R1102_706_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1102_R1102_706_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1102_R1102_706_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1102_706',
     signalLabel: 'S1102',
@@ -565,6 +577,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1104_R1104_704_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1104_R1104_704_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1104_R1104_704_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1104_704',
     signalLabel: 'S1104',
@@ -572,6 +585,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1104_R1104_706_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1104_R1104_706_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1104_R1104_706_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1104_706',
     signalLabel: 'S1104',
@@ -579,6 +593,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
   {
     commandSegmentIds: S1105_R1105_1107_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S1105_R1105_1107_ROUTE_STATE_SEGMENT_ID],
+    fleetControlDisabled: true,
     realSegmentIds: S1105_R1105_1107_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R1105_1107',
     signalLabel: 'S1105',

@@ -6,6 +6,14 @@ import { clearTimetableGuideRouteState } from './screens/line-map/timetableRoute
 import { getTimetablePlaybackTrainIds } from './screens/line-map/timetablePlayback'
 import { MONITOR_WIDTH, initialTrains } from './screens/line-map/model'
 import { createOccSessionTransport, OCC_SESSION_KEY } from './sessionTransport'
+import {
+  DEFAULT_TIMETABLE_VIEW_STATE,
+  normalizeTimetableViewState,
+} from './timetableViewState'
+import {
+  DEFAULT_TIMETABLE_CLOCK_STATE,
+  normalizeTimetableClockState,
+} from './timetableClockState'
 import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTransport'
 import { createScenarioEvidence, scenarioTaskList } from './scenario'
 import type {
@@ -250,6 +258,20 @@ export const timetableRows: TimetableRow[] = createNelTimetableRows()
 const trainRosterItems = createNelTrainRosterItems()
 const lineMapTrainPlacementById = new Map(initialTrains.map((train) => [train.id, train]))
 
+function getTimetableRowKey(row: TimetableRow) {
+  return [
+    row.run,
+    row.sched,
+    row.train,
+    row.originPoint,
+    row.originTime,
+    row.stationPoint,
+    row.stationTime,
+    row.destinationPoint,
+    row.destinationTime,
+  ].join('|')
+}
+
 function normalizeTimetableRows(rows: TimetableRow[] | undefined): TimetableRow[] {
   if (!rows?.length) {
     return timetableRows
@@ -258,7 +280,27 @@ function normalizeTimetableRows(rows: TimetableRow[] | undefined): TimetableRow[
   const normalizedRows = rows.filter((row) => !(row.originPoint === 'HBFS' && row.stationPoint === 'SKGN' && row.sched !== ''))
   const hasTimetableRows = normalizedRows.some((row) => row.run === 'NB' || row.run === 'SB')
 
-  return hasTimetableRows ? normalizedRows : timetableRows
+  if (!hasTimetableRows) {
+    return timetableRows
+  }
+
+  const storedRowsByKey = new Map(normalizedRows.map((row) => [getTimetableRowKey(row), row]))
+  const activeRowsAreStored = timetableRows.every((row) => storedRowsByKey.has(getTimetableRowKey(row)))
+
+  if (activeRowsAreStored && normalizedRows.length === timetableRows.length) {
+    return normalizedRows
+  }
+
+  return timetableRows.map((row) => {
+    const storedRow = storedRowsByKey.get(getTimetableRowKey(row))
+
+    return storedRow
+      ? {
+          ...row,
+          state: storedRow.state,
+        }
+      : row
+  })
 }
 
 function clearTrainOwnedRouteState(
@@ -284,13 +326,10 @@ export function clearInactiveTimetablePlaybackTrains(
   current: OccSessionState,
   activeTrainIds: ReadonlySet<string>,
 ): OccSessionState {
-  const legacyTimetablePlaybackTrainIds = new Set(
-    getTimetablePlaybackTrainIds(current.timetableRows)
-      .filter((trainId) => !lineMapTrainPlacementById.has(trainId)),
-  )
+  const timetablePlaybackTrainIds = new Set(getTimetablePlaybackTrainIds(current.timetableRows))
   const inactiveTrainIds = current.trains
     .filter((train) => (
-      (train.timetablePlayback || legacyTimetablePlaybackTrainIds.has(train.id))
+      (train.timetablePlayback || timetablePlaybackTrainIds.has(train.id))
       && !activeTrainIds.has(train.id)
     ))
     .map((train) => train.id)
@@ -406,7 +445,6 @@ export function updateSessionLifecycle(sessionMeta: OccSessionMeta | undefined, 
 function createInitialTrainStates(): TrainState[] {
   return trainRosterItems.map((item) => {
     const placement = lineMapTrainPlacementById.get(item.trainNumber)
-    const visible = Boolean(placement)
 
     return {
       ...(placement ?? {
@@ -419,10 +457,10 @@ function createInitialTrainStates(): TrainState[] {
       }),
       doorFailureState: undefined,
       isMoving: false,
-      lineMapVisible: visible,
+      lineMapVisible: false,
       readinessMode: placement?.readinessMode,
       scheduleNumber: item.firstScheduleNumber,
-      service: visible ? placement?.service ?? item.service : item.service,
+      service: placement?.service ?? item.service,
       trainNumber: item.trainNumber,
     }
   })
@@ -450,7 +488,9 @@ export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): O
     scenarioStep: 0,
     scenarioTasks: initialScenarioTasks,
     selectedTrainId: '317',
+    timetableClock: DEFAULT_TIMETABLE_CLOCK_STATE,
     timetableRows,
+    timetableView: DEFAULT_TIMETABLE_VIEW_STATE,
     trainingMode,
     trainees: initialTrainees,
     trains: createInitialTrainStates(),
@@ -601,7 +641,9 @@ export function normalizeClientSession(session: OccSessionState): OccSessionStat
   return cleanSessionTimetableGuideRouteState({
     ...session,
     lineMap,
+    timetableClock: normalizeTimetableClockState(session.timetableClock),
     timetableRows: normalizeTimetableRows(session.timetableRows),
+    timetableView: normalizeTimetableViewState(session.timetableView),
     trains: inferTrain317DoorFailureState(session, trains),
   })
 }
@@ -654,7 +696,9 @@ function readStoredSession(): OccSessionState {
       scenarioStep: parsed.scenarioStep ?? 0,
       scenarioTasks: { ...initialScenarioTasks, ...parsed.scenarioTasks },
       lineMap,
+      timetableClock: normalizeTimetableClockState(parsed.timetableClock),
       timetableRows: normalizeTimetableRows(parsed.timetableRows),
+      timetableView: normalizeTimetableViewState(parsed.timetableView),
       trainingMode: parsed.trainingMode ?? 'PRACTICE',
       trainees: parsed.trainees ?? initialTrainees,
       trains: storedTrains,

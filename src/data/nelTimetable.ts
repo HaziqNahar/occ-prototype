@@ -1,15 +1,26 @@
 import type { TimetableRow } from '../types'
-import { nelOtesWeekday03Page7Patch } from './nelOtesWeekday03Page7Patch'
+import { nelOtesWeekday03CorrectedPage7Services } from './nelOtesWeekday03Page7Patch'
 import { nelOtesWeekday03Services as extractedNelOtesWeekday03Services } from './nelOtesWeekday03Services'
 import type { NelTimetableService } from './nelOtesWeekday03Services'
 
 export const NEL_TIMETABLE_NAME = 'NEL_OTES_Weekday_03'
+
+export type NelTimetableFocus = 'all' | 'first-service-pair'
 
 export type NelTrainRosterItem = {
   firstScheduleNumber: string
   service: string
   trainNumber: string
 }
+
+type NelTimetableRowsOptions = {
+  focus?: NelTimetableFocus
+}
+
+const FIRST_SERVICE_PAIR_SCHEDULES = {
+  NB: { first: 1000, last: 1013 },
+  SB: { first: 2000, last: 2013 },
+} as const
 
 function getServiceState(notes: readonly string[]) {
   if (notes.some((note) => note.includes("W'draw"))) {
@@ -37,13 +48,19 @@ function getTimetableServiceKey(service: NelTimetableService) {
   ].join('|')
 }
 
-function mergeTimetableServices(
-  patchRows: readonly NelTimetableService[],
+function replaceCroppedTimetablePageServices(
+  correctedRows: readonly NelTimetableService[],
   extractedRows: readonly NelTimetableService[],
 ) {
   const rowsByKey = new Map<string, NelTimetableService>()
+  const correctedScheduleKeys = new Set(correctedRows.map((service) => (
+    `${service.direction}|${service.scheduleNo}|${service.serviceNo}`
+  )))
+  const filteredExtractedRows = extractedRows.filter((service) => (
+    !correctedScheduleKeys.has(`${service.direction}|${service.scheduleNo}|${service.serviceNo}`)
+  ))
 
-  ;[...patchRows, ...extractedRows].forEach((service) => {
+  ;[...correctedRows, ...filteredExtractedRows].forEach((service) => {
     const key = getTimetableServiceKey(service)
 
     if (!rowsByKey.has(key)) {
@@ -54,13 +71,24 @@ function mergeTimetableServices(
   return Array.from(rowsByKey.values())
 }
 
-const nelOtesWeekday03Services = mergeTimetableServices(
-  nelOtesWeekday03Page7Patch,
+const nelOtesWeekday03Services = replaceCroppedTimetablePageServices(
+  nelOtesWeekday03CorrectedPage7Services,
   extractedNelOtesWeekday03Services,
 )
 
-export function createNelTimetableRows(): TimetableRow[] {
-  return nelOtesWeekday03Services.map((service) => ({
+function getFocusedNelTimetableServices(options: NelTimetableRowsOptions = {}) {
+  if (options.focus !== 'first-service-pair') {
+    return nelOtesWeekday03Services
+  }
+
+  return nelOtesWeekday03Services.filter((service) => (
+    Number(service.scheduleNo) >= FIRST_SERVICE_PAIR_SCHEDULES[service.direction].first
+    && Number(service.scheduleNo) <= FIRST_SERVICE_PAIR_SCHEDULES[service.direction].last
+  ))
+}
+
+export function createNelTimetableRows(options: NelTimetableRowsOptions = {}): TimetableRow[] {
+  return getFocusedNelTimetableServices(options).map((service) => ({
     destinationPoint: service.destinationPoint,
     destinationTime: service.destinationTime,
     dwell: service.dwell,
@@ -78,14 +106,14 @@ export function createNelTimetableRows(): TimetableRow[] {
   }))
 }
 
-export function createNelTrainRosterItems(): NelTrainRosterItem[] {
+export function createNelTrainRosterItems(options: NelTimetableRowsOptions = {}): NelTrainRosterItem[] {
   const rosterByTrainNumber = new Map<string, {
     directions: Set<string>
     firstScheduleNumber: string
     trainNumber: string
   }>()
 
-  nelOtesWeekday03Services.forEach((service) => {
+  getFocusedNelTimetableServices(options).forEach((service) => {
     const existing = rosterByTrainNumber.get(service.serviceNo)
 
     if (existing) {

@@ -18,7 +18,6 @@ import {
   createSignalRouteUnsetOverrideSegments,
   getSignalRouteTargetTrain,
   hasSignalRouteCommand,
-  shouldResetTrainRouteIndexForSignal,
 } from '../../src/screens/line-map/signalRouteCommands'
 
 function signal(label: string): LineMapSignalData {
@@ -57,16 +56,14 @@ function routeState(
   const trains = [train('312'), train('314'), train('317')]
 
   assert.equal(getSignalRouteTargetTrain(trains, '312')?.id, '312')
-  assert.equal(getSignalRouteTargetTrain(trains, 'missing')?.id, '314')
-  assert.equal(getSignalRouteTargetTrain([train('312'), train('317')], 'missing')?.id, '317')
+  assert.equal(getSignalRouteTargetTrain(trains, 'missing')?.id, '312')
+  assert.equal(getSignalRouteTargetTrain([train('312'), train('317')], 'missing')?.id, '312')
   assert.equal(getSignalRouteTargetTrain([train('312')], 'missing')?.id, '312')
 }
 
 {
   assert.equal(hasSignalRouteCommand(signal('S700'), 'Route R700_608'), true)
   assert.equal(hasSignalRouteCommand(signal('S709'), 'Route R700_608'), false)
-  assert.equal(shouldResetTrainRouteIndexForSignal(signal('S610')), true)
-  assert.equal(shouldResetTrainRouteIndexForSignal(signal('S700')), false)
 }
 
 {

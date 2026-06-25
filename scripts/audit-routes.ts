@@ -37,7 +37,7 @@ export function createRouteAuditReport() {
     '',
     'Timetable station routes:',
     ...TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS.map((routePath) => (
-      `  ${formatStationRoute(routePath)} | ${routePath.id} | signal routes: ${routePath.routeLabels.join(', ')} | rails: ${routePath.steps[0]?.segmentId ?? 'none'} -> ${routePath.steps[routePath.steps.length - 1]?.segmentId ?? 'none'}`
+      `  ${formatStationRoute(routePath)} | ${routePath.id} | optional signal refs: ${formatSignalRouteRefs(routePath.signalRouteRefs)} | station rails: ${routePath.steps[0]?.segmentId ?? 'none'} -> ${routePath.steps[routePath.steps.length - 1]?.segmentId ?? 'none'}`
     )),
     '',
     ...SIGNAL_ROUTE_DEFINITIONS.flatMap((routeDefinition) => [
@@ -57,6 +57,10 @@ function formatStationRoute(routePath: (typeof TIMETABLE_LINE_MAP_ROUTE_PATH_DEF
   return `${routePath.from}${via} -> ${routePath.to}`
 }
 
+function formatSignalRouteRefs(routeLabels: readonly string[] | undefined) {
+  return routeLabels?.length ? routeLabels.join(', ') : 'none'
+}
+
 function getCommandMarkerIds(routeDefinition: SignalRouteDefinition) {
   const realSegmentIds = new Set(routeDefinition.realSegmentIds)
 
@@ -69,7 +73,7 @@ function getRouteUsageLabels(routeDefinition: SignalRouteDefinition) {
     .filter((routePath) => routePath.routeLabels.includes(routeDefinition.routeLabel))
     .map((routePath) => `manual:${routePath.id}`)
   const timetablePathLabels = TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS
-    .filter((routePath) => routePath.routeLabels.includes(routeDefinition.routeLabel))
+    .filter((routePath) => routePath.signalRouteRefs?.includes(routeDefinition.routeLabel))
     .map((routePath) => `timetable:${routePath.id}`)
 
   usageLabels.push(...manualPathLabels, ...timetablePathLabels)
@@ -101,6 +105,9 @@ function getUnknownRailIssues(
 
 function getExclusiveRailConflictIssues(routeDefinition: SignalRouteDefinition) {
   const routeRailIds = new Set(routeDefinition.realSegmentIds)
+  const allowedExclusiveRailPairKeys = new Set(
+    (routeDefinition.allowedLogicalExclusiveRailPairs ?? []).map(([left, right]) => getExclusiveRailPairKey(left, right)),
+  )
   const conflicts: string[] = []
 
   EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
@@ -112,10 +119,32 @@ function getExclusiveRailConflictIssues(routeDefinition: SignalRouteDefinition) 
       return
     }
 
+    const hasUnallowedConflict = activeSides.some((side, sideIndex) => (
+      activeSides.some((otherSide, otherSideIndex) => {
+        if (sideIndex === otherSideIndex) {
+          return false
+        }
+
+        return side.some((segmentId) => (
+          otherSide.some((otherSegmentId) => (
+            !allowedExclusiveRailPairKeys.has(getExclusiveRailPairKey(segmentId, otherSegmentId))
+          ))
+        ))
+      })
+    ))
+
+    if (!hasUnallowedConflict) {
+      return
+    }
+
     conflicts.push(`conflicting rails ${activeSides.map((side) => side.join(', ')).join(' / ')}`)
   })
 
   return conflicts
+}
+
+function getExclusiveRailPairKey(left: string, right: string) {
+  return [left, right].sort().join('|')
 }
 
 function getPgcCrossoverPairingIssues(routeDefinition: SignalRouteDefinition) {

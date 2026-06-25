@@ -41,6 +41,31 @@ export function withLineMapRailStateOwnership(
   return next
 }
 
+export function getExclusiveLineMapRailSegmentIds(segmentIds: readonly string[]) {
+  const segmentIdSet = new Set(segmentIds.filter(Boolean))
+  const exclusiveSegmentIds = new Set<string>()
+
+  EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.forEach((group) => {
+    const hasRequestedSegment = group.sides.some((side) => (
+      side.some((segmentId) => segmentIdSet.has(segmentId))
+    ))
+
+    if (!hasRequestedSegment) {
+      return
+    }
+
+    group.sides.flat().forEach((segmentId) => {
+      exclusiveSegmentIds.add(segmentId)
+    })
+  })
+
+  segmentIdSet.forEach((segmentId) => {
+    exclusiveSegmentIds.add(segmentId)
+  })
+
+  return [...exclusiveSegmentIds]
+}
+
 function enforceExclusiveRailGroupOwnership(
   routeSegments: LineMapRuntimeState['routeSegments'],
   prioritySegmentIds: readonly string[] = [],

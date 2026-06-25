@@ -55,6 +55,7 @@ function timetableRow(overrides: Partial<TimetableRow> = {}): TimetableRow {
   assert.equal(diagnostics[0].status, 'blocked-manual')
   assert.deepEqual(summary, {
     active: 1,
+    blockedConflict: 0,
     blockedManual: 1,
     scheduled: 0,
     text: 'ROUTES 0/1 AUTO / 1 MANUAL BLOCKED',

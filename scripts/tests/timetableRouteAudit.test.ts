@@ -1,11 +1,28 @@
 import assert from 'node:assert/strict'
-import { createTimetableRouteAuditReport } from '../audit-timetable-routes.ts'
+import { createTimetableRouteAudit, createTimetableRouteAuditReport } from '../audit-timetable-routes.ts'
+
+const audit = createTimetableRouteAudit()
+const coverageCountsByRouteId = new Map(audit.coverages.map((coverage) => [
+  coverage.path.id,
+  coverage.rowCount,
+]))
 
 const report = createTimetableRouteAuditReport()
 
+assert.equal(audit.rows.length, 759)
+assert.equal(audit.resolvedRows.length, 759)
+assert.equal(audit.unresolvedRows.length, 0)
+assert.equal(coverageCountsByRouteId.get('timetable-skg-to-pgc-upper-mainline'), 377)
+assert.equal(coverageCountsByRouteId.get('timetable-skg-to-pgl-upper-mainline'), 2)
+assert.equal(coverageCountsByRouteId.get('timetable-pgc-to-skg-lower-mainline'), 380)
+assert.deepEqual(audit.unusedRoutePaths.map((routePath) => routePath.id), [
+  'timetable-pgc-skg-to-rt2-depot',
+  'timetable-pgl-to-skg-lower-mainline',
+])
 assert.equal(report.includes('Rows without station route: 0'), true)
 assert.equal(report.includes('SKG -> PGC'), true)
+assert.equal(report.includes('SKG -> PGL'), true)
 assert.equal(report.includes('PGC -> SKG'), true)
-assert.equal(report.includes('Unused station route definitions: 1'), true)
+assert.equal(report.includes('Unused station route definitions: 2'), true)
 assert.equal(report.includes('PGC via SKG -> RT2_DEPOT'), true)
 assert.equal(report.includes('timetable-pgc-to-selected-skg-lower-mainline'), false)

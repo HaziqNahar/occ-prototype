@@ -114,6 +114,22 @@ export type TimetableRow = {
   selected?: boolean
 }
 
+export type TimetableViewDirection = 'NB' | 'SB'
+
+export type TimetableViewState = {
+  direction: TimetableViewDirection
+  station: string
+}
+
+export type TimetableClockMode = 'LIVE' | 'PLAYBACK'
+
+export type TimetableClockState = {
+  mode: TimetableClockMode
+  playbackSpeed: number
+  playbackStartEpochMs: number
+  playbackStartSeconds: number
+}
+
 export type ScenarioTaskState = Record<ScenarioTaskId, boolean>
 export type AssessmentResult = 'INCOMPLETE' | 'NEEDS_REVIEW' | 'PASS'
 export type AssessmentTaskStatus = 'PENDING' | 'ON_TIME' | 'LATE'
@@ -247,8 +263,19 @@ export type LineMapRouteSegmentState = {
   updatedAt: number
 }
 
+export type LineMapPlatformDoorStatus = 'NORMAL' | 'UNKNOWN' | 'CYCLING'
+
+export type LineMapPlatformDoorState = {
+  platformCode: string
+  status: LineMapPlatformDoorStatus
+  track: 'NB' | 'SB'
+  trainId: string
+  updatedAt: number
+}
+
 export type LineMapRuntimeState = {
   layoutVersion: number
+  platformDoorStates: Record<string, LineMapPlatformDoorState>
   routeSegments: Record<string, LineMapRouteSegmentState>
 }
 // The complete state model rendered by all screens. The backend publishes this
@@ -267,7 +294,9 @@ export type OccSessionState = {
   scenarioStep: number
   scenarioTasks: ScenarioTaskState
   selectedTrainId: string
+  timetableClock: TimetableClockState
   timetableRows: TimetableRow[]
+  timetableView: TimetableViewState
   trainingMode: TrainingMode
   trainees: TraineeParticipant[]
   trains: TrainState[]

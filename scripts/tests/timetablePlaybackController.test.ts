@@ -2,10 +2,16 @@ import assert from 'node:assert/strict'
 import { createInitialSession } from '../../src/sessionState'
 import type { OccSessionState, TimetableRow } from '../../src/types'
 import {
+  applyTimetablePlaybackCompletionSession,
+  applyTimetablePlatformDoorPhaseSession,
+  applyTimetablePlaybackRunStart,
   applyTimetablePlaybackStepSession,
   createAutomaticTimetablePlaybackPlans,
+  createTimetablePlaybackPlanKey,
   createTimetablePlaybackRouteModeKey,
   createTimetablePlaybackRunKey,
+  createTimetablePlaybackScopeKey,
+  scheduleTimetablePlaybackPlans,
   scheduleTimetablePlaybackRun,
 } from '../../src/screens/line-map/timetablePlaybackController'
 
@@ -37,6 +43,14 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 }
 
 {
+  const session = sessionWithRows([timetableRow()])
+  const train = session.trains.find((currentTrain) => currentTrain.id === '312')
+
+  assert.equal(train?.lineMapVisible, false)
+  assert.notEqual(train?.x, 0)
+}
+
+{
   assert.equal(
     createTimetablePlaybackRouteModeKey({ SKG: 'OCCA', PGC: 'OCCM' }),
     'PGC:OCCM|SKG:OCCA',
@@ -44,6 +58,14 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.equal(
     createTimetablePlaybackRunKey('created', { SKG: 'OCCA' }, 3),
     'created:SKG:OCCA:3',
+  )
+  assert.equal(
+    createTimetablePlaybackRunKey('created', { SKG: 'OCCA' }, 3, 'SKG:SB'),
+    'created:SKG:OCCA:3:SKG:SB',
+  )
+  assert.equal(
+    createTimetablePlaybackScopeKey('created', { SKG: 'OCCA' }),
+    'created:SKG:OCCA',
   )
 }
 
@@ -102,6 +124,73 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 }
 
 {
+  const session = sessionWithRows([timetableRow({
+    destinationPoint: 'PGC',
+    destinationTime: '10:10:00',
+    originPoint: 'SKG',
+    originTime: '10:00:00',
+    run: 'NB',
+    stationPoint: 'SKG',
+    stationTime: '10:00:00',
+  })])
+  const plan = createAutomaticTimetablePlaybackPlans(session, {}, new Date(2026, 0, 1, 10, 5, 0))[0]
+
+  assert.ok(plan)
+
+  const finalStepIndex = plan.steps.length - 1
+  const finalStep = plan.steps[finalStepIndex]
+  const arrived = applyTimetablePlaybackStepSession(session, plan, finalStepIndex)
+
+  assert.equal(arrived.lineMap.routeSegments[finalStep.segmentId].status, 'DISPATCHED')
+  assert.equal(arrived.trains.find((train) => train.id === '312')?.lineMapVisible, true)
+
+  const cleaned = applyTimetablePlaybackCompletionSession(arrived, plan)
+
+  assert.equal(cleaned.lineMap.routeSegments[finalStep.segmentId].status, 'UNSET')
+  assert.equal(cleaned.trains.find((train) => train.id === '312')?.lineMapVisible, false)
+  assert.equal(cleaned.trains.find((train) => train.id === '312')?.timetablePlayback, false)
+}
+
+{
+  const session = sessionWithRows([timetableRow({
+    destinationPoint: 'PGC',
+    destinationTime: '10:10:00',
+    originPoint: 'SKG',
+    originTime: '10:00:00',
+    run: 'NB',
+    stationPoint: 'SKG',
+    stationTime: '10:00:00',
+  })])
+  const plan = createAutomaticTimetablePlaybackPlans(session, {}, new Date(2026, 0, 1, 10, 0, 0))[0]
+
+  assert.ok(plan)
+  assert.equal(plan.platformStops[0]?.platformCode, 'SKG')
+  assert.equal(plan.platformStops[0]?.stepIndex, 0)
+
+  const stoppedAtStation = applyTimetablePlaybackStepSession(session, plan, 0)
+  const stoppedTrain = stoppedAtStation.trains.find((train) => train.id === '312')
+
+  assert.equal(stoppedTrain?.status, 'WAIT')
+  assert.equal(stoppedTrain?.isMoving, false)
+  assert.equal(stoppedTrain?.lineMapVisible, true)
+
+  const unknownDoors = applyTimetablePlatformDoorPhaseSession(stoppedAtStation, plan, 0, 'UNKNOWN_BEFORE')
+  assert.equal(unknownDoors.lineMap.platformDoorStates['SKG-NB']?.status, 'UNKNOWN')
+
+  const cyclingDoors = applyTimetablePlatformDoorPhaseSession(unknownDoors, plan, 0, 'CYCLING')
+  assert.equal(cyclingDoors.lineMap.platformDoorStates['SKG-NB']?.status, 'CYCLING')
+
+  const normalDoors = applyTimetablePlatformDoorPhaseSession(cyclingDoors, plan, 0, 'NORMAL')
+  assert.equal(normalDoors.lineMap.platformDoorStates['SKG-NB'], undefined)
+
+  const resumed = applyTimetablePlaybackStepSession(normalDoors, plan, 1)
+  const resumedTrain = resumed.trains.find((train) => train.id === '312')
+
+  assert.equal(resumedTrain?.status, 'RUN')
+  assert.equal(resumedTrain?.isMoving, true)
+}
+
+{
   let session = sessionWithRows([timetableRow()])
   const scheduledCallbacks: Array<{ callback: () => void; delayMs: number; id: number }> = []
   const timeoutIds = scheduleTimetablePlaybackRun({
@@ -127,4 +216,119 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 
   assert.equal(session.timetableRows.find((row) => row.train === '312')?.state, '>')
   assert.equal(session.eventRows[0].message.includes('Train 312'), true)
+}
+
+{
+  let session = sessionWithRows([timetableRow()])
+  const plan = createAutomaticTimetablePlaybackPlans(session, {}, new Date(2026, 0, 1, 10, 6, 0))[0]
+  const scheduledCallbacks: Array<{ callback: () => void; delayMs: number; id: number }> = []
+
+  assert.ok(plan)
+  assert.equal(
+    createTimetablePlaybackPlanKey(plan),
+    '312|001|timetable-pgc-skg-to-rt2-depot|36000|37200',
+  )
+
+  const timeoutIds = scheduleTimetablePlaybackPlans({
+    plans: [plan],
+    scheduleTimeout: (callback, delayMs) => {
+      const id = scheduledCallbacks.length + 1
+
+      scheduledCallbacks.push({ callback, delayMs, id })
+
+      return id
+    },
+    updateSession: (updater) => {
+      session = updater(session)
+    },
+  })
+
+  assert.equal(timeoutIds.length, scheduledCallbacks.length)
+  assert.equal(timeoutIds.length > 0, true)
+
+  scheduledCallbacks[0].callback()
+
+  assert.equal(session.trains.find((train) => train.id === '312')?.timetablePlayback, true)
+}
+
+{
+  const session = {
+    ...sessionWithRows([timetableRow({
+      destinationPoint: 'PGC',
+      destinationTime: '10:10:00',
+      originPoint: 'SKG',
+      originTime: '10:00:00',
+      run: 'NB',
+      stationPoint: 'SKG',
+      stationTime: '10:00:00',
+      train: '301',
+    })]),
+    trains: [
+      {
+        direction: 'right',
+        id: '301',
+        isMoving: true,
+        lineMapVisible: true,
+        occupancySegmentId: 'rail-621',
+        service: 'NB',
+        status: 'RUN',
+        timetablePlayback: true,
+        x: 0,
+        y: 0,
+      },
+    ],
+  }
+  const held = applyTimetablePlaybackRunStart(session, [], new Set(['301']), new Set(['301']))
+  const heldTrain = held.trains.find((train) => train.id === '301')
+
+  assert.equal(heldTrain?.lineMapVisible, true)
+  assert.equal(heldTrain?.occupancySegmentId, 'rail-621')
+  assert.equal(heldTrain?.isMoving, false)
+  assert.equal(heldTrain?.status, 'WAIT')
+
+  const cleaned = applyTimetablePlaybackRunStart(session, [], new Set())
+  const cleanedTrain = cleaned.trains.find((train) => train.id === '301')
+
+  assert.equal(cleanedTrain?.lineMapVisible, false)
+  assert.equal(cleanedTrain?.occupancySegmentId, undefined)
+  assert.equal(cleanedTrain?.timetablePlayback, false)
+}
+
+{
+  const baseSession = sessionWithRows([timetableRow()])
+  const session = {
+    ...baseSession,
+    lineMap: {
+      ...baseSession.lineMap,
+      routeSegments: {
+        ...baseSession.lineMap.routeSegments,
+        'rail-1109': {
+          segmentId: 'rail-1109',
+          status: 'DISPATCHED',
+          trainId: '312',
+          updatedAt: 1,
+        },
+      },
+    },
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            isMoving: true,
+            lineMapVisible: true,
+            occupancySegmentId: 'rail-1109',
+            status: 'RUN' as const,
+            timetablePlayback: false,
+          }
+        : train
+    )),
+  }
+
+  const cleaned = applyTimetablePlaybackRunStart(session, [], new Set())
+  const cleanedTrain = cleaned.trains.find((train) => train.id === '312')
+
+  assert.equal(cleanedTrain?.lineMapVisible, false)
+  assert.equal(cleanedTrain?.occupancySegmentId, undefined)
+  assert.equal(cleanedTrain?.timetablePlayback, false)
+  assert.equal(cleaned.lineMap.routeSegments['rail-1109'], undefined)
 }

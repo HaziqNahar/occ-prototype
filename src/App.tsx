@@ -79,7 +79,11 @@ import {
   platformData,
 } from './screens/line-map/model'
 import type { LineMapSignalData } from './screens/line-map/model'
-import { getSignalRouteCommandLabels, getSignalRouteSetLabels } from './screens/line-map/signalRouteState'
+import {
+  getSignalRouteCommandLabels,
+  getSignalRouteFleetControlDisabledLabels,
+  getSignalRouteSetLabels,
+} from './screens/line-map/signalRouteState'
 import {
   normalizeLineMapRuntimeState,
 } from './screens/line-map/lineMapRuntimeState'
@@ -92,11 +96,9 @@ import {
   updateLineMapRouteState,
 } from './screens/line-map/lineMapRouteState'
 import {
-  TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS,
-  TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
+  MANUAL_TRAIN_ROUTE_STEP_DURATION_MS,
   TRAIN_ROUTE_RENDER_STEPS,
 } from './screens/line-map/trainMovementRoutes'
-import { TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID } from './screens/line-map/lineMapRoutePaths'
 import {
   applyManualTrainRouteStepState,
   clearManualTrainRouteSegmentOverrides,
@@ -109,27 +111,26 @@ import {
   createSignalRouteUnsetOverrideSegments,
   getSignalRouteTargetTrain,
   hasSignalRouteCommand,
-  shouldResetTrainRouteIndexForSignal,
 } from './screens/line-map/signalRouteCommands'
 import {
   getTrainRouteStepFromLineMap,
-  getTrainRouteStepIndexFromLineMap,
-  updateTrainRouteStepState,
 } from './screens/line-map/trainRoutePlaybackState'
 import { warnLineMapRouteValidationIssues } from './screens/line-map/routeValidation'
 import { clearTimetableGuideRouteState } from './screens/line-map/timetableRouteStateCleanup'
 import {
-  TIMETABLE_PLAYBACK_PROFILE,
   TIMETABLE_PLAYBACK_REFRESH_MS,
-  getTimetableRowSelectedStation,
 } from './screens/line-map/timetablePlayback'
 import {
   createTimetableRouteDiagnostics,
   createTimetableRouteDiagnosticsSummary,
 } from './screens/line-map/timetableDiagnostics'
 import {
-  createTimetablePlaybackRunKey,
-  scheduleTimetablePlaybackRun,
+  applyTimetablePlaybackRunStart,
+  createAutomaticTimetableMovementAuthorities,
+  createTimetablePlaybackPlanKey,
+  createTimetablePlaybackScopeKey,
+  getActiveTimetableMovementAuthorityTrainIds,
+  scheduleTimetablePlaybackPlans,
 } from './screens/line-map/timetablePlaybackController'
 import LineMapMonitorDom from './screens/line-map/LineMapDom'
 import { ToolbarButton } from './components/ScadaSvgToolbarButton'
@@ -158,6 +159,20 @@ import {
   updateSessionLifecycle,
   useOccSession,
 } from './sessionState'
+import {
+  getActiveTimetableView,
+  getTimetableRowsForStation,
+  getTimetableStationOptions,
+  getTimetableViewRows,
+} from './timetableViewState'
+import {
+  DEFAULT_TIMETABLE_CLOCK_STATE,
+  createTimetableClockKey,
+  formatTimetableClockTime,
+  getTimetableClockNow,
+  scaleTimetablePlaybackPlansForClock,
+  startTimetablePlaybackClock,
+} from './timetableClockState'
 import AssessmentRubricScreen from './screens/AssessmentRubricScreen'
 import IosModulesScreen from './screens/IosModulesScreen'
 import LoginPage from './screens/LoginPage'
@@ -189,6 +204,8 @@ type SignalMenuState = {
   x: number
   y: number
 }
+
+type RouteFleetStatus = 'Fleet' | 'Not Fleet'
 
 function clampPan(value: number) {
   return Math.min(MAP_PAN_MAX, Math.max(0, value))
@@ -1506,20 +1523,31 @@ function TimetableCanvas({
 }) {
   const tableRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [stationFilter, setStationFilter] = useState('SKG')
-  const [direction, setDirection] = useState<'NB' | 'SB'>('NB')
-  const stationOptions = useMemo(() => (
-    Array.from(new Set(session.timetableRows.map(getTimetableRowSelectedStation).filter(Boolean))).sort()
-  ), [session.timetableRows])
-  const activeStation = stationOptions.includes(stationFilter) ? stationFilter : stationOptions[0] ?? 'SKG'
-  const rowsForStation = session.timetableRows.filter((row) => getTimetableRowSelectedStation(row) === activeStation)
-  const rows = rowsForStation.filter((row) => row.run === direction)
+  const stationOptions = useMemo(() => getTimetableStationOptions(session.timetableRows), [session.timetableRows])
+  const timetableView = useMemo(
+    () => getActiveTimetableView(session.timetableRows, session.timetableView),
+    [session.timetableRows, session.timetableView],
+  )
+  const activeStation = timetableView.station
+  const direction = timetableView.direction
+  const rowsForStation = useMemo(
+    () => getTimetableRowsForStation(session.timetableRows, activeStation),
+    [activeStation, session.timetableRows],
+  )
+  const rows = useMemo(
+    () => getTimetableViewRows(session.timetableRows, timetableView),
+    [session.timetableRows, timetableView],
+  )
   const [scrollState, setScrollState] = useState({ clientHeight: 0, max: 0, scrollHeight: 0, top: 0 })
   const loadedTimeTableName = NEL_TIMETABLE_NAME
   const [actionNote, setActionNote] = useState('')
   const selectedRowIndex = rows.length > 0 ? Math.min(selectedIndex, rows.length - 1) : -1
   const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : undefined
   const tripActions = ['Service cancellation', 'Service restoration', 'Shift trips', 'Trip interruption', 'Trip modification', 'Creation of additional trips']
+  const timetableClockTime = formatTimetableClockTime(session.timetableClock)
+  const timetableClockModeLabel = session.timetableClock.mode === 'PLAYBACK'
+    ? `PLAYBACK ${session.timetableClock.playbackSpeed}x`
+    : 'LIVE'
   const scrollbarHeight = 286
   const scrollbarButtonSize = 16
   const scrollbarTrackHeight = scrollbarHeight - scrollbarButtonSize * 2
@@ -1624,15 +1652,48 @@ function TimetableCanvas({
   }
 
   const setDirectionFilter = (nextDirection: 'NB' | 'SB') => {
-    setDirection(nextDirection)
     setSelectedIndex(0)
     setActionNote(`Direction filter changed to ${nextDirection}`)
+    updateSession((current) => ({
+      ...current,
+      timetableView: {
+        ...current.timetableView,
+        direction: nextDirection,
+      },
+    }))
   }
 
   const setStationSelection = (nextStation: string) => {
-    setStationFilter(nextStation)
     setSelectedIndex(0)
     setActionNote(`Station ${nextStation} selected`)
+    updateSession((current) => ({
+      ...current,
+      timetableView: {
+        ...current.timetableView,
+        station: nextStation,
+      },
+    }))
+  }
+
+  const setLiveTimetableClock = () => {
+    setActionNote('Live timetable clock selected')
+    updateSession((current) => ({
+      ...current,
+      timetableClock: { ...DEFAULT_TIMETABLE_CLOCK_STATE },
+      updatedAt: Date.now(),
+    }))
+  }
+
+  const startTimetablePlayback = () => {
+    const now = new Date()
+    const nextClock = startTimetablePlaybackClock(session.timetableRows, now)
+
+    setActionNote(`Timetable playback started at ${formatTimetableClockTime(nextClock, now)}`)
+    updateSession((current) => ({
+      ...current,
+      timetableClock: nextClock,
+      updatedAt: Date.now(),
+    }))
   }
 
   const applyTripAction = (action: string) => {
@@ -1737,8 +1798,21 @@ function TimetableCanvas({
             <label><input checked={direction === 'SB'} onChange={() => setDirectionFilter('SB')} type="radio" /> SB</label>
           </fieldset>
           <output className="timetable-dom-filter-summary">
-            {rows.length} {direction} rows shown / {rowsForStation.length} {activeStation} rows loaded | {TIMETABLE_PLAYBACK_PROFILE.label}
+            {rows.length} {direction} rows shown / {rowsForStation.length} {activeStation} rows loaded
           </output>
+          <output className="timetable-dom-clock-summary">
+            {timetableClockModeLabel} {timetableClockTime}
+          </output>
+          <ScadaDomButton
+            className="timetable-dom-clock-button"
+            label="Live"
+            onClick={setLiveTimetableClock}
+          />
+          <ScadaDomButton
+            className="timetable-dom-clock-button"
+            label="Playback"
+            onClick={startTimetablePlayback}
+          />
         </div>
         <div className="timetable-dom-headings">
           <span className="origin">ORIGIN</span>
@@ -1747,7 +1821,6 @@ function TimetableCanvas({
         </div>
         <div className="timetable-dom-table" onScroll={updateTimetableScroll} ref={tableRef} role="table">
           <div className="timetable-dom-row timetable-dom-row--head" role="row">
-            <span>Stat.</span>
             <span>Train<br />#</span>
             <span>Sched.<br />#</span>
             <span>Point</span>
@@ -1774,7 +1847,6 @@ function TimetableCanvas({
               role="row"
               type="button"
             >
-              <span>{row.state}</span>
               <span>{row.train}</span>
               <span>{row.sched}</span>
               <span>{row.originPoint}</span>
@@ -2772,6 +2844,10 @@ function MonitorCanvas({
     resetKey: string
     value: Record<string, RouteControlMode>
   }>({ resetKey: resetLocalLineMapStateKey, value: {} })
+  const [routeFleetStatusState, setRouteFleetStatusState] = useState<{
+    resetKey: string
+    value: Record<string, RouteFleetStatus>
+  }>({ resetKey: resetLocalLineMapStateKey, value: {} })
   const [trainArrivalDestinationState, setTrainArrivalDestinationState] = useState<{
     resetKey: string
     value: Record<string, TrainTimeSelection>
@@ -2782,9 +2858,9 @@ function MonitorCanvas({
   }>({ resetKey: resetLocalLineMapStateKey, value: {} })
   const panAnimationRef = useRef<number | null>(null)
   const trainRouteAnimationRef = useRef<number | null>(null)
-  const timetablePlaybackTimeoutsRef = useRef<number[]>([])
-  const timetablePlaybackRunKeyRef = useRef('')
-  const train314RouteStepIndexRef = useRef<number | null>(null)
+  const timetablePlaybackPlanTimeoutsRef = useRef(new Map<string, number[]>())
+  const timetablePlaybackScheduledPlanKeysRef = useRef(new Set<string>())
+  const timetablePlaybackScopeKeyRef = useRef('')
   const latestLineMapSessionRef = useRef(session)
   const panTargetRef = useRef<number>(DEFAULT_LINE_MAP_PAN)
   const panValueRef = useRef<number>(DEFAULT_LINE_MAP_PAN)
@@ -2794,6 +2870,12 @@ function MonitorCanvas({
       ? {}
       : routeControlModeState.value
   ), [resetLocalLineMapStateKey, routeControlModeState, shouldClearLocalLineMapState])
+  const routeFleetStatuses = useMemo(() => (
+    shouldClearLocalLineMapState && routeFleetStatusState.resetKey !== resetLocalLineMapStateKey
+      ? {}
+      : routeFleetStatusState.value
+  ), [resetLocalLineMapStateKey, routeFleetStatusState, shouldClearLocalLineMapState])
+  const timetableRowsRef = useRef(session.timetableRows)
   const trainArrivalDestinations = useMemo(() => (
     shouldClearLocalLineMapState && trainArrivalDestinationState.resetKey !== resetLocalLineMapStateKey
       ? {}
@@ -2814,6 +2896,20 @@ function MonitorCanvas({
         resetKey: resetLocalLineMapStateKey,
         value: typeof update === 'function'
           ? (update as (currentValue: Record<string, RouteControlMode>) => Record<string, RouteControlMode>)(currentValue)
+          : update,
+      }
+    })
+  }, [resetLocalLineMapStateKey, shouldClearLocalLineMapState])
+  const setRouteFleetStatuses = useCallback((update: SetStateAction<Record<string, RouteFleetStatus>>) => {
+    setRouteFleetStatusState((current) => {
+      const currentValue = shouldClearLocalLineMapState && current.resetKey !== resetLocalLineMapStateKey
+        ? {}
+        : current.value
+
+      return {
+        resetKey: resetLocalLineMapStateKey,
+        value: typeof update === 'function'
+          ? (update as (currentValue: Record<string, RouteFleetStatus>) => Record<string, RouteFleetStatus>)(currentValue)
           : update,
       }
     })
@@ -2851,6 +2947,10 @@ function MonitorCanvas({
     latestLineMapSessionRef.current = session
   }, [session])
 
+  useEffect(() => {
+    timetableRowsRef.current = session.timetableRows
+  }, [session.timetableRows])
+
   const sessionLineMap = clearTimetableGuideRouteState(
     normalizeLineMapRuntimeState(session.lineMap),
     getTimetablePlaybackTrainIdSet(session.trains),
@@ -2862,7 +2962,6 @@ function MonitorCanvas({
     const routePinnedTrain = routeStep
       ? {
           ...train,
-          direction: 'left' as const,
           x: routeStep.point.x,
           y: routeStep.point.y,
         }
@@ -2883,13 +2982,15 @@ function MonitorCanvas({
   })
   const selectedTrain = renderedTrains.find((train) => train.id === session.selectedTrainId)
   const routeAutomationSummary = useMemo(() => createRouteAutomationSummary(routeControlModes), [routeControlModes])
-  const timetableRouteDiagnosticsSummary = useMemo(() => createTimetableRouteDiagnosticsSummary(
+  const timetableClockNow = getTimetableClockNow(session.timetableClock, timetableDiagnosticsNow)
+  const timetableRouteDiagnosticsSummary = createTimetableRouteDiagnosticsSummary(
     createTimetableRouteDiagnostics({
-      now: timetableDiagnosticsNow,
+      now: timetableClockNow,
       routeControlModes,
       rows: session.timetableRows,
+      trains: renderedTrains,
     }),
-  ), [routeControlModes, session.timetableRows, timetableDiagnosticsNow])
+  )
   const inspectorTrain = inspectorPanel ? renderedTrains.find((train) => train.id === inspectorPanel.trainId) : undefined
   const auxiliaryTrain = auxiliaryPanel ? renderedTrains.find((train) => train.id === auxiliaryPanel.trainId) : undefined
   const itamaTrain = itamaTrainId ? renderedTrains.find((train) => train.id === itamaTrainId) : undefined
@@ -2906,14 +3007,6 @@ function MonitorCanvas({
   }
 
   useEffect(() => {
-    const routeStepIndex = getTrainRouteStepIndexFromLineMap(session.lineMap, '314', TRAIN_314_S610_TO_RT2_ROUTE_STEPS)
-
-    if (routeStepIndex !== undefined) {
-      train314RouteStepIndexRef.current = routeStepIndex
-    }
-  }, [session.lineMap])
-
-  useEffect(() => {
     updateSession((current) => {
       let changed = false
       const trains = current.trains.map((currentTrain) => {
@@ -2926,7 +3019,6 @@ function MonitorCanvas({
         if (
           currentTrain.x === currentRouteStep.point.x
           && currentTrain.y === currentRouteStep.point.y
-          && currentTrain.direction === 'left'
           && currentTrain.occupancySegmentId === currentRouteStep.segmentId
         ) {
           return currentTrain
@@ -2936,9 +3028,7 @@ function MonitorCanvas({
 
         return {
           ...currentTrain,
-          direction: 'left' as const,
           occupancySegmentId: currentRouteStep.segmentId,
-          service: 'SB',
           x: currentRouteStep.point.x,
           y: currentRouteStep.point.y,
         }
@@ -2972,11 +3062,14 @@ function MonitorCanvas({
   }, [])
 
   const cancelTimetablePlayback = useCallback(() => {
-    timetablePlaybackTimeoutsRef.current.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId)
+    timetablePlaybackPlanTimeoutsRef.current.forEach((timeoutIds) => {
+      timeoutIds.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
     })
-    timetablePlaybackTimeoutsRef.current = []
-    timetablePlaybackRunKeyRef.current = ''
+    timetablePlaybackPlanTimeoutsRef.current.clear()
+    timetablePlaybackScheduledPlanKeysRef.current.clear()
+    timetablePlaybackScopeKeyRef.current = ''
   }, [])
 
   useEffect(() => {
@@ -2986,7 +3079,6 @@ function MonitorCanvas({
 
     cancelTrainRouteAnimation()
     cancelTimetablePlayback()
-    train314RouteStepIndexRef.current = null
   }, [cancelTimetablePlayback, cancelTrainRouteAnimation, session.scenarioMode, session.scenarioStep, session.sessionMeta.createdAt])
 
   const setPanImmediate = useCallback((value: number) => {
@@ -3429,7 +3521,6 @@ function MonitorCanvas({
   const animateTrainDepartureRoute = useCallback((trainId: string) => {
     const plan = createManualTrainRoutePlan({
       arrivalDestinations: trainArrivalDestinations,
-      fallbackStepIndex: trainId === '314' ? train314RouteStepIndexRef.current : undefined,
       lineMap: session.lineMap,
       trainId,
       trains: session.trains,
@@ -3460,10 +3551,6 @@ function MonitorCanvas({
       'yellow',
     )
 
-    if (trainId === '314') {
-      train314RouteStepIndexRef.current = currentStepIndex
-    }
-
     updateSession((current) => ({
       ...applyManualTrainRouteStepState(current, trainId, authority, currentStepIndex),
       alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
@@ -3476,10 +3563,6 @@ function MonitorCanvas({
     }))
 
     const setTrainAtRouteStep = (stepIndex: number) => {
-      if (trainId === '314') {
-        train314RouteStepIndexRef.current = stepIndex
-      }
-
       updateSession((current) => applyManualTrainRouteStepState(current, trainId, authority, stepIndex))
     }
 
@@ -3487,27 +3570,21 @@ function MonitorCanvas({
       trainRouteAnimationRef.current = window.setTimeout(() => {
         if (stepIndex > lastStepIndex) {
           trainRouteAnimationRef.current = null
-          if (trainId === '314') {
-            train314RouteStepIndexRef.current = lastStepIndex
-          }
           return
         }
 
         setTrainAtRouteStep(stepIndex)
 
         if (stepIndex < lastStepIndex) {
-          scheduleRouteStep(stepIndex + 1, TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS)
+          scheduleRouteStep(stepIndex + 1, MANUAL_TRAIN_ROUTE_STEP_DURATION_MS)
         } else {
           trainRouteAnimationRef.current = null
-          if (trainId === '314') {
-            train314RouteStepIndexRef.current = lastStepIndex
-          }
         }
       }, delay)
     }
 
     if (currentStepIndex < lastStepIndex) {
-      scheduleRouteStep(currentStepIndex + 1, TRAIN_314_S610_TO_RT2_ROUTE_STEP_DURATION_MS)
+      scheduleRouteStep(currentStepIndex + 1, MANUAL_TRAIN_ROUTE_STEP_DURATION_MS)
     }
   }, [cancelTrainRouteAnimation, session.lineMap, session.trains, setLineMapRouteSegmentOverrides, trainArrivalDestinations, updateSession])
 
@@ -3576,10 +3653,6 @@ function MonitorCanvas({
       return
     }
 
-    if (shouldResetTrainRouteIndexForSignal(signal)) {
-      train314RouteStepIndexRef.current = null
-    }
-
     const routeOwner = visibleTargetTrain ?? { id: '' }
 
     setLineMapRouteSegmentOverrides((current) => createSignalRouteSetOverrideSegments(current, signal, routeLabel, routeOwner))
@@ -3589,11 +3662,6 @@ function MonitorCanvas({
   const unsetRouteFromSignal = (signal: LineMapSignalData, routeLabel: string) => {
     if (!hasSignalRouteCommand(signal, routeLabel)) {
       return
-    }
-
-    if (shouldResetTrainRouteIndexForSignal(signal)) {
-      cancelTrainRouteAnimation()
-      train314RouteStepIndexRef.current = null
     }
 
     setLineMapRouteSegmentOverrides((current) => createSignalRouteUnsetOverrideSegments(current, signal, routeLabel))
@@ -3669,20 +3737,15 @@ function MonitorCanvas({
         return guard.next
       }
 
-      const trainRouteSteps = TRAIN_ROUTE_STEP_SEQUENCES_BY_TRAIN_ID[targetTrain.id]
-      const lineMap = command === 'DISPATCH' && trainRouteSteps
-        ? updateTrainRouteStepState(current.lineMap, targetTrain.id, trainRouteSteps, 0)
-        : updateLineMapRouteState(
-          current.lineMap,
-          targetTrain,
-          command === 'DISPATCH' ? 'DISPATCHED' : command === 'HOLD' ? 'HELD' : 'SET',
-        )
-
       return {
         ...guard.next,
         alarmSummaryRows: [summaryRow, ...current.alarmSummaryRows].slice(0, 12),
         eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-        lineMap,
+        lineMap: updateLineMapRouteState(
+          current.lineMap,
+          targetTrain,
+          command === 'DISPATCH' ? 'DISPATCHED' : command === 'HOLD' ? 'HELD' : 'SET',
+        ),
         timetableRows: upsertTimetableRow(current.timetableRows, targetTrain.id, command === 'HOLD' ? 'H>' : command === 'DISPATCH' ? '>' : 'R'),
         trains: current.trains.map((train) => (
           train.id === targetTrain.id ? { ...train, status: nextStatus } : train
@@ -3740,6 +3803,10 @@ function MonitorCanvas({
     cancelTrainRouteAnimation()
   }, [cancelPanAnimation, cancelTrainRouteAnimation])
 
+  useEffect(() => () => {
+    cancelTimetablePlayback()
+  }, [cancelTimetablePlayback])
+
   useEffect(() => {
     const handleDocumentPointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Element)) {
@@ -3788,44 +3855,113 @@ function MonitorCanvas({
   }, [panBy, panTo])
 
   useEffect(() => {
+    const refreshMs = session.timetableClock.mode === 'PLAYBACK'
+      ? 1000
+      : TIMETABLE_PLAYBACK_REFRESH_MS
     const intervalId = window.setInterval(() => {
       setTimetablePlaybackTick((current) => current + 1)
       setTimetableDiagnosticsNow(new Date())
-    }, TIMETABLE_PLAYBACK_REFRESH_MS)
+    }, refreshMs)
 
     return () => window.clearInterval(intervalId)
-  }, [])
+  }, [session.timetableClock.mode])
 
   useEffect(() => {
-    const runKey = createTimetablePlaybackRunKey(
-      session.sessionMeta.createdAt,
+    const playbackClock = latestLineMapSessionRef.current.timetableClock
+    const playbackNow = getTimetableClockNow(playbackClock, new Date())
+    const scopeKey = [
+      createTimetablePlaybackScopeKey(
+        session.sessionMeta.createdAt,
+        routeControlModes,
+      ),
+      createTimetableClockKey(playbackClock),
+    ].join(':')
+
+    if (timetablePlaybackScopeKeyRef.current !== scopeKey) {
+      cancelTimetablePlayback()
+      timetablePlaybackScopeKeyRef.current = scopeKey
+    }
+
+    const movementAuthorities = createAutomaticTimetableMovementAuthorities(
+      latestLineMapSessionRef.current,
       routeControlModes,
-      timetablePlaybackTick,
+      playbackNow,
+      timetableRowsRef.current,
+    )
+    const playbackPlans = scaleTimetablePlaybackPlansForClock(
+      movementAuthorities
+        .filter((authority) => authority.allowed)
+        .map((authority) => authority.plan),
+      playbackClock,
+    )
+    const scheduledTimetableTrainIds = new Set<string>()
+    timetablePlaybackScheduledPlanKeysRef.current.forEach((planKey) => {
+      const [trainId] = planKey.split('|')
+
+      if (trainId) {
+        scheduledTimetableTrainIds.add(trainId)
+      }
+    })
+    const activeTimetableTrainIds = new Set([
+      ...getActiveTimetableMovementAuthorityTrainIds(movementAuthorities),
+      ...scheduledTimetableTrainIds,
+    ])
+    const heldTimetableTrainIds = new Set(
+      movementAuthorities
+        .filter((authority) => !authority.allowed)
+        .map((authority) => authority.trainId),
     )
 
-    if (timetablePlaybackRunKeyRef.current === runKey) {
-      return undefined
-    }
+    updateSession((current) => applyTimetablePlaybackRunStart(
+      current,
+      playbackPlans,
+      activeTimetableTrainIds,
+      heldTimetableTrainIds,
+    ))
 
-    cancelTimetablePlayback()
-    timetablePlaybackRunKeyRef.current = runKey
+    playbackPlans.forEach((plan) => {
+      const planKey = createTimetablePlaybackPlanKey(plan)
 
-    const timeoutIds = scheduleTimetablePlaybackRun({
-      now: new Date(),
-      routeControlModes,
-      scheduleTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
-      session: latestLineMapSessionRef.current,
-      updateSession,
+      if (timetablePlaybackScheduledPlanKeysRef.current.has(planKey)) {
+        return
+      }
+
+      const timeoutIds = scheduleTimetablePlaybackPlans({
+        plans: [plan],
+        scheduleTimeout: (callback, delayMs) => {
+          let timeoutId = 0
+
+          timeoutId = window.setTimeout(() => {
+            try {
+              callback()
+            } finally {
+              const currentTimeoutIds = timetablePlaybackPlanTimeoutsRef.current.get(planKey) ?? []
+              const remainingTimeoutIds = currentTimeoutIds.filter((currentTimeoutId) => currentTimeoutId !== timeoutId)
+
+              if (remainingTimeoutIds.length > 0) {
+                timetablePlaybackPlanTimeoutsRef.current.set(planKey, remainingTimeoutIds)
+              } else {
+                timetablePlaybackPlanTimeoutsRef.current.delete(planKey)
+                timetablePlaybackScheduledPlanKeysRef.current.delete(planKey)
+              }
+            }
+          }, delayMs)
+
+          return timeoutId
+        },
+        updateSession,
+      })
+
+      timetablePlaybackScheduledPlanKeysRef.current.add(planKey)
+      timetablePlaybackPlanTimeoutsRef.current.set(planKey, timeoutIds)
     })
-    timetablePlaybackTimeoutsRef.current.push(...timeoutIds)
 
-    return () => {
-      cancelTimetablePlayback()
-    }
+    return undefined
   }, [
     cancelTimetablePlayback,
     routeControlModes,
     session.sessionMeta.createdAt,
+    session.timetableClock,
     timetablePlaybackTick,
     updateSession,
   ])
@@ -3899,9 +4035,17 @@ function MonitorCanvas({
             equipmentLabel={getSignalEquipmentLabel(defineRouteSignal)}
             key={defineRouteSignal.label}
             onClose={() => setDefineRouteSignal(null)}
+            onSetFleetStatus={(routeLabel, fleetStatus) => {
+              setRouteFleetStatuses((current) => ({
+                ...current,
+                [routeLabel]: fleetStatus,
+              }))
+            }}
             onSet={(routeLabel) => setRouteFromSignal(defineRouteSignal, routeLabel)}
             onUnset={(routeLabel) => unsetRouteFromSignal(defineRouteSignal, routeLabel)}
             routeCommandLabels={getSignalRouteCommandLabels(defineRouteSignal.label)}
+            routeFleetControlDisabledLabels={getSignalRouteFleetControlDisabledLabels(defineRouteSignal.label)}
+            routeFleetStatuses={routeFleetStatuses}
             routeLabels={getSignalRouteLabels(defineRouteSignal)}
             routeSetLabels={defineRouteSetLabels}
             signalLabel={defineRouteSignal.label}

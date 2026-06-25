@@ -167,6 +167,37 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
 {
   const issues = validateLineMapRouteDefinitions({
     routeDefinitions: [{
+      allowedLogicalExclusiveRailPairs: [['rail-P608', 'rail-614']],
+      commandSegmentIds: ['route-r999-001-command', 'rail-P608', 'rail-614'],
+      commandStateSegmentIds: ['route-r999-001-command'],
+      realSegmentIds: ['rail-P608', 'rail-614'],
+      routeLabel: 'Route R999_001',
+      signalLabel: 'S608',
+    }],
+  })
+
+  assert.ok(issues.some((issue) => issue.includes('sets mutually exclusive rails rail-P608 and rail-614')))
+}
+
+{
+  const issues = validateLineMapRouteDefinitions({
+    allowLogicalExclusiveRailPairs: true,
+    routeDefinitions: [{
+      allowedLogicalExclusiveRailPairs: [['rail-P608', 'rail-614']],
+      commandSegmentIds: ['route-r999-001-command', 'rail-P608', 'rail-614'],
+      commandStateSegmentIds: ['route-r999-001-command'],
+      realSegmentIds: ['rail-P608', 'rail-614'],
+      routeLabel: 'Route R999_001',
+      signalLabel: 'S608',
+    }],
+  })
+
+  assert.equal(issues.some((issue) => issue.includes('sets mutually exclusive rails rail-P608 and rail-614')), false)
+}
+
+{
+  const issues = validateLineMapRouteDefinitions({
+    routeDefinitions: [{
       commandSegmentIds: ['route-r999-002-command', 'rail-P1102', 'rail-1115', 'rail-P1103'],
       commandStateSegmentIds: ['route-r999-002-command'],
       realSegmentIds: ['rail-P1102', 'rail-1115', 'rail-P1103'],
@@ -186,7 +217,7 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
     owner: 'timetable',
     panelCode: 'SKG',
     routeLabel: 'Test timetable path',
-    routeLabels: ['Route R608_803'],
+    signalRouteRefs: ['Route R608_803'],
     steps: [{ point: { x: 0, y: 0 }, segmentId: 'rail-618' }],
     to: 'RT2_DEPOT',
     via: ['SKG'],
@@ -198,4 +229,25 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
   })
 
   assert.ok(issues.some((issue) => issue.includes('test-timetable-path must explicitly opt into or out of guide rails')))
+}
+
+{
+  const timetableRoute: TimetableLineMapRoutePathDefinition = {
+    disallowGuideRails: true,
+    from: 'SKG',
+    id: 'test-station-only-timetable-path',
+    match: { destinationAny: ['PGC'], originAny: ['SKG'] },
+    owner: 'timetable',
+    panelCode: 'SKG',
+    routeLabel: 'Test station-only timetable path',
+    steps: [{ point: { x: 0, y: 0 }, segmentId: 'rail-620' }],
+    to: 'PGC',
+  }
+
+  const issues = validateLineMapRouteDefinitions({
+    routeDefinitions: [validRoute],
+    routePathDefinitions: [timetableRoute],
+  })
+
+  assert.deepEqual(issues.filter((issue) => issue.includes('test-station-only-timetable-path')), [])
 }

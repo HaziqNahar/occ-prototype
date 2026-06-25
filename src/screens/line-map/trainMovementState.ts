@@ -23,6 +23,9 @@ import {
 import {
   clearLineMapRouteSegmentState,
 } from './lineMapRouteSegmentState'
+import {
+  clearLineMapPlatformDoorStatesForTrain,
+} from './platformDoorState'
 
 export type AllowedTrainMovementAuthority = Extract<ReturnType<typeof resolveTrainMovementAuthority>, { allowed: true }>
 
@@ -146,8 +149,9 @@ export function applyTimetablePlaybackStepState<T extends TrainMovementSessionSt
   step: TrainRouteAnimationStep,
   stepIndex: number,
   lastStepIndex: number,
+  isStationStopped = false,
 ): T {
-  const routePlaybackComplete = stepIndex >= lastStepIndex
+  const routePlaybackComplete = stepIndex >= lastStepIndex && !isStationStopped
 
   return {
     ...current,
@@ -155,7 +159,31 @@ export function applyTimetablePlaybackStepState<T extends TrainMovementSessionSt
       ? completeTrainRoutePlaybackState(current.lineMap, plan.trainId, plan.routeSteps)
       : updateTrainRouteStepState(current.lineMap, plan.trainId, plan.routeSteps, stepIndex),
     selectedTrainId: !routePlaybackComplete ? plan.trainId : current.selectedTrainId,
-    trains: upsertTimetablePlaybackTrain(current.trains, plan, step, stepIndex, lastStepIndex),
+    trains: upsertTimetablePlaybackTrain(current.trains, plan, step, stepIndex, lastStepIndex, isStationStopped),
+  }
+}
+
+export function completeTimetablePlaybackStepState<T extends TrainMovementSessionState>(
+  current: T,
+  plan: TimetablePlaybackPlan,
+): T {
+  const completedLineMap = completeTrainRoutePlaybackState(current.lineMap, plan.trainId, plan.routeSteps)
+
+  return {
+    ...current,
+    lineMap: clearLineMapPlatformDoorStatesForTrain(completedLineMap, plan.trainId),
+    trains: current.trains.map((train) => (
+      train.id === plan.trainId
+        ? {
+            ...train,
+            isMoving: false,
+            lineMapVisible: false,
+            occupancySegmentId: undefined,
+            status: 'WAIT',
+            timetablePlayback: false,
+          }
+        : train
+    )),
   }
 }
 

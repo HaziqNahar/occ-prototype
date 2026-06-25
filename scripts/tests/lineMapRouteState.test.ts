@@ -8,6 +8,7 @@ import {
 import type { LineMapSignalData } from '../../src/screens/line-map/model'
 import {
   S608_R608_803_REAL_ROUTE_SEGMENT_IDS,
+  S613_R613_621_REAL_ROUTE_SEGMENT_IDS,
   S700_R700_610_REAL_ROUTE_SEGMENT_IDS,
   S700_REAL_ROUTE_SEGMENT_IDS,
   S704_REAL_ROUTE_SEGMENT_IDS,
@@ -136,6 +137,27 @@ function state(segmentId: string, status: 'SET' | 'UNSET' | 'DISPATCHED' = 'SET'
 }
 
 {
+  const updated = updateLineMapSignalTrackState(
+    createLineMapRuntimeState(),
+    signal('S613'),
+    { id: '312' },
+    'SET',
+    'Route R613_621',
+  )
+
+  assert.deepEqual(getSignalRouteSetLabels('S613', updated), ['Route R613_621'])
+  S613_R613_621_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
+    if (segmentId === 'rail-614') {
+      return
+    }
+
+    assert.equal(updated.routeSegments[segmentId].status, 'SET')
+  })
+  assert.equal(updated.routeSegments['rail-P608']?.status, 'SET')
+  assert.equal(updated.routeSegments['rail-614'], undefined)
+}
+
+{
   const lineMap: LineMapRuntimeState = {
     ...createLineMapRuntimeState(),
     routeSegments: {
@@ -154,8 +176,14 @@ function state(segmentId: string, status: 'SET' | 'UNSET' | 'DISPATCHED' = 'SET'
 
   assert.deepEqual(getSignalRouteSetLabels('S700', updated), ['Route R700_610'])
   S700_R700_610_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
+    if (['rail-704', 'rail-705'].includes(segmentId)) {
+      return
+    }
+
     assert.equal(updated.routeSegments[segmentId].status, 'SET')
   })
+  assert.equal(updated.routeSegments['rail-P700']?.status, 'SET')
+  assert.equal(updated.routeSegments['rail-P701']?.status, 'SET')
   assert.equal(updated.routeSegments['rail-704'], undefined)
   assert.equal(updated.routeSegments['rail-705'], undefined)
 }

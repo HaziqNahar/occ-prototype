@@ -5,14 +5,19 @@ import Win98HtmlButton from '../train-control/Win98HtmlButton'
 type SignalRouteDefinitionWindowProps = {
   equipmentLabel: string
   onClose: () => void
+  onSetFleetStatus: (routeLabel: string, status: RouteFleetStatus) => void
   onSet: (routeLabel: string) => void
   onUnset: (routeLabel: string) => void
   routeCommandLabels: readonly string[]
+  routeFleetControlDisabledLabels: readonly string[]
+  routeFleetStatuses: Readonly<Record<string, RouteFleetStatus>>
   routeLabels: readonly string[]
   routeSetLabels: readonly string[]
   signalLabel: string
   statusText: string
 }
+
+type RouteFleetStatus = 'Fleet' | 'Not Fleet'
 
 const ROUTE_SCROLL_TRACK_HEIGHT = 140
 const ROUTE_SCROLL_THUMB_HEIGHT = 52
@@ -20,9 +25,12 @@ const ROUTE_SCROLL_THUMB_HEIGHT = 52
 function SignalRouteDefinitionWindow({
   equipmentLabel,
   onClose,
+  onSetFleetStatus,
   onSet,
   onUnset,
   routeCommandLabels,
+  routeFleetControlDisabledLabels,
+  routeFleetStatuses,
   routeLabels,
   routeSetLabels,
   signalLabel,
@@ -36,12 +44,16 @@ function SignalRouteDefinitionWindow({
   const [routeScroll, setRouteScroll] = useState({ max: 1, top: 0 })
   const [routeScrollDrag, setRouteScrollDrag] = useState<{ startScrollTop: number; startY: number } | null>(null)
   const [pendingSetRouteLabel, setPendingSetRouteLabel] = useState<string | null>(null)
-  const selectedRouteLabel = routeLabels[selectedRouteIndex] ?? routeLabels[0] ?? ''
+  const selectedRouteLabel = hasSelectedRouteRow ? routeLabels[selectedRouteIndex] ?? '' : ''
   const confirmationRouteLabel = pendingSetRouteLabel ?? selectedRouteLabel
   const selectedRouteSet = routeSetLabels.includes(selectedRouteLabel)
   const selectedRouteCommandAvailable = routeCommandLabels.includes(selectedRouteLabel)
-  const canSetRoute = selectedRouteLabel.length > 0 && selectedRouteCommandAvailable && !selectedRouteSet && pendingSetRouteLabel === null
-  const canUnsetRoute = selectedRouteSet
+  const selectedRouteFleetControlDisabled = routeFleetControlDisabledLabels.includes(selectedRouteLabel)
+  const selectedRouteFleetStatus = routeFleetStatuses[selectedRouteLabel] ?? 'Not Fleet'
+  const canSetRoute = hasSelectedRouteRow && selectedRouteLabel.length > 0 && selectedRouteCommandAvailable && !selectedRouteSet && pendingSetRouteLabel === null
+  const canUnsetRoute = hasSelectedRouteRow && selectedRouteSet
+  const canUnfleetRoute = hasSelectedRouteRow && !selectedRouteFleetControlDisabled && selectedRouteFleetStatus === 'Fleet'
+  const canFleetRoute = hasSelectedRouteRow && !selectedRouteFleetControlDisabled && selectedRouteFleetStatus === 'Not Fleet'
   const showRouteSetConfirmation = pendingSetRouteLabel !== null
 
   const updateRouteScroll = () => {
@@ -122,6 +134,8 @@ function SignalRouteDefinitionWindow({
               {routeLabels.map((routeLabel, index) => {
                 const isRouteSet = routeSetLabels.includes(routeLabel)
                 const isRouteRowSelected = hasSelectedRouteRow && selectedRouteIndex === index
+                const routeFleetControlDisabled = routeFleetControlDisabledLabels.includes(routeLabel)
+                const routeFleetStatus = routeFleetControlDisabled ? '' : routeFleetStatuses[routeLabel] ?? 'Not Fleet'
 
                 return (
                   <button
@@ -136,7 +150,7 @@ function SignalRouteDefinitionWindow({
                   >
                     <span>{routeLabel}</span>
                     <span>{isRouteSet ? 'Set' : 'Not Set'}<i /></span>
-                    <span>Not Fleet<i /></span>
+                    <span>{routeFleetStatus}<i className={routeFleetControlDisabled ? 'is-disabled' : undefined} /></span>
                   </button>
                 )
               })}
@@ -211,12 +225,26 @@ function SignalRouteDefinitionWindow({
           >
             Set
           </button>
-          <button disabled type="button">Unfleet</button>
-          <button disabled type="button">Fleet</button>
+          <button
+            disabled={!canUnfleetRoute}
+            onClick={() => onSetFleetStatus(selectedRouteLabel, 'Not Fleet')}
+            type="button"
+          >
+            Unfleet
+          </button>
+          <button
+            disabled={!canFleetRoute}
+            onClick={() => onSetFleetStatus(selectedRouteLabel, 'Fleet')}
+            type="button"
+          >
+            Fleet
+          </button>
         </div>
         <label className="sig-route-status">
           <span>Status</span>
-          <output>{selectedRouteSet ? 'Route set successful' : selectedRouteCommandAvailable ? statusText : 'Route command unavailable'}</output>
+          <output>
+            {selectedRouteSet ? 'Route set successful' : !hasSelectedRouteRow || selectedRouteCommandAvailable ? statusText : 'Route command unavailable'}
+          </output>
         </label>
         <div className="sig-route-footer">
           <button type="button">Help</button>
