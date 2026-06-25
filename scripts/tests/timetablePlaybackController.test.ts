@@ -11,6 +11,7 @@ import {
   createTimetablePlaybackRouteModeKey,
   createTimetablePlaybackRunKey,
   createTimetablePlaybackScopeKey,
+  pruneInactiveTimetablePlaybackPlanSchedules,
   scheduleTimetablePlaybackPlans,
   scheduleTimetablePlaybackRun,
 } from '../../src/screens/line-map/timetablePlaybackController'
@@ -249,6 +250,30 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   scheduledCallbacks[0].callback()
 
   assert.equal(session.trains.find((train) => train.id === '312')?.timetablePlayback, true)
+}
+
+{
+  const scheduledPlanKeys = new Set(['active-plan', 'completed-active-plan', 'inactive-plan'])
+  const planTimeouts = new Map<string, number[]>([
+    ['active-plan', [101, 102]],
+    ['inactive-plan', [201, 202]],
+  ])
+  const clearedTimeoutIds: number[] = []
+
+  pruneInactiveTimetablePlaybackPlanSchedules({
+    activePlanKeys: new Set(['active-plan', 'completed-active-plan']),
+    clearTimeout: (timeoutId) => {
+      clearedTimeoutIds.push(timeoutId)
+    },
+    planTimeouts,
+    scheduledPlanKeys,
+  })
+
+  assert.deepEqual([...scheduledPlanKeys].sort(), ['active-plan', 'completed-active-plan'])
+  assert.deepEqual(clearedTimeoutIds, [201, 202])
+  assert.deepEqual(planTimeouts.get('active-plan'), [101, 102])
+  assert.equal(planTimeouts.has('completed-active-plan'), false)
+  assert.equal(planTimeouts.has('inactive-plan'), false)
 }
 
 {

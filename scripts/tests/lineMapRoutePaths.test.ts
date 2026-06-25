@@ -11,6 +11,9 @@ import { isTimetableIneligibleGuideRailId } from '../../src/screens/line-map/tim
 import {
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
+import {
+  getDefinedSignalRoutesByLabels,
+} from '../../src/screens/line-map/routeDefinitions'
 
 assert.equal(
   new Set(LINE_MAP_ROUTE_PATH_DEFINITIONS.map((routePath) => routePath.id)).size,
@@ -133,9 +136,30 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
 TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((routePath) => {
   assert.equal(routePath.steps.length > 0, true, `${routePath.id} should have station route rails`)
 
+  const signalRouteRefs = routePath.signalRouteRefs ?? []
+
+  assert.equal(signalRouteRefs.length > 0, true, `${routePath.id} should be backed by signal route refs`)
+  assert.equal(
+    new Set(signalRouteRefs).size,
+    signalRouteRefs.length,
+    `${routePath.id} should not duplicate signal route refs`,
+  )
+  assert.equal(
+    getDefinedSignalRoutesByLabels(signalRouteRefs).length,
+    signalRouteRefs.length,
+    `${routePath.id} signal route refs should all exist`,
+  )
+
   routePath.steps.forEach((step) => {
     assert.equal(step.segmentId.startsWith('rail-P'), false, `${routePath.id} should not timetable-drive P-rails`)
     assert.notEqual(step.segmentId, 'rail-1115', `${routePath.id} should not timetable-drive rail-1115`)
+  })
+
+  routePath.platformStops?.forEach((platformStop) => {
+    assert.ok(
+      routePath.steps[platformStop.stepIndex],
+      `${routePath.id} platform stop ${platformStop.platformCode} should point to an existing route step`,
+    )
   })
 
   assert.equal(

@@ -97,6 +97,30 @@ export function getActiveTimetableMovementAuthorityTrainIds(authorities: readonl
   return new Set(authorities.map((authority) => authority.trainId))
 }
 
+export function pruneInactiveTimetablePlaybackPlanSchedules({
+  activePlanKeys,
+  clearTimeout,
+  planTimeouts,
+  scheduledPlanKeys,
+}: {
+  activePlanKeys: ReadonlySet<string>
+  clearTimeout: (timeoutId: number) => void
+  planTimeouts: Map<string, number[]>
+  scheduledPlanKeys: Set<string>
+}) {
+  scheduledPlanKeys.forEach((planKey) => {
+    if (activePlanKeys.has(planKey)) {
+      return
+    }
+
+    const timeoutIds = planTimeouts.get(planKey) ?? []
+
+    timeoutIds.forEach(clearTimeout)
+    planTimeouts.delete(planKey)
+    scheduledPlanKeys.delete(planKey)
+  })
+}
+
 export function applyTimetablePlaybackRunStart(
   current: OccSessionState,
   plans: readonly TimetablePlaybackPlan[],

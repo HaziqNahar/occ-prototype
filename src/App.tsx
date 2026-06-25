@@ -130,6 +130,7 @@ import {
   createTimetablePlaybackPlanKey,
   createTimetablePlaybackScopeKey,
   getActiveTimetableMovementAuthorityTrainIds,
+  pruneInactiveTimetablePlaybackPlanSchedules,
   scheduleTimetablePlaybackPlans,
 } from './screens/line-map/timetablePlaybackController'
 import LineMapMonitorDom from './screens/line-map/LineMapDom'
@@ -3884,6 +3885,15 @@ function MonitorCanvas({
         .map((authority) => authority.plan),
       playbackClock,
     )
+    const activeTimetablePlaybackPlanKeys = new Set(playbackPlans.map(createTimetablePlaybackPlanKey))
+
+    pruneInactiveTimetablePlaybackPlanSchedules({
+      activePlanKeys: activeTimetablePlaybackPlanKeys,
+      clearTimeout: (timeoutId) => window.clearTimeout(timeoutId),
+      planTimeouts: timetablePlaybackPlanTimeoutsRef.current,
+      scheduledPlanKeys: timetablePlaybackScheduledPlanKeysRef.current,
+    })
+
     const scheduledTimetableTrainIds = new Set<string>()
     timetablePlaybackScheduledPlanKeysRef.current.forEach((planKey) => {
       const [trainId] = planKey.split('|')
@@ -3932,7 +3942,6 @@ function MonitorCanvas({
                 timetablePlaybackPlanTimeoutsRef.current.set(planKey, remainingTimeoutIds)
               } else {
                 timetablePlaybackPlanTimeoutsRef.current.delete(planKey)
-                timetablePlaybackScheduledPlanKeysRef.current.delete(planKey)
               }
             }
           }, delayMs)
