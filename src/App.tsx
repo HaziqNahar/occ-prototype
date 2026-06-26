@@ -113,7 +113,7 @@ import {
   hasSignalRouteCommand,
 } from './screens/line-map/signalRouteCommands'
 import {
-  getTrainRouteStepFromLineMap,
+  getTrainRouteStepFromTrainOccupancyOrLineMap,
 } from './screens/line-map/trainRoutePlaybackState'
 import { warnLineMapRouteValidationIssues } from './screens/line-map/routeValidation'
 import { clearTimetableGuideRouteState } from './screens/line-map/timetableRouteStateCleanup'
@@ -2949,7 +2949,7 @@ function MonitorCanvas({
   const renderedTrains = session.trains.map((train) => {
     const itamaStatus = trainItamaStatusOverrides[train.id]
     const readinessMode = trainReadinessModeOverrides[train.id]
-    const routeStep = getTrainRouteStepFromLineMap(sessionLineMap, train.id, TRAIN_ROUTE_RENDER_STEPS)
+    const routeStep = getTrainRouteStepFromTrainOccupancyOrLineMap(sessionLineMap, train, TRAIN_ROUTE_RENDER_STEPS)
     const routePinnedTrain = routeStep
       ? {
           ...train,
@@ -3001,7 +3001,11 @@ function MonitorCanvas({
     updateSession((current) => {
       let changed = false
       const trains = current.trains.map((currentTrain) => {
-        const currentRouteStep = getTrainRouteStepFromLineMap(current.lineMap, currentTrain.id, TRAIN_ROUTE_RENDER_STEPS)
+        const currentRouteStep = getTrainRouteStepFromTrainOccupancyOrLineMap(
+          current.lineMap,
+          currentTrain,
+          TRAIN_ROUTE_RENDER_STEPS,
+        )
 
         if (!currentRouteStep) {
           return currentTrain

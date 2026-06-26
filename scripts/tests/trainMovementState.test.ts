@@ -164,11 +164,17 @@ function routeState(segmentId: string) {
     via: ['SKG'],
   }
   const first = applyTimetablePlaybackStepState({
-    lineMap: createLineMapRuntimeState(),
+    lineMap: {
+      ...createLineMapRuntimeState(),
+      routeSegments: {
+        'rail-stale': routeState('rail-stale'),
+      },
+    },
     selectedTrainId: '',
     trains: [],
   }, plan, plan.steps[0], 0, plan.steps.length - 1)
 
+  assert.equal(first.lineMap.routeSegments['rail-stale'], undefined)
   assert.equal(first.lineMap.routeSegments['rail-618'].status, 'DISPATCHED')
   assert.equal(first.lineMap.routeSegments['rail-616'].status, 'DISPATCHED')
   assert.equal(first.selectedTrainId, '312')

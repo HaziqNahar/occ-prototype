@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import type { TimetablePlaybackPlan } from '../../src/screens/line-map/timetablePlayback'
 import {
+  TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS,
+} from '../../src/screens/line-map/lineMapRoutePaths'
+import {
+  TIMETABLE_PLATFORM_DOOR_HOLD_MS,
+  TIMETABLE_PLATFORM_DOOR_PHASES,
+} from '../../src/screens/line-map/platformDoorState'
+import {
+  TIMETABLE_STATION_STOP_PHASES,
+} from '../../src/screens/line-map/timetableStationStopState'
+import {
   createTimetablePlaybackSchedule,
   scheduleTimetablePlaybackEntries,
 } from '../../src/screens/line-map/timetablePlaybackScheduler'
@@ -29,6 +39,29 @@ const plan: TimetablePlaybackPlan = {
   via: ['SKG'],
 }
 
+function timetablePathPlan(routePath: (typeof TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS)[number]): TimetablePlaybackPlan {
+  return {
+    endSeconds: 1000,
+    firstStepIndex: 0,
+    from: routePath.from,
+    panelCode: routePath.panelCode,
+    platformStops: routePath.platformStops ?? [],
+    routeLabel: routePath.routeLabel,
+    routeSteps: routePath.steps,
+    scheduleNumber: 'TEST',
+    service: routePath.match.run ?? 'NB',
+    signalRouteRefs: routePath.signalRouteRefs ?? [],
+    startSeconds: 0,
+    stationRouteId: routePath.id,
+    stepOffsetsMs: routePath.steps.map((_, index) => index * 1000),
+    stepSignedOffsetsMs: routePath.steps.map((_, index) => index * 1000),
+    steps: routePath.steps,
+    to: routePath.to,
+    trainId: '999',
+    via: routePath.via,
+  }
+}
+
 {
   const schedule = createTimetablePlaybackSchedule([plan])
 
@@ -51,10 +84,11 @@ const plan: TimetablePlaybackPlan = {
   const schedule = createTimetablePlaybackSchedule([{
     ...plan,
     platformStops: [{ platformCode: 'SKG', stepIndex: 2, track: 'SB' }],
-  }]).slice(0, 5)
+  }])
+  const stationStopEntries = schedule.filter((entry) => entry.stepIndex === 2).slice(0, 5)
 
   assert.deepEqual(
-    schedule.map((entry) => ({
+    stationStopEntries.map((entry) => ({
       delayMs: entry.delayMs,
       platformDoorPhase: entry.platformDoorPhase ?? 'ROUTE_STEP',
       stepIndex: entry.stepIndex,
@@ -62,19 +96,21 @@ const plan: TimetablePlaybackPlan = {
     })),
     [
       { delayMs: 2000, platformDoorPhase: 'ROUTE_STEP', stepIndex: 2, trainId: '312' },
-      { delayMs: 2000, platformDoorPhase: 'UNKNOWN_BEFORE', stepIndex: 2, trainId: '312' },
-      { delayMs: 4500, platformDoorPhase: 'CYCLING', stepIndex: 2, trainId: '312' },
-      { delayMs: 11500, platformDoorPhase: 'UNKNOWN_AFTER', stepIndex: 2, trainId: '312' },
-      { delayMs: 14000, platformDoorPhase: 'NORMAL', stepIndex: 2, trainId: '312' },
+      { delayMs: 3000, platformDoorPhase: 'UNKNOWN_BEFORE', stepIndex: 2, trainId: '312' },
+      { delayMs: 5500, platformDoorPhase: 'CYCLING', stepIndex: 2, trainId: '312' },
+      { delayMs: 12500, platformDoorPhase: 'UNKNOWN_AFTER', stepIndex: 2, trainId: '312' },
+      { delayMs: 15000, platformDoorPhase: 'NORMAL', stepIndex: 2, trainId: '312' },
     ],
+  )
+  assert.deepEqual(
+    stationStopEntries.map((entry) => entry.stationStopPhase),
+    [...TIMETABLE_STATION_STOP_PHASES],
+    'station stop lifecycle must be arrive -> unknown -> cycling -> unknown -> ready',
   )
 
   assert.equal(
-    createTimetablePlaybackSchedule([{
-      ...plan,
-      platformStops: [{ platformCode: 'SKG', stepIndex: 2, track: 'SB' }],
-    }]).find((entry) => !entry.platformDoorPhase && entry.stepIndex === 3)?.delayMs,
-    15500,
+    schedule.find((entry) => !entry.platformDoorPhase && entry.stepIndex === 3)?.delayMs,
+    16500,
     'next rail step must wait until the platform door cycle has returned to normal',
   )
 }
@@ -97,11 +133,11 @@ const plan: TimetablePlaybackPlan = {
     })),
     [
       { completeRoute: false, delayMs: finalStepDelayMs, platformDoorPhase: 'ROUTE_STEP', stepIndex: finalStepIndex },
-      { completeRoute: false, delayMs: finalStepDelayMs, platformDoorPhase: 'UNKNOWN_BEFORE', stepIndex: finalStepIndex },
-      { completeRoute: false, delayMs: finalStepDelayMs + 2500, platformDoorPhase: 'CYCLING', stepIndex: finalStepIndex },
-      { completeRoute: false, delayMs: finalStepDelayMs + 9500, platformDoorPhase: 'UNKNOWN_AFTER', stepIndex: finalStepIndex },
-      { completeRoute: false, delayMs: finalStepDelayMs + 12000, platformDoorPhase: 'NORMAL', stepIndex: finalStepIndex },
-      { completeRoute: true, delayMs: finalStepDelayMs + 12500, platformDoorPhase: 'ROUTE_STEP', stepIndex: finalStepIndex },
+      { completeRoute: false, delayMs: finalStepDelayMs + 1000, platformDoorPhase: 'UNKNOWN_BEFORE', stepIndex: finalStepIndex },
+      { completeRoute: false, delayMs: finalStepDelayMs + 3500, platformDoorPhase: 'CYCLING', stepIndex: finalStepIndex },
+      { completeRoute: false, delayMs: finalStepDelayMs + 10500, platformDoorPhase: 'UNKNOWN_AFTER', stepIndex: finalStepIndex },
+      { completeRoute: false, delayMs: finalStepDelayMs + 13000, platformDoorPhase: 'NORMAL', stepIndex: finalStepIndex },
+      { completeRoute: true, delayMs: finalStepDelayMs + 13500, platformDoorPhase: 'ROUTE_STEP', stepIndex: finalStepIndex },
     ],
     'a final platform stop must hold through the door cycle before the route cleanup runs',
   )
@@ -112,13 +148,37 @@ const plan: TimetablePlaybackPlan = {
     ...plan,
     platformStops: [{ platformCode: 'SKG', stepIndex: 2, track: 'SB' }],
     stepOffsetsMs: plan.steps.map((_, index) => (index === 2 ? 0 : index * 1000)),
-    stepSignedOffsetsMs: plan.steps.map((_, index) => (index === 2 ? -13000 : index * 1000)),
+    stepSignedOffsetsMs: plan.steps.map((_, index) => (index === 2 ? -14000 : index * 1000)),
   }]).filter((entry) => entry.stepIndex === 2)
 
   assert.deepEqual(
     refreshedAfterDoorCycle.map((entry) => entry.platformDoorPhase ?? 'ROUTE_STEP'),
     ['ROUTE_STEP'],
     'a refreshed live schedule must not replay completed door phases for the same station stop',
+  )
+}
+
+{
+  const refreshedDuringFirstUnknown = createTimetablePlaybackSchedule([{
+    ...plan,
+    platformStops: [{ platformCode: 'SKG', stepIndex: 2, track: 'SB' }],
+    stepOffsetsMs: plan.steps.map((_, index) => (index === 2 ? 0 : index * 1000)),
+    stepSignedOffsetsMs: plan.steps.map((_, index) => (index === 2 ? -1500 : index * 1000)),
+  }]).filter((entry) => entry.stepIndex === 2)
+
+  assert.deepEqual(
+    refreshedDuringFirstUnknown.map((entry) => ({
+      delayMs: entry.delayMs,
+      platformDoorPhase: entry.platformDoorPhase ?? 'ROUTE_STEP',
+    })),
+    [
+      { delayMs: 0, platformDoorPhase: 'ROUTE_STEP' },
+      { delayMs: 0, platformDoorPhase: 'UNKNOWN_BEFORE' },
+      { delayMs: 2000, platformDoorPhase: 'CYCLING' },
+      { delayMs: 9000, platformDoorPhase: 'UNKNOWN_AFTER' },
+      { delayMs: 11500, platformDoorPhase: 'NORMAL' },
+    ],
+    'a refreshed live schedule during the first unknown phase must show ???? immediately before cycling',
   )
 }
 
@@ -137,8 +197,9 @@ const plan: TimetablePlaybackPlan = {
     })),
     [
       { delayMs: 0, platformDoorPhase: 'ROUTE_STEP' },
-      { delayMs: 4500, platformDoorPhase: 'UNKNOWN_AFTER' },
-      { delayMs: 7000, platformDoorPhase: 'NORMAL' },
+      { delayMs: 0, platformDoorPhase: 'CYCLING' },
+      { delayMs: 5500, platformDoorPhase: 'UNKNOWN_AFTER' },
+      { delayMs: 8000, platformDoorPhase: 'NORMAL' },
     ],
     'a refreshed live schedule should only continue future door phases for an in-progress station stop',
   )
@@ -161,13 +222,49 @@ const plan: TimetablePlaybackPlan = {
     })),
     [
       { delayMs: 0, platformDoorPhase: 'ROUTE_STEP', stepIndex: 2 },
-      { delayMs: 4500, platformDoorPhase: 'UNKNOWN_AFTER', stepIndex: 2 },
-      { delayMs: 7000, platformDoorPhase: 'NORMAL', stepIndex: 2 },
-      { delayMs: 15500, platformDoorPhase: 'ROUTE_STEP', stepIndex: 3 },
+      { delayMs: 0, platformDoorPhase: 'CYCLING', stepIndex: 2 },
+      { delayMs: 5500, platformDoorPhase: 'UNKNOWN_AFTER', stepIndex: 2 },
+      { delayMs: 8000, platformDoorPhase: 'NORMAL', stepIndex: 2 },
+      { delayMs: 16500, platformDoorPhase: 'ROUTE_STEP', stepIndex: 3 },
     ],
     'a refresh during a door hold must keep the train pinned at the station stop before the next rail step',
   )
 }
+
+TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS
+  .filter((routePath) => ['SKG', 'PGL', 'PGC'].includes(routePath.panelCode))
+  .forEach((routePath) => {
+    const pathPlan = timetablePathPlan(routePath)
+    const schedule = createTimetablePlaybackSchedule([pathPlan])
+
+    pathPlan.platformStops.forEach((platformStop) => {
+      const doorPhaseEntries = schedule.filter((entry) => (
+        entry.stepIndex === platformStop.stepIndex
+        && entry.platformDoorPhase
+      ))
+
+      assert.deepEqual(
+        doorPhaseEntries.map((entry) => entry.platformDoorPhase),
+        TIMETABLE_PLATFORM_DOOR_PHASES,
+        `${routePath.id} ${platformStop.platformCode} should run the full platform door sequence`,
+      )
+
+      const stopStepDelay = pathPlan.stepOffsetsMs[platformStop.stepIndex]
+      const nextRailEntry = schedule.find((entry) => (
+        !entry.platformDoorPhase
+        && !entry.completeRoute
+        && entry.stepIndex === platformStop.stepIndex + 1
+      ))
+
+      if (nextRailEntry) {
+        assert.equal(
+          nextRailEntry.delayMs >= stopStepDelay + TIMETABLE_PLATFORM_DOOR_HOLD_MS,
+          true,
+          `${routePath.id} ${platformStop.platformCode} should hold the next rail until doors return to normal`,
+        )
+      }
+    })
+  })
 
 {
   const schedule = createTimetablePlaybackSchedule([plan]).slice(0, 2)

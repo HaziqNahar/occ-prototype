@@ -1,23 +1,12 @@
 import type { LineMapPlatformDoorStatus, LineMapRuntimeState } from '../../types'
 import type { TimetablePlatformStopDefinition } from './lineMapRoutePaths'
-
-export type TimetablePlatformDoorPhase = 'UNKNOWN_BEFORE' | 'CYCLING' | 'UNKNOWN_AFTER' | 'NORMAL'
-
-export const TIMETABLE_PLATFORM_DOOR_PHASE_OFFSETS_MS: Record<TimetablePlatformDoorPhase, number> = {
-  UNKNOWN_BEFORE: 0,
-  CYCLING: 2500,
-  UNKNOWN_AFTER: 9500,
-  NORMAL: 12000,
-}
-
-export const TIMETABLE_PLATFORM_DOOR_HOLD_MS = TIMETABLE_PLATFORM_DOOR_PHASE_OFFSETS_MS.NORMAL + 500
-
-export const TIMETABLE_PLATFORM_DOOR_PHASES: readonly TimetablePlatformDoorPhase[] = [
-  'UNKNOWN_BEFORE',
-  'CYCLING',
-  'UNKNOWN_AFTER',
-  'NORMAL',
-] as const
+import type { TimetablePlatformDoorPhase } from './timetableStationStopState'
+export type { TimetablePlatformDoorPhase } from './timetableStationStopState'
+export {
+  TIMETABLE_PLATFORM_DOOR_HOLD_MS,
+  TIMETABLE_PLATFORM_DOOR_PHASE_OFFSETS_MS,
+  TIMETABLE_PLATFORM_DOOR_PHASES,
+} from './timetableStationStopState'
 
 export function getPlatformDoorStateKey(stop: Pick<TimetablePlatformStopDefinition, 'platformCode' | 'track'>) {
   return `${stop.platformCode}-${stop.track}`

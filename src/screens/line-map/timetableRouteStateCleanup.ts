@@ -1,7 +1,16 @@
 import type { LineMapRuntimeState } from '../../types'
 import { clearLineMapRouteSegmentState } from './lineMapRouteSegmentState'
 
+const TIMETABLE_ALLOWED_GUIDE_RAIL_IDS = new Set([
+  'rail-P609',
+  'rail-P611',
+])
+
 export function isTimetableIneligibleGuideRailId(segmentId: string) {
+  if (TIMETABLE_ALLOWED_GUIDE_RAIL_IDS.has(segmentId)) {
+    return false
+  }
+
   return segmentId.startsWith('rail-P')
     || segmentId === 'rail-1115'
     || segmentId.endsWith('-background')

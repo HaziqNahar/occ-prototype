@@ -94,9 +94,9 @@ assert.deepEqual(getRouteSegmentPaint(undefined), DEFAULT_RAIL_VISUAL_PAINT)
     baseState,
   })
 
-  assert.equal(baseState?.status, 'SET')
+  assert.equal(baseState, undefined)
   assert.equal(paint.displayState, undefined)
-  assert.deepEqual({ color: paint.color, opacity: paint.opacity }, { color: '#ffffff', opacity: 1 })
+  assert.deepEqual({ color: paint.color, opacity: paint.opacity }, { color: '#63869a', opacity: 0.28 })
 }
 
 {
@@ -169,6 +169,23 @@ assert.deepEqual(getRouteSegmentPaint(undefined), DEFAULT_RAIL_VISUAL_PAINT)
   })
 
   assert.equal(isRouteRailDisplaySuppressed(map, 'rail-1107'), true)
+  assert.equal(paint.displayState, undefined)
+  assert.deepEqual({ color: paint.color, opacity: paint.opacity }, DEFAULT_RAIL_VISUAL_PAINT)
+}
+
+{
+  const map = lineMap({
+    'rail-P611': routeState('rail-P611', 'SET'),
+    'rail-611': routeState('rail-611', 'SET'),
+  })
+  const paint = resolveRailVisualPaint({
+    lineMap: map,
+    railId: 'rail-611',
+    routeState: map.routeSegments['rail-611'],
+    suppressedPaint: DEFAULT_RAIL_VISUAL_PAINT,
+  })
+
+  assert.equal(isRouteRailDisplaySuppressed(map, 'rail-611'), true)
   assert.equal(paint.displayState, undefined)
   assert.deepEqual({ color: paint.color, opacity: paint.opacity }, DEFAULT_RAIL_VISUAL_PAINT)
 }

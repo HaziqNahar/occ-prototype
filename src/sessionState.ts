@@ -4,6 +4,7 @@ import { scenarioTemplates } from './scenarioLibrary'
 import { createLineMapRuntimeState, LINE_MAP_LAYOUT_VERSION, clearStartupSignalRouteState, normalizeLineMapRuntimeState, resetLineMapRouteSegmentState } from './screens/line-map/lineMapRuntimeState'
 import { clearTimetableGuideRouteState } from './screens/line-map/timetableRouteStateCleanup'
 import { getTimetablePlaybackTrainIds } from './screens/line-map/timetablePlayback'
+import { clearLineMapPlatformDoorStatesForTrain } from './screens/line-map/platformDoorState'
 import { MONITOR_WIDTH, initialTrains } from './screens/line-map/model'
 import { createOccSessionTransport, OCC_SESSION_KEY } from './sessionTransport'
 import {
@@ -339,10 +340,14 @@ export function clearInactiveTimetablePlaybackTrains(
   }
 
   const inactiveTrainIdSet = new Set(inactiveTrainIds)
+  const cleanedLineMap = inactiveTrainIds.reduce(
+    (lineMap, trainId) => clearLineMapPlatformDoorStatesForTrain(lineMap, trainId),
+    clearTrainOwnedRouteState(current.lineMap, inactiveTrainIdSet),
+  )
 
   return {
     ...current,
-    lineMap: clearTrainOwnedRouteState(current.lineMap, inactiveTrainIdSet),
+    lineMap: cleanedLineMap,
     trains: current.trains.map((train) => (
       inactiveTrainIdSet.has(train.id)
         ? {
@@ -543,7 +548,7 @@ function mergeStoredTrains(storedTrains: TrainState[] | undefined, preserveGeome
       return {
         ...train,
         ...stored,
-        direction: train.id === '312' ? 'left' : stored.direction ?? train.direction,
+        direction: getMergedStoredTrainDirection(train, stored),
         itamaGranted: stored.itamaGranted ?? train.itamaGranted,
         readinessMode: stored.readinessMode ?? train.readinessMode,
         y: stored.y ?? train.y,
@@ -552,10 +557,14 @@ function mergeStoredTrains(storedTrains: TrainState[] | undefined, preserveGeome
 
     return {
       ...train,
-      direction: train.id === '312' ? 'left' : stored.direction ?? train.direction,
+      direction: getMergedStoredTrainDirection(train, stored),
       status: stored.status ?? train.status,
     }
   })
+}
+
+function getMergedStoredTrainDirection(train: TrainState, stored: TrainState): TrainState['direction'] {
+  return stored.direction ?? train.direction
 }
 
 function hasTrain317DoorFaultIncident(session: Partial<OccSessionState>) {

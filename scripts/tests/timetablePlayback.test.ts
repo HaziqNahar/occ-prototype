@@ -15,6 +15,8 @@ import {
 } from '../../src/screens/line-map/timetablePlayback'
 import {
   PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
+  RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
   SKG_TO_PGC_MAINLINE_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
 
@@ -159,13 +161,44 @@ assert.equal(getTimetableRowSelectedStation(timetableRow({ stationPoint: '', ori
   const plan = createTimetablePlaybackPlans([row], new Date(2026, 0, 1, 6, 20, 0))[0]
 
   assert.ok(plan)
-  assert.equal(plan.stationRouteId, 'timetable-skg-to-pgl-upper-mainline')
+  assert.equal(plan.stationRouteId, 'timetable-skg-through-to-pgl-upper-mainline')
   assert.equal(plan.to, 'PGL')
+  assert.equal(plan.steps[0]?.segmentId, 'rail-617')
   assert.equal(plan.steps.at(-1)?.segmentId, 'rail-709')
   assert.deepEqual(plan.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
     'SKG:0:NB',
     'PGL:7:NB',
   ])
+}
+
+{
+  const row = timetableRow({
+    destinationPoint: 'PGCN',
+    destinationTime: '5:38:13',
+    originPoint: 'SKG',
+    originTime: '5:32:45',
+    run: 'NB',
+    sched: '1000',
+    stationPoint: 'SKG',
+    stationTime: '5:33:20',
+    train: '301',
+  })
+  const plan = createTimetablePlaybackPlans([row], new Date(2026, 0, 1, 5, 32, 45))[0]
+
+  assert.ok(plan)
+  assert.equal(plan.stationRouteId, 'timetable-skg-to-pgc-upper-mainline')
+  assert.deepEqual(
+    plan.steps.slice(0, RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.length).map((step) => step.segmentId),
+    RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.map((step) => step.segmentId),
+  )
+  assert.equal(plan.firstStepIndex, 0)
+  assert.equal(plan.stepOffsetsMs[SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX], 35_000)
+
+  const atSkgPlatform = createTimetablePlaybackPlans([row], new Date(2026, 0, 1, 5, 33, 20))[0]
+
+  assert.ok(atSkgPlatform)
+  assert.equal(atSkgPlatform.firstStepIndex, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX)
+  assert.equal(atSkgPlatform.stepSignedOffsetsMs[SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX], 0)
 }
 
 {

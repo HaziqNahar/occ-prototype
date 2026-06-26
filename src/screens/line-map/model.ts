@@ -135,7 +135,7 @@ export const initialTrains: TrainState[] = [
   { id: '917', x: MAP_SECTION_OFFSETS.section03 + 1250, y: 205, direction: 'right', status: 'WAIT', service: 'NB' },
   { id: '301', x: MAP_SECTION_OFFSETS.section03 + 324, y: 512, direction: 'left', status: 'RUN', service: 'SB' },
   { id: '314', x: MAP_SECTION_OFFSETS.section04 + 105, y: 205, direction: 'left', status: 'RUN', service: 'NB' },
-  { id: '312', x: MAP_SECTION_OFFSETS.section04 + 786, y: 205, direction: 'left', status: 'RUN', service: 'NB' },
+  { id: '312', x: MAP_SECTION_OFFSETS.section04 + 786, y: 205, direction: 'right', status: 'RUN', service: 'NB' },
   { id: '309', x: MAP_SECTION_OFFSETS.section04 + 794, y: 508, direction: 'left', status: 'RUN', service: 'SB' },
 ]
 
@@ -1289,7 +1289,18 @@ export const translucentTrackGuides = [
       { from: [s.section03 + 914.5, 254], to: [s.section03 + 909.5, 280] },
     ],
     segmentPolygons: [
-      makeSlantedTrackPiece([s.section03 + 920, 226], [s.section03 + 915, 252]),
+      {
+        polygonPoints: [
+          [s.section03 + 916, 215],
+          [s.section03 + 950, 215],
+          [s.section03 + 950, 226],
+          [s.section03 + 926, 226],
+          [s.section03 + 921, 252],
+          [s.section03 + 909, 252],
+          [s.section03 + 914, 226],
+        ],
+        edgePolygonPoints: makeSlantedTrackEdgePoints([s.section03 + 920, 226], [s.section03 + 915, 252]),
+      },
       {
         polygonPoints: [
           [s.section03 + 920.5, 254],

@@ -3,6 +3,7 @@ import {
   lowerSignals,
   lowerTrackPieces,
   routeSegmentData,
+  shapedUpperTrackPieces,
   staticTrackPaths,
   staticTrackPieces,
   translucentTrackGuides,
@@ -12,6 +13,7 @@ import {
 import {
   getRouteSegmentRailId,
   getRouteSegmentRailPartIds,
+  getShapedTrackRailId,
   getStaticTrackPathRailId,
   getStaticTrackPieceRailId,
   getTrackGuideRailId,
@@ -272,8 +274,12 @@ function validateTimetableRoutePathDefinition(
   validateRoutePathSteps(`${routePath.id} timetable`, routePath.steps, knownRailIds, issues)
 
   if (routePath.disallowGuideRails) {
+    const allowedLaunchGuideRailIds = routePath.signalRouteRefs?.includes('Route R655_617')
+      ? new Set(['rail-P609', 'rail-P611'])
+      : new Set<string>()
+
     routePath.steps.forEach((step) => {
-      if (isTimetableIneligibleGuideRailId(step.segmentId)) {
+      if (isTimetableIneligibleGuideRailId(step.segmentId) && !allowedLaunchGuideRailIds.has(step.segmentId)) {
         issues.push(`${routePath.id} timetable path must not include guide rail ${step.segmentId}`)
       }
     })
@@ -598,6 +604,10 @@ export function getKnownLineMapRailIds() {
   routeSegmentData.forEach((segment) => {
     railIds.add(getRouteSegmentRailId(segment))
     getRouteSegmentRailPartIds(segment).forEach((railId) => railIds.add(railId))
+  })
+
+  shapedUpperTrackPieces.forEach((piece) => {
+    railIds.add(getShapedTrackRailId(piece))
   })
 
   translucentTrackGuides.forEach((guide) => {

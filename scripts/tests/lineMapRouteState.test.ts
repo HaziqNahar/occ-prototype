@@ -90,6 +90,20 @@ function state(segmentId: string, status: 'SET' | 'UNSET' | 'DISPATCHED' = 'SET'
 }
 
 {
+  const lineMap = createLineMapRuntimeState()
+  lineMap.routeSegments = {
+    'rail-P609': state('rail-P609', 'DISPATCHED'),
+    'rail-P611': state('rail-P611', 'DISPATCHED'),
+  }
+  const occupancy = createTrainOccupancyRouteSegmentStates([
+    train('312', { occupancySegmentId: 'rail-P611' }),
+  ], lineMap)
+
+  assert.equal(occupancy['rail-P611'].status, 'DISPATCHED')
+  assert.equal(occupancy['rail-P609'], undefined)
+}
+
+{
   const updated = updateLineMapSignalTrackState(
     createLineMapRuntimeState(),
     signal('S700'),

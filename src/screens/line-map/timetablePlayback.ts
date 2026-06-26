@@ -6,6 +6,8 @@ import {
   getForwardTimetableDurationSeconds,
   getSecondsIntoTimetableDay,
   getTimetableServiceTrainIds,
+  normalizeTimetablePointCode,
+  parseTimetableSeconds,
 } from './timetableServiceState'
 import type { TimetableServiceDecision } from './timetableServiceState'
 
@@ -51,6 +53,13 @@ export type TimetablePlaybackPlan = {
   via?: readonly TimetableRouteLocation[]
 }
 
+type TimetablePlaybackPlanDraft = Omit<
+  TimetablePlaybackPlan,
+  'firstStepIndex' | 'stepOffsetsMs' | 'stepSignedOffsetsMs'
+> & {
+  row: TimetableRow
+}
+
 function createTimetablePlaybackPlan(
   decision: TimetableServiceDecision,
 ): Omit<
@@ -89,35 +98,102 @@ export function createTimetablePlaybackPlans(
     .map((decision) => ({
       ...createTimetablePlaybackPlan(decision),
       endSeconds: decision.endSeconds,
+      row: decision.row,
       startSeconds: decision.startSeconds,
     }))
 
-  return selectedPlans.map((plan) => ({
-    endSeconds: plan.endSeconds,
-    firstStepIndex: getTimetablePlaybackFirstStepIndex(plan.startSeconds, plan.endSeconds, nowSeconds, plan.steps.length),
-    from: plan.from,
-    panelCode: plan.panelCode,
-    platformStops: plan.platformStops,
-    routeLabel: plan.routeLabel,
-    routeSteps: plan.routeSteps,
-    scheduleNumber: plan.scheduleNumber,
-    service: plan.service,
-    signalRouteRefs: plan.signalRouteRefs,
-    startSeconds: plan.startSeconds,
-    stepSignedOffsetsMs: createTimetablePlaybackStepOffsets(
+  return selectedPlans.map((plan) => {
+    const stepSignedOffsetsMs = createTimetablePlaybackPlanStepOffsets(
+      plan,
+      nowSeconds,
+      { clamp: false },
+    )
+    const stepOffsetsMs = createTimetablePlaybackPlanStepOffsets(plan, nowSeconds)
+
+    return {
+      endSeconds: plan.endSeconds,
+      firstStepIndex: getTimetablePlaybackFirstStepIndexFromSignedOffsets(stepSignedOffsetsMs),
+      from: plan.from,
+      panelCode: plan.panelCode,
+      platformStops: plan.platformStops,
+      routeLabel: plan.routeLabel,
+      routeSteps: plan.routeSteps,
+      scheduleNumber: plan.scheduleNumber,
+      service: plan.service,
+      signalRouteRefs: plan.signalRouteRefs,
+      startSeconds: plan.startSeconds,
+      stepSignedOffsetsMs,
+      stationRouteId: plan.stationRouteId,
+      steps: plan.steps,
+      stepOffsetsMs,
+      to: plan.to,
+      trainId: plan.trainId,
+      via: plan.via,
+    }
+  })
+}
+
+function createTimetablePlaybackPlanStepOffsets(
+  plan: TimetablePlaybackPlanDraft,
+  nowSeconds: number,
+  options: { clamp?: boolean } = {},
+) {
+  const timingAnchor = getTimetablePlaybackPlanTimingAnchor(plan)
+
+  if (!timingAnchor) {
+    return createTimetablePlaybackStepOffsets(
       plan.startSeconds,
       plan.endSeconds,
       nowSeconds,
       plan.steps.length,
-      { clamp: false },
-    ),
-    stationRouteId: plan.stationRouteId,
-    steps: plan.steps,
-    stepOffsetsMs: createTimetablePlaybackStepOffsets(plan.startSeconds, plan.endSeconds, nowSeconds, plan.steps.length),
-    to: plan.to,
-    trainId: plan.trainId,
-    via: plan.via,
-  }))
+      options,
+    )
+  }
+
+  return createAnchoredTimetablePlaybackStepOffsets({
+    anchorSeconds: timingAnchor.seconds,
+    anchorStepIndex: timingAnchor.stepIndex,
+    endSeconds: plan.endSeconds,
+    nowSeconds,
+    options,
+    startSeconds: plan.startSeconds,
+    stepCount: plan.steps.length,
+  })
+}
+
+function getTimetablePlaybackPlanTimingAnchor(plan: TimetablePlaybackPlanDraft) {
+  if (
+    plan.service !== 'NB'
+    || normalizeTimetablePointCode(plan.row.originPoint) !== 'SKG'
+    || normalizeTimetablePointCode(plan.row.stationPoint) !== 'SKG'
+  ) {
+    return undefined
+  }
+
+  const stationSeconds = parseTimetableSeconds(plan.row.stationTime)
+  const platformStop = plan.platformStops.find((stop) => stop.platformCode === 'SKG' && stop.track === 'NB')
+
+  if (stationSeconds === undefined || !platformStop || platformStop.stepIndex <= 0) {
+    return undefined
+  }
+
+  const startToStationSeconds = getForwardTimetableDurationSeconds(plan.startSeconds, stationSeconds)
+  const startToEndSeconds = getForwardTimetableDurationSeconds(plan.startSeconds, plan.endSeconds)
+
+  if (startToStationSeconds > startToEndSeconds) {
+    return undefined
+  }
+
+  return {
+    seconds: stationSeconds,
+    stepIndex: platformStop.stepIndex,
+  }
+}
+
+function getTimetablePlaybackFirstStepIndexFromSignedOffsets(stepSignedOffsetsMs: readonly number[]) {
+  return stepSignedOffsetsMs.reduce<number | undefined>((currentStepIndex, delayMs, stepIndex) => (
+    delayMs <= 0 ? stepIndex : currentStepIndex
+  ), undefined) ?? 0
 }
 
 function getTimetablePlaybackElapsedSeconds(startSeconds: number, endSeconds: number, nowSeconds: number) {
@@ -172,6 +248,72 @@ export function createTimetablePlaybackStepOffsets(
 
     return shouldClamp ? Math.max(0, offsetMs) : offsetMs
   })
+}
+
+function createAnchoredTimetablePlaybackStepOffsets({
+  anchorSeconds,
+  anchorStepIndex,
+  endSeconds,
+  nowSeconds,
+  options,
+  startSeconds,
+  stepCount,
+}: {
+  anchorSeconds: number
+  anchorStepIndex: number
+  endSeconds: number
+  nowSeconds: number
+  options: { clamp?: boolean }
+  startSeconds: number
+  stepCount: number
+}) {
+  const shouldClamp = options.clamp ?? true
+  const lastStepIndex = Math.max(0, stepCount - 1)
+  const startOffsetSeconds = nowSeconds < startSeconds
+    ? startSeconds - nowSeconds
+    : 0
+  const elapsedSeconds = getTimetablePlaybackElapsedSeconds(startSeconds, endSeconds, nowSeconds)
+  const startToAnchorSeconds = getForwardTimetableDurationSeconds(startSeconds, anchorSeconds)
+  const anchorToEndSeconds = getForwardTimetableDurationSeconds(anchorSeconds, endSeconds)
+
+  return Array.from({ length: stepCount }, (_, stepIndex) => {
+    const stepElapsedSeconds = getAnchoredTimetableStepElapsedSeconds({
+      anchorStepIndex,
+      anchorToEndSeconds,
+      lastStepIndex,
+      startToAnchorSeconds,
+      stepIndex,
+    })
+    const offsetMs = (startOffsetSeconds + stepElapsedSeconds - elapsedSeconds) * 1000
+
+    return shouldClamp ? Math.max(0, offsetMs) : offsetMs
+  })
+}
+
+function getAnchoredTimetableStepElapsedSeconds({
+  anchorStepIndex,
+  anchorToEndSeconds,
+  lastStepIndex,
+  startToAnchorSeconds,
+  stepIndex,
+}: {
+  anchorStepIndex: number
+  anchorToEndSeconds: number
+  lastStepIndex: number
+  startToAnchorSeconds: number
+  stepIndex: number
+}) {
+  if (stepIndex <= anchorStepIndex) {
+    return anchorStepIndex === 0
+      ? 0
+      : (startToAnchorSeconds * stepIndex) / anchorStepIndex
+  }
+
+  const remainingStepCount = lastStepIndex - anchorStepIndex
+
+  return remainingStepCount <= 0
+    ? startToAnchorSeconds
+    : startToAnchorSeconds + (anchorToEndSeconds * (stepIndex - anchorStepIndex)) / remainingStepCount
 }
 
 export function getTimetablePlaybackStepDirection(

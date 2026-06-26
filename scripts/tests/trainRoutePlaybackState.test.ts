@@ -48,6 +48,24 @@ function steps(segmentIds: readonly string[]): readonly TrainRouteAnimationStep[
 }
 
 {
+  const updated = updateTrainRouteStepState(
+    lineMap({
+      'rail-b': routeState('rail-b', 'DISPATCHED', '999'),
+    }),
+    '312',
+    steps(['rail-a', 'rail-b', 'rail-c']),
+    0,
+  )
+
+  assert.equal(updated.routeSegments['rail-a'].status, 'DISPATCHED')
+  assert.equal(updated.routeSegments['rail-a'].trainId, '312')
+  assert.equal(updated.routeSegments['rail-b'].status, 'DISPATCHED')
+  assert.equal(updated.routeSegments['rail-b'].trainId, '999')
+  assert.equal(updated.routeSegments['rail-c'].status, 'SET')
+  assert.equal(updated.routeSegments['rail-c'].trainId, '312')
+}
+
+{
   const completed = completeTrainRoutePlaybackState(
     lineMap({
       [S700_ROUTE_STATE_SEGMENT_ID]: routeState(S700_ROUTE_STATE_SEGMENT_ID, 'SET'),
@@ -65,4 +83,23 @@ function steps(segmentIds: readonly string[]): readonly TrainRouteAnimationStep[
     assert.equal(completed.routeSegments[segmentId].status, 'UNSET')
     assert.equal(completed.routeSegments[segmentId].trainId, '312')
   })
+}
+
+{
+  const completed = completeTrainRoutePlaybackState(
+    lineMap({
+      'rail-a': routeState('rail-a', 'DISPATCHED', '312'),
+      'rail-b': routeState('rail-b', 'DISPATCHED', '999'),
+      'rail-c': routeState('rail-c', 'SET', '999'),
+    }),
+    '312',
+    steps(['rail-a', 'rail-b', 'rail-c']),
+  )
+
+  assert.equal(completed.routeSegments['rail-a'].status, 'UNSET')
+  assert.equal(completed.routeSegments['rail-a'].trainId, '312')
+  assert.equal(completed.routeSegments['rail-b'].status, 'DISPATCHED')
+  assert.equal(completed.routeSegments['rail-b'].trainId, '999')
+  assert.equal(completed.routeSegments['rail-c'].status, 'SET')
+  assert.equal(completed.routeSegments['rail-c'].trainId, '999')
 }

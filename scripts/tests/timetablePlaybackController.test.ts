@@ -15,6 +15,9 @@ import {
   scheduleTimetablePlaybackPlans,
   scheduleTimetablePlaybackRun,
 } from '../../src/screens/line-map/timetablePlaybackController'
+import {
+  SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
+} from '../../src/screens/line-map/trainMovementRoutes'
 
 function timetableRow(overrides: Partial<TimetableRow> = {}): TimetableRow {
   return {
@@ -99,7 +102,13 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.ok(plan)
   assert.ok(plan.routeSteps)
   assert.equal(plan.steps.length > 3, true)
-  assert.equal(plan.steps.some((step) => step.segmentId === 'rail-1115' || step.segmentId.startsWith('rail-P')), false)
+  assert.equal(
+    plan.steps.some((step) => (
+      step.segmentId === 'rail-1115'
+      || (step.segmentId.startsWith('rail-P') && step.segmentId !== 'rail-P609' && step.segmentId !== 'rail-P611')
+    )),
+    false,
+  )
 
   const first = applyTimetablePlaybackStepSession(session, plan, 0)
   const firstRail = plan.steps[0].segmentId
@@ -166,25 +175,25 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 
   assert.ok(plan)
   assert.equal(plan.platformStops[0]?.platformCode, 'SKG')
-  assert.equal(plan.platformStops[0]?.stepIndex, 0)
+  assert.equal(plan.platformStops[0]?.stepIndex, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX)
 
-  const stoppedAtStation = applyTimetablePlaybackStepSession(session, plan, 0)
+  const stoppedAtStation = applyTimetablePlaybackStepSession(session, plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX)
   const stoppedTrain = stoppedAtStation.trains.find((train) => train.id === '312')
 
   assert.equal(stoppedTrain?.status, 'WAIT')
   assert.equal(stoppedTrain?.isMoving, false)
   assert.equal(stoppedTrain?.lineMapVisible, true)
 
-  const unknownDoors = applyTimetablePlatformDoorPhaseSession(stoppedAtStation, plan, 0, 'UNKNOWN_BEFORE')
+  const unknownDoors = applyTimetablePlatformDoorPhaseSession(stoppedAtStation, plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX, 'UNKNOWN_BEFORE')
   assert.equal(unknownDoors.lineMap.platformDoorStates['SKG-NB']?.status, 'UNKNOWN')
 
-  const cyclingDoors = applyTimetablePlatformDoorPhaseSession(unknownDoors, plan, 0, 'CYCLING')
+  const cyclingDoors = applyTimetablePlatformDoorPhaseSession(unknownDoors, plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX, 'CYCLING')
   assert.equal(cyclingDoors.lineMap.platformDoorStates['SKG-NB']?.status, 'CYCLING')
 
-  const normalDoors = applyTimetablePlatformDoorPhaseSession(cyclingDoors, plan, 0, 'NORMAL')
+  const normalDoors = applyTimetablePlatformDoorPhaseSession(cyclingDoors, plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX, 'NORMAL')
   assert.equal(normalDoors.lineMap.platformDoorStates['SKG-NB'], undefined)
 
-  const resumed = applyTimetablePlaybackStepSession(normalDoors, plan, 1)
+  const resumed = applyTimetablePlaybackStepSession(normalDoors, plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX + 1)
   const resumedTrain = resumed.trains.find((train) => train.id === '312')
 
   assert.equal(resumedTrain?.status, 'RUN')
@@ -325,6 +334,15 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
     ...baseSession,
     lineMap: {
       ...baseSession.lineMap,
+      platformDoorStates: {
+        'SKG-SB': {
+          platformCode: 'SKG',
+          status: 'CYCLING',
+          track: 'SB',
+          trainId: '312',
+          updatedAt: 1,
+        },
+      },
       routeSegments: {
         ...baseSession.lineMap.routeSegments,
         'rail-1109': {
@@ -355,5 +373,6 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.equal(cleanedTrain?.lineMapVisible, false)
   assert.equal(cleanedTrain?.occupancySegmentId, undefined)
   assert.equal(cleanedTrain?.timetablePlayback, false)
+  assert.deepEqual(cleaned.lineMap.platformDoorStates, {})
   assert.equal(cleaned.lineMap.routeSegments['rail-1109'], undefined)
 }

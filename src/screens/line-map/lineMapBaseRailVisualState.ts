@@ -13,8 +13,6 @@ const BASE_LINE_MAP_RAIL_VISUAL_STATUSES = {
   'rail-416': 'UNSET',
   'rail-418': 'UNSET',
   'rail-420': 'UNSET',
-  'rail-651': 'SET',
-  'bgk-651': 'SET',
   'rail-653': 'UNSET',
   'rail-655': 'UNSET',
   'rail-661': 'UNSET',

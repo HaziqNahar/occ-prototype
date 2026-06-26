@@ -1,10 +1,12 @@
 import type { TimetablePlaybackPlan } from './timetablePlayback'
+import type { TimetablePlatformDoorPhase } from './platformDoorState'
 import {
   TIMETABLE_PLATFORM_DOOR_HOLD_MS,
-  TIMETABLE_PLATFORM_DOOR_PHASE_OFFSETS_MS,
-  TIMETABLE_PLATFORM_DOOR_PHASES,
-} from './platformDoorState'
-import type { TimetablePlatformDoorPhase } from './platformDoorState'
+  createTimetableStationStopDoorPhaseEntries,
+  getTimetableStationStopNextRailDelayMs,
+  isTimetableStationStopHolding as isStationStopDoorCycleHolding,
+} from './timetableStationStopState'
+import type { TimetableStationStopPhase } from './timetableStationStopState'
 import { shouldScheduleTimetablePlatformDoorCycle } from './timetablePlatformStops'
 
 export type TimetablePlaybackScheduler = (callback: () => void, delayMs: number) => number
@@ -14,6 +16,7 @@ export type TimetablePlaybackScheduleEntry = {
   delayMs: number
   platformDoorPhase?: TimetablePlatformDoorPhase
   plan: TimetablePlaybackPlan
+  stationStopPhase?: TimetableStationStopPhase
   stepIndex: number
 }
 
@@ -27,6 +30,9 @@ export function createTimetablePlaybackSchedule(
       const routeStepEntry = {
         delayMs: routeStepDelayMs,
         plan,
+        stationStopPhase: shouldScheduleTimetablePlatformDoorCycle(plan, stepIndex)
+          ? 'ARRIVED' as const
+          : undefined,
         stepIndex,
       }
       if (!shouldScheduleTimetablePlatformDoorCycle(plan, stepIndex)) {
@@ -72,10 +78,9 @@ function getTimetablePlaybackScheduledStepIndexes(plan: TimetablePlaybackPlan) {
 
 function isTimetablePlatformStopHolding(plan: TimetablePlaybackPlan, stepIndex: number) {
   const platformStop = getTimetablePlatformStopForStepIndex(plan, stepIndex)
+  const routeStepSignedDelayMs = getTimetablePlaybackBaseSignedStepDelay(plan, stepIndex)
 
-  return Boolean(platformStop)
-    && getTimetablePlaybackBaseSignedStepDelay(plan, stepIndex) < 0
-    && getTimetablePlaybackBaseSignedStepDelay(plan, stepIndex) + TIMETABLE_PLATFORM_DOOR_HOLD_MS > 0
+  return Boolean(platformStop) && isStationStopDoorCycleHolding(routeStepSignedDelayMs)
 }
 
 function getTimetablePlatformStopForStepIndex(plan: TimetablePlaybackPlan, stepIndex: number) {
@@ -101,20 +106,14 @@ function createTimetablePlatformDoorPhaseEntries(
   stepIndex: number,
   routeStepSignedDelayMs: number,
 ): TimetablePlaybackScheduleEntry[] {
-  return TIMETABLE_PLATFORM_DOOR_PHASES.flatMap((platformDoorPhase) => {
-    const delayMs = routeStepSignedDelayMs + TIMETABLE_PLATFORM_DOOR_PHASE_OFFSETS_MS[platformDoorPhase]
-
-    if (delayMs < 0) {
-      return []
-    }
-
-    return [{
+  return createTimetableStationStopDoorPhaseEntries(routeStepSignedDelayMs)
+    .map(({ delayMs, platformDoorPhase, stationStopPhase }) => ({
       delayMs,
       platformDoorPhase,
       plan,
+      stationStopPhase,
       stepIndex,
-    }]
-  })
+    }))
 }
 
 function createTimetableRouteCompletionEntries(
@@ -126,7 +125,7 @@ function createTimetableRouteCompletionEntries(
     return []
   }
 
-  const delayMs = routeStepSignedDelayMs + TIMETABLE_PLATFORM_DOOR_HOLD_MS
+  const delayMs = getTimetableStationStopNextRailDelayMs(routeStepSignedDelayMs)
 
   if (delayMs < 0) {
     return []

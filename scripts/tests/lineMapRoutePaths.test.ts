@@ -9,9 +9,12 @@ import {
 import { resolveTimetableRailPath } from '../../src/screens/line-map/timetablePathResolver'
 import { isTimetableIneligibleGuideRailId } from '../../src/screens/line-map/timetableRouteStateCleanup'
 import {
+  RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
 import {
+  S655_R655_617_REAL_ROUTE_SEGMENT_IDS,
   getDefinedSignalRoutesByLabels,
 } from '../../src/screens/line-map/routeDefinitions'
 
@@ -68,13 +71,25 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
     stationPoint: 'SKGS',
   })
 
-  assert.equal(path?.routeLabel, 'Timetable path SKG to PGL upper mainline')
+  assert.equal(path?.routeLabel, 'Timetable path RT1 launch to SKG/PGL upper mainline')
   assert.equal(path?.from, 'SKG')
   assert.equal(path?.to, 'PGL')
   assert.deepEqual(path?.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
-    'SKG:0:NB',
-    'PGL:7:NB',
+    `SKG:${SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX}:NB`,
+    `PGL:${SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX + 7}:NB`,
   ])
+  assert.deepEqual(
+    path?.steps.slice(0, RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.length).map((step) => step.segmentId),
+    RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.map((step) => step.segmentId),
+  )
+  assert.deepEqual(
+    path?.steps.slice(0, S655_R655_617_REAL_ROUTE_SEGMENT_IDS.length).map((step) => step.segmentId),
+    [...S655_R655_617_REAL_ROUTE_SEGMENT_IDS],
+  )
+  assert.deepEqual(
+    path?.steps.slice(S655_R655_617_REAL_ROUTE_SEGMENT_IDS.length, S655_R655_617_REAL_ROUTE_SEGMENT_IDS.length + 2).map((step) => step.segmentId),
+    ['rail-615', 'rail-617'],
+  )
   assert.equal(path?.steps.at(-1)?.segmentId, 'rail-709')
 }
 
@@ -86,13 +101,13 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
     stationPoint: 'SKGS',
   })
 
-  assert.equal(path?.routeLabel, 'Timetable path SKG to PGC upper mainline')
+  assert.equal(path?.routeLabel, 'Timetable path RT1 launch to SKG/PGL/PGC upper mainline')
   assert.equal(path?.from, 'SKG')
   assert.equal(path?.to, 'PGC')
   assert.deepEqual(path?.platformStops.map((stop) => `${stop.platformCode}:${stop.stepIndex}:${stop.track}`), [
-    'SKG:0:NB',
-    'PGL:7:NB',
-    'PGC:14:NB',
+    `SKG:${SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX}:NB`,
+    `PGL:${SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX + 7}:NB`,
+    `PGC:${SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX + 14}:NB`,
   ])
 }
 
@@ -150,8 +165,16 @@ TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((routePath) => {
     `${routePath.id} signal route refs should all exist`,
   )
 
+  const allowedLaunchPRails = routePath.signalRouteRefs?.includes('Route R655_617')
+    ? new Set(['rail-P609', 'rail-P611'])
+    : new Set<string>()
+
   routePath.steps.forEach((step) => {
-    assert.equal(step.segmentId.startsWith('rail-P'), false, `${routePath.id} should not timetable-drive P-rails`)
+    assert.equal(
+      step.segmentId.startsWith('rail-P') && !allowedLaunchPRails.has(step.segmentId),
+      false,
+      `${routePath.id} should not timetable-drive P-rails outside the confirmed RT1 launch path`,
+    )
     assert.notEqual(step.segmentId, 'rail-1115', `${routePath.id} should not timetable-drive rail-1115`)
   })
 
@@ -163,8 +186,11 @@ TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((routePath) => {
   })
 
   assert.equal(
-    routePath.steps.some((step) => isTimetableIneligibleGuideRailId(step.segmentId)),
+    routePath.steps.some((step) => (
+      isTimetableIneligibleGuideRailId(step.segmentId)
+      && !allowedLaunchPRails.has(step.segmentId)
+    )),
     false,
-    `${routePath.id} should not include guide rails`,
+    `${routePath.id} should not include guide rails outside the confirmed RT1 launch path`,
   )
 })

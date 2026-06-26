@@ -123,10 +123,12 @@ export function getTimetableRowSelectedStation(row: TimetableRow) {
 }
 
 function isCurrentLineMapNorthboundScopeRow(row: TimetableRow) {
+  const origin = normalizeTimetablePointCode(row.originPoint)
   const station = normalizeTimetablePointCode(row.stationPoint) || normalizeTimetablePointCode(row.selectedStation ?? '')
   const destination = normalizeTimetablePointCode(row.destinationPoint)
 
   return row.run === 'NB'
+    && origin !== 'SKG'
     && station === 'SKG'
     && (destination === 'PGC' || destination === 'PGL')
 }

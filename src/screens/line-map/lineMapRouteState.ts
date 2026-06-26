@@ -113,7 +113,7 @@ export function createTrainOccupancyRouteSegmentStates(
 
   return Object.fromEntries(trains.filter((train) => train.lineMapVisible !== false).flatMap((train) => {
     const routeStep = getTrainRouteStepFromLineMap(current, train.id, TRAIN_ROUTE_RENDER_STEPS)
-    const segmentId = routeStep?.segmentId ?? train.occupancySegmentId ?? getFlatRailSegmentIdForTrain(train)
+    const segmentId = train.occupancySegmentId ?? routeStep?.segmentId ?? getFlatRailSegmentIdForTrain(train)
 
     if (!segmentId) {
       return []

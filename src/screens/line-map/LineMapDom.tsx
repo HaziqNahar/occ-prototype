@@ -718,7 +718,7 @@ function LineMapSchematicBase({
       {upperTrackPieces.map((piece, index) => (
         <TrackPiece key={`upper-${index}`} lineMap={lineMap} piece={piece} track="upper" trainOccupancyRouteSegments={trainOccupancyRouteSegments} y={getTrackY(piece.x, 'upper')} />
       ))}
-      <ShapedUpperTrackPieces />
+      <ShapedUpperTrackPieces lineMap={lineMap} trainOccupancyRouteSegments={trainOccupancyRouteSegments} />
       <UpperTrackCrossingMasks />
       <UpperTrackEdgeStrips />
       {lowerTrackPieces.map((piece, index) => (
@@ -1294,7 +1294,13 @@ function TrackPiece({
   )
 }
 
-function ShapedUpperTrackPieces() {
+function ShapedUpperTrackPieces({
+  lineMap,
+  trainOccupancyRouteSegments,
+}: {
+  lineMap: LineMapRuntimeState
+  trainOccupancyRouteSegments: LineMapRuntimeState['routeSegments']
+}) {
   return (
     <svg
       aria-hidden="true"
@@ -1308,15 +1314,28 @@ function ShapedUpperTrackPieces() {
         const pieceOpacity = 'opacity' in piece && typeof piece.opacity === 'number'
           ? piece.opacity
           : undefined
+        const visualPaint = resolveRailVisualPaint({
+          lineMap,
+          railId,
+          modelPaint: {
+            color: getStaticTrackPieceColor(piece.state),
+            opacity: pieceOpacity,
+          },
+          baseState: getLineMapBaseRailVisualState(railId),
+          occupancyState: trainOccupancyRouteSegments[railId],
+          routeState: lineMap.routeSegments[railId],
+          suppressedPaint: DEFAULT_RAIL_VISUAL_PAINT,
+        })
 
         return (
           <polygon
             data-rail-id={railId}
+            data-status={visualPaint.suppressed ? 'IDLE' : visualPaint.displayState?.status ?? piece.state.toUpperCase()}
             data-testid={railId}
-            fill={getStaticTrackPieceColor(piece.state)}
+            fill={visualPaint.color}
             id={railId}
             key={piece.id}
-            opacity={pieceOpacity}
+            opacity={visualPaint.opacity}
             points={piece.points.map((point) => `${point[0]},${point[1]}`).join(' ')}
             shapeRendering="geometricPrecision"
           />

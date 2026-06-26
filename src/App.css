@@ -8635,19 +8635,20 @@
   border-top: 1px solid #ffffff;
 }
 
+/* Group brackets start at each group's Point column. */
 .scada-dom-root--timetable .timetable-dom-headings .origin {
-  left: 126px;
+  left: 92px;
   width: 302px;
 }
 
 .scada-dom-root--timetable .timetable-dom-headings .selected {
-  left: 428px;
+  left: 394px;
   width: 222px;
   letter-spacing: 5px;
 }
 
 .scada-dom-root--timetable .timetable-dom-headings .destination {
-  left: 650px;
+  left: 616px;
   width: 316px;
 }
 

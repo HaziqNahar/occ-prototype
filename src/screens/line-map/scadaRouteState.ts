@@ -6,6 +6,14 @@ import {
   setLineMapRouteSegmentState,
 } from './lineMapRouteSegmentState'
 
+type CreateTrainMovementRouteSegmentStateOptions = {
+  shouldPreserveSegmentState?: (
+    segmentId: string,
+    currentState: LineMapRuntimeState['routeSegments'][string] | undefined,
+    nextStatus: LineMapRouteSegmentStatus,
+  ) => boolean
+}
+
 export function createRouteCommandSegmentStates(
   segmentIds: readonly string[],
   train: Pick<TrainState, 'id'>,
@@ -78,15 +86,22 @@ export function createTrainMovementRouteSegmentStates(
   trainId: string,
   routeSteps: readonly TrainRouteAnimationStep[],
   currentStepIndex: number,
+  options: CreateTrainMovementRouteSegmentStateOptions = {},
 ) {
   const routeSegments = { ...currentRouteSegments }
   const updatedAt = Date.now()
 
   routeSteps.forEach((step, stepIndex) => {
+    const nextStatus = getTrainMovementStepStatus(stepIndex, currentStepIndex)
+
+    if (options.shouldPreserveSegmentState?.(step.segmentId, routeSegments[step.segmentId], nextStatus)) {
+      return
+    }
+
     setLineMapRouteSegmentState(
       routeSegments,
       step.segmentId,
-      getTrainMovementStepStatus(stepIndex, currentStepIndex),
+      nextStatus,
       { trainId, updatedAt },
     )
   })

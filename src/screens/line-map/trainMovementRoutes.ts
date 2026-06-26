@@ -161,6 +161,45 @@ export const SKG_TO_PGL_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[]
   SKG_TO_PGC_MAINLINE_ROUTE_STEPS.slice(0, 8)
 )
 
+export const RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
+  {
+    segmentId: 'rail-653',
+    point: { x: MAP_SECTION_OFFSETS.section03 + 887, y: 274 },
+  },
+  {
+    segmentId: 'rail-P609',
+    point: { x: MAP_SECTION_OFFSETS.section03 + 910, y: 270 },
+  },
+  {
+    segmentId: 'rail-P611',
+    point: { x: MAP_SECTION_OFFSETS.section03 + 918, y: 260 },
+  },
+  {
+    segmentId: 'rail-613',
+    point: { x: MAP_SECTION_OFFSETS.section03 + 1020, y: TRAIN_MARKER_UPPER_ROUTE_Y },
+  },
+  {
+    segmentId: 'rail-615',
+    point: { x: MAP_SECTION_OFFSETS.section03 + 1134, y: TRAIN_MARKER_UPPER_ROUTE_Y },
+  },
+  {
+    segmentId: 'rail-617',
+    point: { x: MAP_SECTION_OFFSETS.section03 + 1198, y: TRAIN_MARKER_UPPER_ROUTE_Y },
+  },
+] as const
+
+export const SKG_TO_PGL_TIMETABLE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
+  ...RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  ...SKG_TO_PGL_MAINLINE_ROUTE_STEPS.slice(1),
+]
+
+export const SKG_TO_PGC_TIMETABLE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
+  ...RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  ...SKG_TO_PGC_MAINLINE_ROUTE_STEPS.slice(1),
+]
+
+export const SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX = RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.length - 1
+
 export const PGC_TO_SKG_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
   {
     segmentId: 'rail-1108',
@@ -232,7 +271,7 @@ export const PGL_TO_SKG_MAINLINE_ROUTE_STEPS: readonly TrainRouteAnimationStep[]
   PGC_TO_SKG_MAINLINE_ROUTE_STEPS.slice(7)
 )
 
-export const TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
+export const S1104_TO_S608_HOLD_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
   {
     segmentId: 'rail-1109',
     point: { x: MAP_SECTION_OFFSETS.section04 + 791, y: TRAIN_MARKER_UPPER_ROUTE_Y },
@@ -303,18 +342,19 @@ export const TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS: readonly TrainRouteAnimat
   },
 ] as const
 
-export const TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
-  ...TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
+export const PGC_TO_RT2_DEPOT_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = [
+  ...S1104_TO_S608_HOLD_ROUTE_STEPS,
   ...TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.slice(1),
 ]
 
-export const TRAIN_312_TO_RT2_DEPOT_TIMETABLE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = TRAIN_312_TO_RT2_DEPOT_ROUTE_STEPS
+export const PGC_TO_RT2_DEPOT_TIMETABLE_ROUTE_STEPS: readonly TrainRouteAnimationStep[] = PGC_TO_RT2_DEPOT_ROUTE_STEPS
   .filter((step) => step.segmentId !== 'rail-1115' && !step.segmentId.startsWith('rail-P'))
 
 export const TRAIN_ROUTE_RENDER_STEPS: readonly TrainRouteAnimationStep[] = [
+  ...RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
   ...SKG_TO_PGC_MAINLINE_ROUTE_STEPS,
   ...PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
-  ...TRAIN_312_S1104_TO_S608_HOLD_ROUTE_STEPS,
+  ...S1104_TO_S608_HOLD_ROUTE_STEPS,
   ...TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
   ...TRAIN_314_S610_TO_RT2_ROUTE_STEPS,
 ]
