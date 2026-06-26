@@ -135,15 +135,13 @@ import {
 } from './screens/line-map/timetablePlaybackController'
 import LineMapMonitorDom from './screens/line-map/LineMapDom'
 import { ToolbarButton } from './components/ScadaSvgToolbarButton'
-import { appendScenarioEvidence, createScenarioEvidence, scenarioTaskList } from './scenario'
+import { appendScenarioEvidence, createScenarioEvidence } from './scenario'
 import {
-  applyScenarioStep,
   completeScenarioTask,
   createMonitorEvent,
   createSummaryEvent,
   formatAlarmSummaryTimestamp,
   formatScenarioTime,
-  getScenarioStepBlocker,
   rejectScenarioAction,
   scenarioCues,
   scenarioSteps,
@@ -154,7 +152,6 @@ import {
 import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTransport'
 import {
   alarmSummaryRows,
-  createInitialSession,
   getTimetablePlaybackTrainIdSet,
   trainingModeDetails,
   updateSessionLifecycle,
@@ -174,6 +171,15 @@ import {
   scaleTimetablePlaybackPlansForClock,
   startTimetablePlaybackClock,
 } from './timetableClockState'
+import {
+  completeTrainingScenarioTask,
+  createTrainingScenarioStartSession,
+  getActiveTrainingScenarioTargetTrainId,
+  getTrainingScenarioDefinition,
+  isActiveTrainingScenarioTargetTrain,
+  scoreTrainingScenario,
+} from './trainingScenarios'
+import type { TrainingScenarioKind } from './trainingScenarios'
 import AssessmentRubricScreen from './screens/AssessmentRubricScreen'
 import IosModulesScreen from './screens/IosModulesScreen'
 import LoginPage from './screens/LoginPage'
@@ -198,6 +204,23 @@ import type {
 
 if (import.meta.env.DEV) {
   warnLineMapRouteValidationIssues()
+}
+
+function getActiveScenarioTargetTrainId(session: OccSessionState) {
+  return getActiveTrainingScenarioTargetTrainId(session)
+}
+
+function isActiveScenarioTargetTrain(session: OccSessionState, trainId: string) {
+  return isActiveTrainingScenarioTargetTrain(session, trainId)
+}
+
+function completeActiveTrainingTask(
+  current: OccSessionState,
+  taskId: ScenarioTaskId,
+  successText: string,
+  source: string,
+): { allowed: boolean; next: OccSessionState } {
+  return completeTrainingScenarioTask(current, taskId, successText, source)
 }
 
 type SignalMenuState = {
@@ -562,14 +585,14 @@ function IosCanvas({
   updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
 }) {
   const selectedTrain = session.trains.find((train) => train.id === session.selectedTrainId) ?? session.trains[0]
-  const [autoRun, setAutoRun] = useState(false)
   const currentScenario = scenarioSteps[session.scenarioStep] ?? scenarioSteps[0]
   const scenarioCue = scenarioCues[session.scenarioStep] ?? scenarioCues[0]
   const trainingMode = trainingModeDetails[session.trainingMode]
   const cuePrimary = session.trainingMode === 'PRACTICE' ? scenarioCue.primary : trainingMode.title
   const cueSecondary = session.trainingMode === 'PRACTICE' ? scenarioCue.secondary : trainingMode.cue
-  const completedTasks = scenarioTaskList.filter((task) => session.scenarioTasks[task.id]).length
-  const scenarioScore = Math.round((completedTasks / scenarioTaskList.length) * 100)
+  const trainingScenarioScore = scoreTrainingScenario(session)
+  const activeTrainingScenario = getTrainingScenarioDefinition(session.activeScenario.id)
+  const scenarioScore = trainingScenarioScore.score
   const noticeFill = session.scenarioNotice.tone === 'warning'
     ? '#ff0000'
     : session.scenarioNotice.tone === 'success'
@@ -586,46 +609,11 @@ function IosCanvas({
     })
     .slice(0, 8)
 
-  const pushInstructorEvent = (
-    trainId: string,
-    message: string,
-    value: string,
-    tone: MonitorAlarmRow['tone'] = 'yellow',
-    summaryTone: AlarmSummaryRow['tone'] = tone === 'red' ? 'red' : 'yellow',
-  ) => {
-    const event = createMonitorEvent(trainId, message, value, tone)
-
-    updateSession((current) => ({
-      ...current,
-      activeScenario: {
-        ...current.activeScenario,
-        incident: 'Door fault',
-      },
-      alarmSummaryRows: [createSummaryEvent(event, summaryTone), ...current.alarmSummaryRows].slice(0, 12),
-      eventRows: [event, ...current.eventRows].slice(0, 4),
-      scenarioMode: 'RUNNING',
-      sessionMeta: updateSessionLifecycle(current.sessionMeta, 'RUNNING'),
-      scenarioNotice: {
-        text: `Door fault injected for Train ${trainId}. Await alarm acknowledgement.`,
-        tone: 'warning',
-      },
-      scenarioStep: Math.max(current.scenarioStep, 2),
-      selectedTrainId: trainId,
-      timetableRows: upsertTimetableRow(current.timetableRows, trainId, 'H>'),
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              doorFailureState: 'FAULT_ALARM',
-              status: 'HOLD',
-            }
-          : train
-      )),
-    }))
+  const startTrainingScenario = (kind: TrainingScenarioKind) => {
+    updateSession((current) => createTrainingScenarioStartSession(current, kind))
   }
 
   const selectTrainingMode = (nextMode: TrainingMode) => {
-    setAutoRun(nextMode === 'PLAYER')
     updateSession((current) => {
       const event = createMonitorEvent('317', `Trainer selected ${trainingModeDetails[nextMode].label} mode`, nextMode, 'yellow')
 
@@ -658,16 +646,18 @@ function IosCanvas({
       trainId,
       type: backendAction,
     }, (current) => {
-      if (trainId !== '317') {
+      const scenarioTargetTrainId = getActiveScenarioTargetTrainId(current)
+
+      if (trainId !== scenarioTargetTrainId) {
         return rejectScenarioAction(
           current,
-          'Scenario target is Train 317. Select Train 317 for route and dispatch.',
+          `Scenario target is Train ${scenarioTargetTrainId}. Select Train ${scenarioTargetTrainId} for route and dispatch.`,
           trainId,
           'IOS Train Control',
         )
       }
 
-      const guard = completeScenarioTask(current, taskId, `Operator task accepted: ${reason}`, 'IOS Train Control')
+      const guard = completeActiveTrainingTask(current, taskId, `Operator task accepted: ${reason}`, 'IOS Train Control')
 
       if (!guard.allowed) {
         return guard.next
@@ -687,47 +677,22 @@ function IosCanvas({
     })
   }
 
-  const startScenario = () => {
-    setAutoRun(false)
-    updateSession((current) => applyScenarioStep({
-      ...createInitialSession(current.trainingMode),
-      sessionMeta: updateSessionLifecycle(current.sessionMeta, 'RUNNING'),
-    }, 1, { updateLineMapRouteState }))
-  }
-
-  const advanceScenario = useCallback(() => {
-    const anticipatedNextStep = Math.min(session.scenarioStep + 1, scenarioSteps.length - 1)
-    if (getScenarioStepBlocker(session, anticipatedNextStep)) {
-      setAutoRun(false)
-    }
-
-    updateSession((current) => {
-      const nextStep = Math.min(current.scenarioStep + 1, scenarioSteps.length - 1)
-      const blocker = getScenarioStepBlocker(current, nextStep)
-
-      if (blocker) {
-        return rejectScenarioAction(current, blocker, '317', 'IOS Scenario Control')
-      }
-
-      return applyScenarioStep(current, nextStep, { updateLineMapRouteState })
-    })
-  }, [session, updateSession])
-
-  const replayScenario = () => {
-    setAutoRun(false)
-    updateSession((current) => createInitialSession(current.trainingMode))
-  }
-
   const completeScenarioReview = () => {
-    setAutoRun(false)
+    const scenarioTargetTrainId = activeTrainingScenario.defaultTargetTrainId
+
     submitBackendScenarioAction(session, updateSession, {
       detail: 'Scenario review complete. Report is ready.',
       source: 'IOS Trainer Review',
-      trainId: '317',
+      trainId: scenarioTargetTrainId,
       type: 'COMPLETE_SCENARIO',
     }, (current) => {
-      const event = createMonitorEvent('317', 'Scenario complete: Trainer reviewed Train 317 response', 'COMPLETE', 'yellow')
-      const guard = completeScenarioTask(
+      const event = createMonitorEvent(
+        scenarioTargetTrainId,
+        `Scenario complete: Trainer reviewed ${current.activeScenario.title}`,
+        'COMPLETE',
+        'yellow',
+      )
+      const guard = completeActiveTrainingTask(
         current,
         'completeScenario',
         'Scenario review complete. Report is ready.',
@@ -752,24 +717,6 @@ function IosCanvas({
     window.open(route, name, 'popup=yes,width=1280,height=1040,left=120,top=80')
   }
 
-  useEffect(() => {
-    if (!autoRun) {
-      return undefined
-    }
-
-    if (session.scenarioMode === 'PAUSED' || session.scenarioStep >= scenarioSteps.length - 1) {
-      const stopTimer = window.setTimeout(() => setAutoRun(false), 0)
-
-      return () => window.clearTimeout(stopTimer)
-    }
-
-    const timer = window.setTimeout(() => {
-      advanceScenario()
-    }, 1800)
-
-    return () => window.clearTimeout(timer)
-  }, [advanceScenario, autoRun, session.scenarioMode, session.scenarioStep])
-
   return (
     <svg className="occ-monitor-svg" viewBox={`0 0 ${MONITOR_WIDTH} ${MONITOR_HEIGHT}`} role="img" aria-label="Instructor operating station">
       <rect width={MONITOR_WIDTH} height={MONITOR_HEIGHT} fill="#c0c0c0" />
@@ -785,12 +732,10 @@ function IosCanvas({
         <rect x="34" y="184" width="336" height="46" fill="#ffffcc" stroke="#808000" />
         <text className="svg-ios-cue" x="44" y="203">{cuePrimary}</text>
         <text className="svg-ios-cue" x="44" y="219">{cueSecondary}</text>
-        <IosButton x={34} y={242} w={105} label="Start" onClick={startScenario} />
-        <IosButton x={148} y={242} w={105} label="Next Step" onClick={advanceScenario} />
-        <IosButton x={262} y={242} w={100} label={autoRun ? 'Pause Auto' : 'Auto Run'} onClick={() => setAutoRun((value) => !value)} />
-        <IosButton x={34} y={282} w={105} label="Replay" onClick={replayScenario} />
-        <IosButton x={148} y={282} w={105} label="Reset Trains" onClick={() => { setAutoRun(false); resetSession(session.trainingMode) }} />
-        <IosButton x={262} y={282} w={100} label="Door Fault" onClick={() => pushInstructorEvent('317', 'Trainer injected alarm: Train 317 door fault pending', 'YES', 'red', 'red')} />
+        <IosButton x={34} y={242} w={105} label="Launch" onClick={() => startTrainingScenario('TRAIN_LAUNCH')} />
+        <IosButton x={148} y={242} w={105} label="Withdraw" onClick={() => startTrainingScenario('TRAIN_WITHDRAWAL')} />
+        <IosButton x={262} y={242} w={100} label="Door Fault" onClick={() => startTrainingScenario('DOOR_FAULT')} />
+        <IosButton x={34} y={282} w={105} label="Reset" onClick={() => resetSession(session.trainingMode)} />
       </IosPanel>
 
       <IosPanel x={430} y={60} w={396} h={250} title="TRAIN CONTROL">
@@ -825,8 +770,8 @@ function IosCanvas({
         <rect x="164" y="380" width="290" height="20" fill="#ffffff" stroke="#000000" />
         <rect x="166" y="382" width={Math.max(0, Math.min(286, scenarioScore * 2.86))} height="16" fill={scenarioScore === 100 ? '#00c800' : '#ffff00'} />
         <text className="svg-ios-value" x="470" y="395">{scenarioScore}%</text>
-        {scenarioTaskList.map((task, index) => {
-          const complete = session.scenarioTasks[task.id]
+        {trainingScenarioScore.taskResults.map((task, index) => {
+          const complete = task.complete
           const y = 438 + index * 42
 
           return (
@@ -847,18 +792,18 @@ function IosCanvas({
           <g
             className="svg-clickable"
             onClick={() => submitBackendScenarioAction(session, updateSession, {
-              detail: train.id === '317'
-                ? 'Train 317 selected. Acknowledge alarm before route.'
-                : `Train ${train.id} selected. Active drill target remains Train 317.`,
+              detail: isActiveScenarioTargetTrain(session, train.id)
+                ? `Train ${train.id} selected for ${session.activeScenario.title}.`
+                : `Train ${train.id} selected. Active scenario target remains Train ${getActiveScenarioTargetTrainId(session)}.`,
               source: 'IOS Train List',
               trainId: train.id,
               type: 'SELECT_TRAIN',
             }, (current) => ({
               ...current,
-              scenarioNotice: train.id === '317'
-                ? { text: 'Train 317 selected. Acknowledge alarm before route.', tone: 'info' }
-                : { text: 'Scenario target is Train 317.', tone: 'warning' },
-              scenarioTasks: train.id === '317' ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
+              scenarioNotice: isActiveScenarioTargetTrain(current, train.id)
+                ? { text: `Train ${train.id} selected for ${current.activeScenario.title}.`, tone: 'info' }
+                : { text: `Scenario target is Train ${getActiveScenarioTargetTrainId(current)}.`, tone: 'warning' },
+              scenarioTasks: isActiveScenarioTargetTrain(current, train.id) ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
               selectedTrainId: train.id,
             }))}
             transform={`translate(638 ${380 + index * 34})`}
@@ -1635,18 +1580,18 @@ function TimetableCanvas({
 
     if (row) {
       submitBackendScenarioAction(session, updateSession, {
-        detail: row.train === '317'
-          ? 'Train 317 timetable row selected.'
-          : `Train ${row.train} timetable row selected. Active drill target remains Train 317.`,
+        detail: isActiveScenarioTargetTrain(session, row.train)
+          ? `Train ${row.train} timetable row selected for ${session.activeScenario.title}.`
+          : `Train ${row.train} timetable row selected. Active scenario target remains Train ${getActiveScenarioTargetTrainId(session)}.`,
         source: 'Monitor 03 Timetable',
         trainId: row.train,
         type: 'SELECT_TRAIN',
       }, (current) => ({
         ...current,
-        scenarioNotice: row.train === '317'
-          ? { text: 'Train 317 timetable row selected.', tone: 'info' }
-          : { text: 'Scenario target is Train 317.', tone: 'warning' },
-        scenarioTasks: row.train === '317' ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
+        scenarioNotice: isActiveScenarioTargetTrain(current, row.train)
+          ? { text: `Train ${row.train} timetable row selected for ${current.activeScenario.title}.`, tone: 'info' }
+          : { text: `Scenario target is Train ${getActiveScenarioTargetTrainId(current)}.`, tone: 'warning' },
+        scenarioTasks: isActiveScenarioTargetTrain(current, row.train) ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
         selectedTrainId: row.train,
       }))
     }
@@ -3117,9 +3062,9 @@ function MonitorCanvas({
     setTrainMenu(null)
     setItamaTrainId(trainId)
     submitBackendScenarioAction(session, updateSession, {
-      detail: trainId === '317'
-        ? 'Train 317 selected. Acknowledge alarm before route.'
-        : `Train ${trainId} selected. Active drill target remains Train 317.`,
+      detail: isActiveScenarioTargetTrain(session, trainId)
+        ? `Train ${trainId} ITAMA opened for ${session.activeScenario.title}.`
+        : `Train ${trainId} ITAMA opened. Active scenario target remains Train ${getActiveScenarioTargetTrainId(session)}.`,
       source: 'Monitor 02 Line Map',
       trainId,
       type: 'SELECT_TRAIN',
@@ -3134,10 +3079,10 @@ function MonitorCanvas({
           `ITAMA status opened for Train ${trainId}.`,
         ),
       ),
-      scenarioNotice: trainId === '317'
-        ? { text: 'Train 317 ITAMA status opened on line map.', tone: 'info' }
-        : { text: `ITAMA status opened for Train ${trainId}. Scenario target remains Train 317.`, tone: 'warning' },
-      scenarioTasks: trainId === '317' ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
+      scenarioNotice: isActiveScenarioTargetTrain(current, trainId)
+        ? { text: `Train ${trainId} ITAMA status opened for ${current.activeScenario.title}.`, tone: 'info' }
+        : { text: `ITAMA status opened for Train ${trainId}. Scenario target remains Train ${getActiveScenarioTargetTrainId(current)}.`, tone: 'warning' },
+      scenarioTasks: isActiveScenarioTargetTrain(current, trainId) ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
       selectedTrainId: trainId,
     }))
   }
@@ -3159,10 +3104,10 @@ function MonitorCanvas({
           `Inspecting page opened for Train ${trainId}.`,
         ),
       ),
-      scenarioNotice: trainId === '317'
-        ? { text: `Train 317 inspector ${page} page opened.`, tone: 'info' }
-        : { text: `Train ${trainId} inspector opened. Active drill target remains Train 317.`, tone: 'warning' },
-      scenarioTasks: trainId === '317' ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
+      scenarioNotice: isActiveScenarioTargetTrain(current, trainId)
+        ? { text: `Train ${trainId} inspector ${page} page opened for ${current.activeScenario.title}.`, tone: 'info' }
+        : { text: `Train ${trainId} inspector opened. Active scenario target remains Train ${getActiveScenarioTargetTrainId(current)}.`, tone: 'warning' },
+      scenarioTasks: isActiveScenarioTargetTrain(current, trainId) ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
       selectedTrainId: trainId,
     }))
   }
@@ -3252,7 +3197,7 @@ function MonitorCanvas({
           text: item.notice,
           tone: item.noticeTone,
         },
-        scenarioTasks: trainId === '317' ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
+        scenarioTasks: isActiveScenarioTargetTrain(current, trainId) ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
         selectedTrainId: trainId,
       }
     })
@@ -3546,19 +3491,63 @@ function MonitorCanvas({
       'yellow',
     )
 
-    updateSession((current) => ({
-      ...applyManualTrainRouteStepState(current, trainId, authority, currentStepIndex),
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      scenarioNotice: {
-        text: `Train ${trainId} departure confirmed. Stepping rail-by-rail on ${authority.routeLabel}.`,
-        tone: 'info',
-      },
-      timetableRows: upsertTimetableRow(current.timetableRows, trainId, '>'),
-    }))
+    updateSession((current) => {
+      const moving = {
+        ...applyManualTrainRouteStepState(current, trainId, authority, currentStepIndex),
+        alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
+        eventRows: [eventRow, ...current.eventRows].slice(0, 4),
+        scenarioNotice: {
+          text: `Train ${trainId} departure confirmed. Stepping rail-by-rail on ${authority.routeLabel}.`,
+          tone: 'info' as const,
+        },
+        timetableRows: upsertTimetableRow(current.timetableRows, trainId, '>'),
+      }
+
+      if (!isActiveScenarioTargetTrain(current, trainId)) {
+        return moving
+      }
+
+      return completeActiveTrainingTask(
+        moving,
+        'dispatchTrain',
+        `Departure time confirmed for Train ${trainId} on ${authority.routeLabel}.`,
+        'Line Map Train Control',
+      ).next
+    })
 
     const setTrainAtRouteStep = (stepIndex: number) => {
-      updateSession((current) => applyManualTrainRouteStepState(current, trainId, authority, stepIndex))
+      updateSession((current) => {
+        const stepped = applyManualTrainRouteStepState(current, trainId, authority, stepIndex)
+
+        if (stepIndex < lastStepIndex || !isActiveScenarioTargetTrain(current, trainId)) {
+          return stepped
+        }
+
+        const endpointEvent = createMonitorEvent(
+          trainId,
+          `Train ${trainId}: reached depot endpoint on ${authority.routeLabel}`,
+          'ENDPOINT',
+          'yellow',
+        )
+
+        return {
+          ...stepped,
+          eventRows: [endpointEvent, ...stepped.eventRows].slice(0, 4),
+          evidenceLog: appendScenarioEvidence(
+            stepped.evidenceLog,
+            createScenarioEvidence(
+              'Monitor 02 Line Map',
+              'Depot endpoint reached',
+              'accepted',
+              `Train ${trainId} reached depot endpoint on ${authority.routeLabel}.`,
+            ),
+          ),
+          scenarioNotice: {
+            text: `Train ${trainId} reached depot endpoint on ${authority.routeLabel}.`,
+            tone: 'success',
+          },
+        }
+      })
     }
 
     const scheduleRouteStep = (stepIndex: number, delay: number) => {
@@ -3592,18 +3581,18 @@ function MonitorCanvas({
     setSignalMenu(null)
     setTrainMenu({ trainId, x, y })
     submitBackendScenarioAction(session, updateSession, {
-      detail: trainId === '317'
-        ? 'Train 317 selected. Select ITAMA, hold, route, or dispatch.'
-        : `Train ${trainId} selected. Active drill target remains Train 317.`,
+      detail: isActiveScenarioTargetTrain(session, trainId)
+        ? `Train ${trainId} selected for ${session.activeScenario.title}. Select ITAMA, hold, route, or dispatch.`
+        : `Train ${trainId} selected. Active scenario target remains Train ${getActiveScenarioTargetTrainId(session)}.`,
       source: 'Monitor 02 Line Map',
       trainId,
       type: 'SELECT_TRAIN',
     }, (current) => ({
       ...current,
-      scenarioNotice: trainId === '317'
-        ? { text: 'Train 317 command menu opened. Select ITAMA, hold, route, or dispatch.', tone: 'info' }
-        : { text: `Train ${trainId} command menu opened. Active drill target remains Train 317.`, tone: 'warning' },
-      scenarioTasks: trainId === '317' ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
+      scenarioNotice: isActiveScenarioTargetTrain(current, trainId)
+        ? { text: `Train ${trainId} command menu opened for ${current.activeScenario.title}.`, tone: 'info' }
+        : { text: `Train ${trainId} command menu opened. Active scenario target remains Train ${getActiveScenarioTargetTrainId(current)}.`, tone: 'warning' },
+      scenarioTasks: isActiveScenarioTargetTrain(current, trainId) ? updateScenarioTask(current.scenarioTasks, 'selectTrain') : current.scenarioTasks,
       selectedTrainId: trainId,
     }))
   }
@@ -3651,7 +3640,21 @@ function MonitorCanvas({
     const routeOwner = visibleTargetTrain ?? { id: '' }
 
     setLineMapRouteSegmentOverrides((current) => createSignalRouteSetOverrideSegments(current, signal, routeLabel, routeOwner))
-    updateSession((current) => applySignalRouteSetSession(current, signal, routeLabel))
+    updateSession((current) => {
+      const routed = applySignalRouteSetSession(current, signal, routeLabel)
+      const routedTrain = getSignalRouteTargetTrain(routed.trains, routed.selectedTrainId)
+
+      if (!routedTrain || !isActiveScenarioTargetTrain(routed, routedTrain.id)) {
+        return routed
+      }
+
+      return completeActiveTrainingTask(
+        routed,
+        'setRoute',
+        `${routeLabel} route set for Train ${routedTrain.id}.`,
+        'Monitor 02 Line Map',
+      ).next
+    })
   }
 
   const unsetRouteFromSignal = (signal: LineMapSignalData, routeLabel: string) => {
@@ -3726,7 +3729,7 @@ function MonitorCanvas({
       trainId: targetTrain.id,
       type: backendAction,
     }, (current) => {
-      const guard = completeScenarioTask(current, taskId, `${message} accepted.`, 'Monitor 02 Line Map')
+      const guard = completeActiveTrainingTask(current, taskId, `${message} accepted.`, 'Monitor 02 Line Map')
 
       if (!guard.allowed) {
         return guard.next
@@ -4117,6 +4120,37 @@ function MonitorCanvas({
               ...current,
               [inspectorTrain.id]: selection,
             }))
+            updateSession((current) => {
+              if (!isActiveScenarioTargetTrain(current, inspectorTrain.id)) {
+                return current
+              }
+
+              const event = createMonitorEvent(
+                inspectorTrain.id,
+                `Set arrival time destination ${selection.station} ${selection.platformSiding}`,
+                'ARRIVAL TIME',
+                'yellow',
+              )
+
+              return {
+                ...current,
+                eventRows: [event, ...current.eventRows].slice(0, 4),
+                evidenceLog: appendScenarioEvidence(
+                  current.evidenceLog,
+                  createScenarioEvidence(
+                    'Line Map Train Control',
+                    'Arrival time destination set',
+                    'accepted',
+                    `Arrival time destination set for Train ${inspectorTrain.id}: ${selection.station} / ${selection.platformSiding}.`,
+                  ),
+                ),
+                scenarioNotice: {
+                  text: `Arrival Time set for Train ${inspectorTrain.id}: ${selection.station} / ${selection.platformSiding}.`,
+                  tone: 'info',
+                },
+                selectedTrainId: inspectorTrain.id,
+              }
+            })
           }}
           onConfirmDepartureTime={() => animateTrainDepartureRoute(inspectorTrain.id)}
           onConfirmDoorCommand={(command) => confirmInspectorDoorCommand(inspectorTrain.id, command)}

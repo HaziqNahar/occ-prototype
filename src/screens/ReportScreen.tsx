@@ -4,7 +4,10 @@ import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { archiveOccReport } from '../backendClient'
 import SessionRunway from '../components/SessionRunway'
-import { scenarioTaskList } from '../scenario'
+import {
+  getTrainingScenarioDefinition,
+  scoreTrainingScenario,
+} from '../trainingScenarios'
 import type { AppRoute, OccSessionState } from '../types'
 
 type ReportScreenProps = {
@@ -23,32 +26,47 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
   const [trainerNotes, setTrainerNotes] = useState(
     'Trainee to explain alarm acknowledgement, route authority, timetable impact, and final service state before session closure.',
   )
-  const completedTasks = scenarioTaskList.filter((task) => session.scenarioTasks[task.id]).length
+  const scenarioDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
+  const scenarioScore = scoreTrainingScenario(session)
   const evidenceLog = session.evidenceLog ?? []
   const assessmentMetrics = session.assessmentMetrics
-  const scenarioScore = assessmentMetrics?.score ?? Math.round((completedTasks / scenarioTaskList.length) * 100)
   const rejectedEvents = session.eventRows.filter((row) => row.message.toLowerCase().includes('rejected'))
   const rejectedActionCount = Math.max(rejectedEvents.length, assessmentMetrics?.rejectedActions ?? 0)
   const selectedTrain = session.trains.find((train) => train.id === session.selectedTrainId) ?? session.trains[0]
-  const targetTrain = session.trains.find((train) => train.id === '317') ?? selectedTrain
-  const targetTimetable = session.timetableRows.find((row) => row.train === '317')
-  const resultLabel = (assessmentMetrics?.result ?? (
-    session.scenarioTasks.completeScenario && rejectedActionCount === 0
-      ? 'PASS'
-      : scenarioScore >= 80
-        ? 'NEEDS_REVIEW'
-        : 'INCOMPLETE'
-  )).replace('_', ' ')
+  const targetTrain = session.trains.find((train) => train.id === scenarioDefinition.defaultTargetTrainId) ?? selectedTrain
+  const targetTimetable = session.timetableRows.find((row) => row.train === scenarioDefinition.defaultTargetTrainId)
+  const resultLabel = scenarioScore.result
   const resultTone = resultLabel === 'PASS' ? 'pass' : resultLabel === 'NEEDS REVIEW' ? 'review' : 'incomplete'
   const generatedAt = new Date(session.updatedAt).toLocaleString()
   const completedTaskMetrics = Object.values(assessmentMetrics?.tasks ?? {}).filter((task) => task.completedAt)
   const averageResponseSeconds = completedTaskMetrics.length
     ? Math.round(completedTaskMetrics.reduce((total, task) => total + (task.responseSeconds ?? 0), 0) / completedTaskMetrics.length)
     : 0
+  const scenarioReportSummary = {
+    averageResponseSeconds,
+    completedTasks: scenarioScore.completedTasks,
+    evidenceCount: evidenceLog.length,
+    lateTasks: assessmentMetrics?.lateTasks ?? 0,
+    onTimeTasks: assessmentMetrics?.onTimeTasks ?? 0,
+    rejectedActions: rejectedActionCount,
+    result: scenarioScore.result,
+    scenarioId: session.activeScenario.id,
+    scenarioTitle: session.activeScenario.title,
+    score: scenarioScore.score,
+    taskMetrics: scenarioScore.taskResults.map((task) => ({
+      complete: task.complete,
+      critical: task.critical,
+      id: task.id,
+      label: task.label,
+      monitor: task.monitor,
+      weight: task.weight,
+    })),
+    totalTasks: scenarioScore.totalTasks,
+  }
   const archiveReport = () => {
     setArchiveNote('Archiving report to backend...')
     // The backend stores the scored assessment summary, not just a printable UI.
-    void archiveOccReport(session, trainerNotes)
+    void archiveOccReport(session, trainerNotes, scenarioReportSummary)
       .then((payload) => {
         setArchiveNote(`Archived ${payload.report.id} | ${payload.report.summary.result} ${payload.report.summary.score}%`)
       })
@@ -92,8 +110,8 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
         </div>
         <div className={`report-result ${resultTone}`}>
           <span>{resultLabel}</span>
-          <strong>{scenarioScore}%</strong>
-          <small>{completedTasks} of {scenarioTaskList.length} tasks complete</small>
+          <strong>{scenarioScore.score}%</strong>
+          <small>{scenarioScore.completedTasks} of {scenarioScore.totalTasks} tasks complete</small>
         </div>
       </section>
 
@@ -146,9 +164,9 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
             <p>Operator checklist</p>
             <span>{generatedAt}</span>
           </div>
-          {scenarioTaskList.map((task, index) => {
-            const complete = session.scenarioTasks[task.id]
-            const taskMetric = assessmentMetrics?.tasks?.[task.id]
+          {scenarioScore.taskResults.map((task, index) => {
+            const complete = task.complete
+            const taskMetric = task.mappedTaskId ? assessmentMetrics?.tasks?.[task.mappedTaskId] : undefined
 
             return (
               <div className={`report-task ${complete ? 'is-complete' : ''}`} key={task.id}>

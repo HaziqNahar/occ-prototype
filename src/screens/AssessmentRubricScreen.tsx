@@ -3,7 +3,7 @@ import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SessionRunway from '../components/SessionRunway'
 import { assessmentRubric } from '../scenarioLibrary'
-import { scenarioTaskList } from '../scenario'
+import { scoreTrainingScenario } from '../trainingScenarios'
 import type { AppRoute, OccSessionState } from '../types'
 
 type AssessmentRubricScreenProps = {
@@ -12,16 +12,10 @@ type AssessmentRubricScreenProps = {
 }
 
 function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenProps) {
-  const completedTasks = scenarioTaskList.filter((task) => session.scenarioTasks[task.id]).length
   const rejectedActions = session.eventRows.filter((event) => event.message.toLowerCase().includes('rejected')).length
-  const stepScore = Math.round((completedTasks / scenarioTaskList.length) * 100)
-  const accuracyScore = rejectedActions === 0 ? 100 : Math.max(0, 100 - rejectedActions * 20)
-  const liveScore = Math.round(stepScore * 0.7 + accuracyScore * 0.3)
-  const resultLabel = session.scenarioTasks.completeScenario && rejectedActions === 0
-    ? 'PASS'
-    : liveScore >= 75
-      ? 'NEEDS REVIEW'
-      : 'IN PROGRESS'
+  const trainingScenarioScore = scoreTrainingScenario(session)
+  const liveScore = trainingScenarioScore.score
+  const resultLabel = trainingScenarioScore.result
 
   return (
     <main
@@ -56,7 +50,7 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
           <div className="assessment-live-grid">
             <div>
               <span>Completed steps</span>
-              <strong>{completedTasks}/{scenarioTaskList.length}</strong>
+              <strong>{trainingScenarioScore.completedTasks}/{trainingScenarioScore.totalTasks}</strong>
             </div>
             <div>
               <span>Rejected actions</span>
@@ -105,8 +99,8 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
           </div>
 
           <div className="assessment-checklist">
-            {scenarioTaskList.map((task, index) => {
-              const complete = session.scenarioTasks[task.id]
+            {trainingScenarioScore.taskResults.map((task, index) => {
+              const complete = task.complete
 
               return (
                 <div className={complete ? 'is-complete' : ''} key={task.id}>

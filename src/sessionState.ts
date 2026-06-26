@@ -119,7 +119,7 @@ export const initialScenarioTasks: ScenarioTaskState = {
 const defaultSessionCode = 'OCC-TRAINING-001'
 
 export const initialScenarioNotice: ScenarioNotice = {
-  text: 'Ready for Train 317 launch / withdrawal drill.',
+  text: 'Ready for IOS training scenario selection.',
   tone: 'info',
 }
 
@@ -482,7 +482,7 @@ export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): O
         'IOS',
         'Session initialized',
         'info',
-        `${trainingModeDetails[trainingMode].label} session ready for Train 317 drill.`,
+        `${trainingModeDetails[trainingMode].label} session ready for IOS training scenario selection.`,
       ),
     ],
     eventRows: alarmRows,
@@ -501,6 +501,25 @@ export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): O
     trains: createInitialTrainStates(),
     updatedAt: Date.now(),
   }
+}
+
+export function createResetSessionState(
+  trainingMode: TrainingMode = 'PRACTICE',
+  updatedAt = Date.now(),
+): OccSessionState {
+  const baseSession = createInitialSession(trainingMode)
+  const baselineReady = isTrainBaselineSession(baseSession)
+
+  return cleanSessionTimetableGuideRouteState({
+    ...baseSession,
+    scenarioNotice: {
+      text: baselineReady
+        ? 'Train reset complete. Trains, routes and movement state returned to baseline.'
+        : 'Train reset requested. Review train baseline state.',
+      tone: baselineReady ? 'success' : 'warning',
+    },
+    updatedAt,
+  })
 }
 
 function isTrainBaselineSession(session: OccSessionState) {
@@ -814,18 +833,8 @@ export function useOccSession() {
 
   const resetSession = useCallback((trainingMode: TrainingMode = 'PRACTICE') => {
     clearStoredOccSessions(true)
-    const baseSession = createInitialSession(trainingMode)
-    const baselineReady = isTrainBaselineSession(baseSession)
-    const next = {
-      ...baseSession,
-      scenarioNotice: {
-        text: baselineReady
-          ? 'Train reset complete. Trains, routes and movement state returned to baseline.'
-          : 'Train reset requested. Review train baseline state.',
-        tone: baselineReady ? 'success' : 'warning',
-      } satisfies ScenarioNotice,
-      updatedAt: Date.now(),
-    }
+    const next = createResetSessionState(trainingMode)
+
     sessionRef.current = next
     transportRef.current?.publish(next)
     setSession(next)

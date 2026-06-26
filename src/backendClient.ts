@@ -8,6 +8,7 @@ export type ArchivedReportResponse = {
     id: string
     notes: string
     summary: {
+      [key: string]: unknown
       averageResponseSeconds?: number
       generatedAt: string
       lateTasks?: number
@@ -94,7 +95,11 @@ export function buildOccApiUrl(baseUrl: string, path: string) {
 }
 
 // Archives the current scored session into the local backend report log.
-export async function archiveOccReport(session: OccSessionState, notes: string) {
+export async function archiveOccReport(
+  session: OccSessionState,
+  notes: string,
+  summary?: Record<string, unknown>,
+) {
   const backendBaseUrl = getOccBackendBaseUrl()
 
   if (backendBaseUrl === null) {
@@ -102,7 +107,7 @@ export async function archiveOccReport(session: OccSessionState, notes: string) 
   }
 
   const response = await fetch(buildOccApiUrl(backendBaseUrl, '/api/reports'), {
-    body: JSON.stringify({ notes, session }),
+    body: JSON.stringify({ notes, session, summary }),
     headers: {
       'content-type': 'application/json',
     },

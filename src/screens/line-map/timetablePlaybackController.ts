@@ -6,6 +6,10 @@ import {
 } from '../../scenarioWorkflow'
 import { clearInactiveTimetablePlaybackTrains } from '../../sessionState'
 import {
+  applyTrainingScenarioTimetableCompletion,
+  applyTrainingScenarioTimetableStep,
+} from '../../trainingScenarios'
+import {
   applyTimetablePlaybackStepState,
   completeTimetablePlaybackStepState,
 } from './trainMovementState'
@@ -170,20 +174,21 @@ export function applyTimetablePlaybackStepSession(
     : null
 
   const next = applyTimetablePlaybackStepState(current, plan, step, stepIndex, lastStepIndex, Boolean(platformStop))
+  const scenarioNext = applyTrainingScenarioTimetableStep(next, plan, stepIndex)
 
   return {
-    ...next,
+    ...scenarioNext,
     ...(eventRow
       ? {
-          alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-          eventRows: [eventRow, ...current.eventRows].slice(0, 4),
+          alarmSummaryRows: [createSummaryEvent(eventRow), ...scenarioNext.alarmSummaryRows].slice(0, 12),
+          eventRows: [eventRow, ...scenarioNext.eventRows].slice(0, 4),
           scenarioNotice: {
             text: `Timetable playback started for Train ${plan.trainId}, schedule ${plan.scheduleNumber}.`,
             tone: 'info',
           },
         }
       : {}),
-    timetableRows: upsertTimetableRow(current.timetableRows, plan.trainId, '>'),
+    timetableRows: upsertTimetableRow(scenarioNext.timetableRows, plan.trainId, '>'),
   }
 }
 
@@ -209,9 +214,12 @@ export function applyTimetablePlaybackCompletionSession(
   current: OccSessionState,
   plan: TimetablePlaybackPlan,
 ): OccSessionState {
+  const completed = completeTimetablePlaybackStepState(current, plan)
+  const scenarioNext = applyTrainingScenarioTimetableCompletion(completed, plan)
+
   return {
-    ...completeTimetablePlaybackStepState(current, plan),
-    timetableRows: upsertTimetableRow(current.timetableRows, plan.trainId, '>'),
+    ...scenarioNext,
+    timetableRows: upsertTimetableRow(scenarioNext.timetableRows, plan.trainId, '>'),
   }
 }
 

@@ -1,4 +1,4 @@
-import { scenarioTaskList } from '../scenario'
+import { scoreTrainingScenario } from '../trainingScenarios'
 import type { OccSessionState, SessionTransportSnapshot } from '../types'
 
 type SessionRunwayProps = {
@@ -6,16 +6,15 @@ type SessionRunwayProps = {
 }
 
 function SessionRunway({ session }: SessionRunwayProps) {
-  const completedTasks = scenarioTaskList.filter((task) => session.scenarioTasks[task.id]).length
-  const progress = Math.round((completedTasks / scenarioTaskList.length) * 100)
+  const scenarioScore = scoreTrainingScenario(session)
+  const progress = scenarioScore.score
   const evidenceLog = session.evidenceLog ?? []
   const joinedScreens = Object.values(session.sessionMeta?.screens ?? {})
   const transportSnapshots = joinedScreens
     .map((screen) => screen.transport)
     .filter((transport): transport is SessionTransportSnapshot => Boolean(transport))
-  const assessmentMetrics = session.assessmentMetrics
   const latestEvidence = evidenceLog.slice(0, 3)
-  const nextTask = scenarioTaskList.find((task) => !session.scenarioTasks[task.id])
+  const nextTask = scenarioScore.taskResults.find((task) => !task.complete)
   const connectedSseScreens = transportSnapshots.filter((transport) => transport.backendSse === 'CONNECTED').length
   const connectedWorkerScreens = transportSnapshots.filter((transport) => transport.sharedWorker === 'CONNECTED').length
   const connectedChannelScreens = transportSnapshots.filter((transport) => transport.broadcastChannel === 'CONNECTED').length
@@ -53,8 +52,8 @@ function SessionRunway({ session }: SessionRunwayProps) {
           <strong>{lastLaunch ? `${lastLaunch.targets.length} monitors` : 'None'}</strong>
         </div>
         <div>
-          <span>Backend score</span>
-          <strong>{assessmentMetrics?.score ?? progress}% / {assessmentMetrics?.result ?? 'INCOMPLETE'}</strong>
+          <span>Scenario score</span>
+          <strong>{scenarioScore.score}% / {scenarioScore.result}</strong>
         </div>
       </div>
 
@@ -63,8 +62,8 @@ function SessionRunway({ session }: SessionRunwayProps) {
       </div>
 
       <div className="session-runway-steps">
-        {scenarioTaskList.map((task, index) => {
-          const isComplete = session.scenarioTasks[task.id]
+        {scenarioScore.taskResults.map((task, index) => {
+          const isComplete = task.complete
           const isNext = task.id === nextTask?.id
 
           return (

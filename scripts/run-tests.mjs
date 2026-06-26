@@ -11,6 +11,7 @@ const testModules = [
   '/scripts/tests/routeValidation.test.ts',
   '/scripts/tests/routeAudit.test.ts',
   '/scripts/tests/scenarioWorkflow.test.ts',
+  '/scripts/tests/sessionResetState.test.ts',
   '/scripts/tests/signalRouteCommands.test.ts',
   '/scripts/tests/signalRouteState.test.ts',
   '/scripts/tests/timetablePlaybackController.test.ts',
@@ -28,6 +29,7 @@ const testModules = [
   '/scripts/tests/trainMovementState.test.ts',
   '/scripts/tests/trainRoutePlaybackState.test.ts',
   '/scripts/tests/trainMovementRoutes.test.ts',
+  '/scripts/tests/trainingScenarios.test.ts',
 ]
 
 const server = await createServer({

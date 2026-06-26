@@ -5,6 +5,14 @@ import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SelectField from '../components/SelectField'
 import SessionRunway from '../components/SessionRunway'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
+import {
+  createTrainingScenarioStartSession,
+  getTrainingScenarioDefinition,
+  scoreTrainingScenario,
+  trainingScenarioDefinitions,
+} from '../trainingScenarios'
+import type { TrainingScenarioKind } from '../trainingScenarios'
+import { updateSessionLifecycle } from '../sessionState'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
 type IosModulesScreenProps = {
@@ -26,7 +34,7 @@ const moduleTabs: Array<{ id: TrainerModule; label: string }> = [
   { id: 'users', label: 'User Management' },
   { id: 'sessions', label: 'Session Management' },
   { id: 'scenarios', label: 'Scenario Management' },
-  { id: 'runtime', label: 'Dynamic Runtime' },
+  { id: 'runtime', label: 'Scenario Runtime' },
   { id: 'reports', label: 'Report Management' },
   { id: 'player', label: 'Player Mode' },
 ]
@@ -35,60 +43,6 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
   { label: 'Practice', value: 'PRACTICE' },
   { label: 'Assessment', value: 'ASSESSMENT' },
   { label: 'Player', value: 'PLAYER' },
-]
-
-const scenarioLibrary = [
-  {
-    name: 'Train Launch / Withdrawal',
-    status: 'Active',
-    incidents: ['Door fault', 'Train hold', 'Timetable deviation'],
-  },
-  {
-    name: 'High Train Occupancy',
-    status: 'Prepared',
-    incidents: ['Crowd alert', 'Station coordination'],
-  },
-  {
-    name: 'Train System Malfunction',
-    status: 'Prepared',
-    incidents: ['Traction fault', 'Recovery command'],
-  },
-  {
-    name: 'PA System Malfunction',
-    status: 'Prepared',
-    incidents: ['Alarm injection', 'Passenger information failure'],
-  },
-]
-
-const incidentButtons = [
-  {
-    label: 'Door Fault',
-    value: 'YES',
-    tone: 'red' as const,
-    summaryTone: 'red' as const,
-    message: 'Dynamic injection: Train 317 door fault pending',
-  },
-  {
-    label: 'High Occupancy',
-    value: 'HIGH',
-    tone: 'yellow' as const,
-    summaryTone: 'yellow' as const,
-    message: 'Dynamic injection: High train occupancy at SKG',
-  },
-  {
-    label: 'System Malfunction',
-    value: 'FAULT',
-    tone: 'red' as const,
-    summaryTone: 'red' as const,
-    message: 'Dynamic injection: Train 317 system malfunction',
-  },
-  {
-    label: 'PA Fault',
-    value: 'NO PA',
-    tone: 'orange' as const,
-    summaryTone: 'yellow' as const,
-    message: 'Dynamic injection: PA system malfunction alarm',
-  },
 ]
 
 function formatScenarioTime() {
@@ -100,11 +54,16 @@ function formatScenarioTime() {
   return `05/11 ${hours}:${minutes}:${seconds}`
 }
 
-function createModuleEvent(message: string, value: string, tone: MonitorAlarmRow['tone']): MonitorAlarmRow {
+function createModuleEvent(
+  message: string,
+  value: string,
+  tone: MonitorAlarmRow['tone'],
+  trainId?: string,
+): MonitorAlarmRow {
   return {
     level: 'S',
     time: formatScenarioTime(),
-    asset: 'IOS/TRAINER/OCC',
+    asset: trainId ? `EMU/${trainId}/TRN/OCC` : 'IOS/TRAINER/OCC',
     message,
     value,
     tone,
@@ -134,8 +93,11 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
     { email: 'station.manager@sbs.local', role: 'Station Manager', status: 'Pending' },
     { email: 'systems.engineer@sbs.local', role: 'Engineer', status: 'Pending' },
   ])
-  const [selectedScenario, setSelectedScenario] = useState('Train Launch / Withdrawal')
-  const [runtimeNote, setRuntimeNote] = useState('Dynamic runtime ready. Select an incident to push it to the live monitors.')
+  const [selectedScenarioKind, setSelectedScenarioKind] = useState<TrainingScenarioKind>('TRAIN_WITHDRAWAL')
+  const [runtimeNote, setRuntimeNote] = useState('Scenario runtime ready. Select a scenario and arm it into the live OCC session.')
+  const selectedScenarioDefinition = trainingScenarioDefinitions.find((scenario) => scenario.kind === selectedScenarioKind)
+    ?? trainingScenarioDefinitions[0]
+  const trainingScenarioScore = scoreTrainingScenario(session)
 
   const addTrainee = () => {
     if (!traineeEmail.trim()) {
@@ -151,147 +113,53 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
 
   const createSession = () => {
     resetSession(sessionMode)
-    setRuntimeNote(`${sessionMode} session created for ${sessionTime}. Open IOS to start the drill.`)
+    setRuntimeNote(`${sessionMode} session created for ${sessionTime}. Open IOS to arm a training scenario.`)
   }
 
-  const controlRuntime = (action: 'START' | 'PAUSE' | 'RESUME' | 'COMPLETE') => {
-    const controlMeta = {
-      COMPLETE: {
-        actionLabel: 'Scenario completed',
-        message: 'IOS Runtime control: scenario completed by trainer',
-        mode: 'COMPLETE' as const,
-        notice: 'Scenario completed from IOS Runtime. Report evidence is ready.',
-        result: 'accepted' as const,
-        step: 5,
-        tone: 'yellow' as const,
-        trainStatus: 'RUN' as const,
-        value: 'COMPLETE',
-      },
-      PAUSE: {
-        actionLabel: 'Scenario paused',
-        message: 'IOS Runtime control: scenario paused by trainer',
-        mode: 'PAUSED' as const,
-        notice: 'Scenario paused from IOS Runtime. Monitors retain current state.',
-        result: 'info' as const,
-        step: session.scenarioStep,
-        tone: 'orange' as const,
-        trainStatus: undefined,
-        value: 'PAUSED',
-      },
-      RESUME: {
-        actionLabel: 'Scenario resumed',
-        message: 'IOS Runtime control: scenario resumed by trainer',
-        mode: 'RUNNING' as const,
-        notice: 'Scenario resumed from IOS Runtime. Continue operator response.',
-        result: 'info' as const,
-        step: Math.max(session.scenarioStep, 1),
-        tone: 'yellow' as const,
-        trainStatus: undefined,
-        value: 'RUNNING',
-      },
-      START: {
-        actionLabel: 'Scenario started',
-        message: 'IOS Runtime control: Train 317 scenario started',
-        mode: 'RUNNING' as const,
-        notice: 'Scenario started from IOS Runtime. Train 317 is held for response.',
-        result: 'accepted' as const,
-        step: 1,
-        tone: 'red' as const,
-        trainStatus: 'HOLD' as const,
-        value: 'HOLD',
-      },
-    }[action]
-
-    const event = createModuleEvent(controlMeta.message, controlMeta.value, controlMeta.tone)
-
-    updateSession((current) => ({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(event, controlMeta.tone === 'red' ? 'red' : 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
-      cycleMode: action === 'COMPLETE' ? 'AUTO' : current.cycleMode,
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence('IOS Dynamic Runtime', controlMeta.actionLabel, controlMeta.result, controlMeta.notice),
-      ),
-      eventRows: [event, ...current.eventRows].slice(0, 4),
-      scenarioMode: controlMeta.mode,
-      scenarioNotice: {
-        text: controlMeta.notice,
-        tone: action === 'COMPLETE' ? 'success' : action === 'START' ? 'warning' : 'info',
-      },
-      scenarioStep: Math.max(current.scenarioStep, controlMeta.step),
-      scenarioTasks: action === 'START'
-        ? { ...current.scenarioTasks, selectTrain: true }
-        : action === 'COMPLETE'
-          ? {
-            ...current.scenarioTasks,
-            ackAlarm: true,
-            completeScenario: true,
-            dispatchTrain: true,
-            selectTrain: true,
-            setRoute: true,
-          }
-          : current.scenarioTasks,
-      selectedTrainId: '317',
-      timetableRows: current.timetableRows.map((row) => (
-        row.train === '317'
-          ? { ...row, state: action === 'START' ? 'H>' : action === 'COMPLETE' ? '>' : row.state }
-          : row
-      )),
-      trains: current.trains.map((train) => (
-        train.id === '317' && controlMeta.trainStatus ? { ...train, status: controlMeta.trainStatus } : train
-      )),
-    }))
-    setRuntimeNote(controlMeta.notice)
+  const armSelectedScenario = () => {
+    updateSession((current) => createTrainingScenarioStartSession(current, selectedScenarioKind))
+    setRuntimeNote(`${selectedScenarioDefinition.title} armed for Train ${selectedScenarioDefinition.defaultTargetTrainId}.`)
   }
 
-  const injectIncident = (incident: typeof incidentButtons[number]) => {
-    const event = createModuleEvent(incident.message, incident.value, incident.tone)
-    const isDoorFaultIncident = incident.label === 'Door Fault'
-    const nextTrainStatus = incident.summaryTone === 'red' ? 'HOLD' : 'WAIT'
+  const setScenarioRuntimeState = (action: 'PAUSE' | 'RESUME' | 'COMPLETE') => {
+    updateSession((current) => {
+      const definition = getTrainingScenarioDefinition(current.activeScenario.id)
+      const nextMode = action === 'PAUSE' ? 'PAUSED' as const : action === 'RESUME' ? 'RUNNING' as const : 'COMPLETE' as const
+      const event = createModuleEvent(
+        `IOS scenario ${action.toLowerCase()}: ${definition.title}`,
+        nextMode,
+        action === 'PAUSE' ? 'orange' : 'yellow',
+        definition.defaultTargetTrainId,
+      )
+      const noticeText = action === 'COMPLETE'
+        ? `${definition.title} marked complete. Report evidence is ready for review.`
+        : `${definition.title} ${action === 'PAUSE' ? 'paused' : 'resumed'} from IOS.`
 
-    updateSession((current) => ({
-      ...current,
-      activeScenario: {
-        ...current.activeScenario,
-        incident: incident.label,
-      },
-      alarmSummaryRows: [createSummaryEvent(event, incident.summaryTone), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'IOS Dynamic Runtime',
-          'Incident injected',
-          incident.summaryTone === 'red' ? 'accepted' : 'info',
-          incident.message,
+      return {
+        ...current,
+        alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
+        evidenceLog: appendScenarioEvidence(
+          current.evidenceLog,
+          createScenarioEvidence('IOS Scenario Runtime', `Scenario ${action.toLowerCase()}`, action === 'COMPLETE' ? 'accepted' : 'info', noticeText),
         ),
-      ),
-      eventRows: [event, ...current.eventRows].slice(0, 4),
-      scenarioMode: 'RUNNING',
-      scenarioNotice: {
-        text: `${incident.label} pushed from IOS Runtime.`,
-        tone: incident.summaryTone === 'red' ? 'warning' : 'info',
-      },
-      scenarioStep: Math.max(current.scenarioStep, 2),
-      selectedTrainId: '317',
-      timetableRows: current.timetableRows.map((row) => (
-        row.train === '317' ? { ...row, state: incident.summaryTone === 'red' ? 'H>' : 'R' } : row
-      )),
-      trains: current.trains.map((train) => (
-        train.id === '317'
-          ? {
-              ...train,
-              status: nextTrainStatus,
-              ...(isDoorFaultIncident ? { doorFailureState: 'FAULT_ALARM' as const } : {}),
-            }
-          : train
-      )),
-    }))
-    setRuntimeNote(`${incident.label} injected into live OCC session.`)
+        eventRows: [event, ...current.eventRows].slice(0, 4),
+        scenarioMode: nextMode,
+        scenarioNotice: {
+          text: noticeText,
+          tone: action === 'COMPLETE' ? 'success' as const : 'info' as const,
+        },
+        scenarioTasks: action === 'COMPLETE'
+          ? { ...current.scenarioTasks, completeScenario: true }
+          : current.scenarioTasks,
+        sessionMeta: updateSessionLifecycle(current.sessionMeta, nextMode),
+      }
+    })
+    setRuntimeNote(action === 'COMPLETE' ? 'Scenario completed. Open Reports or Assessment Rubric for scoring.' : `Scenario ${action.toLowerCase()} applied.`)
   }
 
   const startPlayerMode = () => {
     resetSession('PLAYER')
-    setRuntimeNote('Player Mode prepared. Open IOS and use Auto Run for playback.')
+    setRuntimeNote('Player Mode prepared. Open IOS to run the selected training scenario.')
     onNavigate('/ios')
   }
 
@@ -393,29 +261,29 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
           {activeModule === 'scenarios' && (
             <ModuleSection
               eyebrow="3. Scenario Management"
-              title="Scenario Library and Incident Setup"
-              copy="Manage available OCC scenarios and incident lists."
+              title="Training Scenario Library"
+              copy="Select the scenario type that will be armed into the live timetable and line-map session."
             >
               <div className="module-scenario-grid">
-                {scenarioLibrary.map((scenario) => (
+                {trainingScenarioDefinitions.map((scenario) => (
                   <button
                     type="button"
-                    className={scenario.name === selectedScenario ? 'is-selected' : ''}
-                    onClick={() => setSelectedScenario(scenario.name)}
-                    key={scenario.name}
+                    className={scenario.kind === selectedScenarioKind ? 'is-selected' : ''}
+                    onClick={() => setSelectedScenarioKind(scenario.kind)}
+                    key={scenario.id}
                   >
-                    <strong>{scenario.name}</strong>
-                    <em>{scenario.status}</em>
-                    <span>{scenario.incidents.join(' / ')}</span>
+                    <strong>{scenario.title}</strong>
+                    <em>Train {scenario.defaultTargetTrainId}</em>
+                    <span>{scenario.objective}</span>
                   </button>
                 ))}
               </div>
               <div className="module-info-card">
-                <strong>Selected: {selectedScenario}</strong>
-                <span>Duration to rectify each incident can be configured during actual development.</span>
+                <strong>Selected: {selectedScenarioDefinition.title}</strong>
+                <span>{selectedScenarioDefinition.target} | {selectedScenarioDefinition.duration}</span>
               </div>
-              <button type="button" className="module-primary-link" onClick={() => onNavigate('/ios/scenarios')}>
-                Open Scenario Builder
+              <button type="button" className="module-primary-link" onClick={armSelectedScenario}>
+                Arm Selected Scenario
               </button>
             </ModuleSection>
           )}
@@ -423,29 +291,29 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
           {activeModule === 'runtime' && (
             <ModuleSection
               eyebrow="4. Scenario Runtime"
-              title="Dynamic Incident Injection"
-              copy="Push additional incidents from IOS into the active OCC monitor session."
+              title="Live Scenario Control"
+              copy="Control only the scenario lifecycle. Train movement, routes, timetable behavior, and scoring remain owned by the shared OCC session."
             >
               <div className="module-runtime-controls">
-                <button type="button" className="is-primary" onClick={() => controlRuntime('START')}>Start Live Scenario</button>
-                <button type="button" onClick={() => controlRuntime(session.scenarioMode === 'PAUSED' ? 'RESUME' : 'PAUSE')}>
+                <button type="button" className="is-primary" onClick={armSelectedScenario}>Arm Selected Scenario</button>
+                <button type="button" onClick={() => setScenarioRuntimeState(session.scenarioMode === 'PAUSED' ? 'RESUME' : 'PAUSE')}>
                   {session.scenarioMode === 'PAUSED' ? 'Resume Scenario' : 'Pause Scenario'}
                 </button>
-                <button type="button" onClick={() => controlRuntime('COMPLETE')}>Complete Scenario</button>
+                <button type="button" onClick={() => setScenarioRuntimeState('COMPLETE')}>Complete Scenario</button>
                 <button type="button" className="is-danger" onClick={() => { resetSession(session.trainingMode); setRuntimeNote('Runtime reset. Shared monitor state returned to initial session.') }}>
                   Reset Runtime
                 </button>
               </div>
+              <div className="module-info-card">
+                <strong>{session.activeScenario.title} | Train {getTrainingScenarioDefinition(session.activeScenario.id).defaultTargetTrainId}</strong>
+                <span>{runtimeNote}</span>
+              </div>
               <div className="module-runtime-grid">
-                {incidentButtons.map((incident) => (
-                  <button type="button" onClick={() => injectIncident(incident)} key={incident.label}>
-                    {incident.label}
+                {trainingScenarioScore.taskResults.map((task) => (
+                  <button type="button" className={task.complete ? 'is-primary' : ''} key={task.id}>
+                    {task.complete ? 'Done' : 'Open'} | {task.label}
                   </button>
                 ))}
-              </div>
-              <div className="module-info-card">
-                <strong>Live runtime note</strong>
-                <span>{runtimeNote}</span>
               </div>
             </ModuleSection>
           )}
@@ -471,7 +339,15 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                 </div>
                 <div>
                   <span>Response target</span>
-                  <strong>05:00</strong>
+                  <strong>{getTrainingScenarioDefinition(session.activeScenario.id).duration}</strong>
+                </div>
+                <div>
+                  <span>Scenario score</span>
+                  <strong>{trainingScenarioScore.score}%</strong>
+                </div>
+                <div>
+                  <span>Scenario result</span>
+                  <strong>{trainingScenarioScore.result}</strong>
                 </div>
               </div>
               <button type="button" className="module-primary-link" onClick={() => onNavigate('/report')}>
@@ -487,7 +363,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <ModuleSection
               eyebrow="6. Player Mode"
               title="Single Crew Now, Multi Crew Future"
-              copy="Player mode supports one operator flow. Multi-crew joining is shown as future provisioning."
+              copy="Player mode supports one operator flow. Multi-crew joining remains a separate role and permissions feature."
             >
               <div className="module-player-grid">
                 <div>
@@ -500,7 +376,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                 </div>
                 <div>
                   <strong>Provisioning</strong>
-                  <span>Identity, permissions, shared session joining, and role handoff belong in actual development.</span>
+                  <span>Identity, permissions, shared session joining, and role handoff are tracked as system-level features.</span>
                 </div>
               </div>
               <button type="button" className="module-primary-link" onClick={startPlayerMode}>

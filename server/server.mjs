@@ -775,6 +775,12 @@ function buildReport(session) {
   }
 }
 
+function normalizeReportSummaryOverride(summary) {
+  return summary && typeof summary === 'object' && !Array.isArray(summary)
+    ? summary
+    : {}
+}
+
 function buildTransportStatus() {
   const sessionMeta = currentSession ? normalizeSessionMeta(currentSession) : null
   const screens = Object.values(sessionMeta?.screens ?? {})
@@ -1241,7 +1247,10 @@ async function handleReportArchive(request, response) {
   const report = {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     notes: body.notes ?? '',
-    summary: buildReport(session),
+    summary: {
+      ...buildReport(session),
+      ...normalizeReportSummaryOverride(body.summary),
+    },
   }
 
   await appendReport(report)
