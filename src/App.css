@@ -788,6 +788,7 @@
 .module-form-row button,
 .module-session-grid button,
 .module-runtime-controls button,
+.module-runtime-workflow button,
 .module-runtime-grid button,
 .module-primary-link {
   border: 1px solid var(--control-line-strong);
@@ -820,6 +821,7 @@
 .module-form-row button:hover,
 .module-session-grid button:hover,
 .module-runtime-controls button:hover,
+.module-runtime-workflow button:hover,
 .module-runtime-grid button:hover,
 .module-primary-link:hover {
   border-color: rgba(99, 179, 237, 0.72);
@@ -1161,6 +1163,8 @@
 .module-table,
 .module-scenario-grid,
 .module-runtime-controls,
+.module-runtime-outcome,
+.module-runtime-workflow,
 .module-runtime-grid,
 .module-report-grid,
 .module-player-grid {
@@ -1172,6 +1176,7 @@
 .module-table-row,
 .module-info-card,
 .module-scenario-grid button,
+.module-runtime-outcome div,
 .module-report-grid div,
 .module-player-grid div {
   border: 1px solid var(--control-line);
@@ -1190,6 +1195,7 @@
 .module-table-row strong,
 .module-scenario-grid strong,
 .module-info-card strong,
+.module-runtime-outcome strong,
 .module-player-grid strong,
 .module-report-grid strong {
   color: #ffffff;
@@ -1197,6 +1203,7 @@
 
 .module-table-row span,
 .module-info-card span,
+.module-runtime-outcome span,
 .module-scenario-grid span,
 .module-player-grid span,
 .module-report-grid span {
@@ -1236,6 +1243,36 @@
 
 .module-runtime-controls {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.module-runtime-outcome {
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+}
+
+.module-runtime-outcome div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.module-runtime-outcome strong {
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.module-runtime-workflow {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
+.module-runtime-workflow button {
+  border-color: rgba(251, 191, 36, 0.52);
+  background: linear-gradient(180deg, #4a3218, #2b2114);
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.module-runtime-workflow button.is-complete {
+  border-color: rgba(64, 255, 164, 0.48);
+  background: linear-gradient(180deg, #13533d, #0d342a);
+  box-shadow: inset 4px 0 0 #40ffa4;
 }
 
 .module-runtime-controls button.is-primary {
@@ -3801,6 +3838,8 @@
   .module-session-grid,
   .module-scenario-grid,
   .module-runtime-controls,
+  .module-runtime-outcome,
+  .module-runtime-workflow,
   .module-runtime-grid,
   .module-report-grid,
   .module-player-grid,

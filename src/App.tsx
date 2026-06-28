@@ -154,7 +154,6 @@ import {
   alarmSummaryRows,
   getTimetablePlaybackTrainIdSet,
   trainingModeDetails,
-  updateSessionLifecycle,
   useOccSession,
 } from './sessionState'
 import {

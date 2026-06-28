@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { createInitialSession } from '../../src/sessionState'
 import {
+  applyTrainingScenarioWorkflowAction,
   applyTrainingScenarioTimetableCompletion,
   applyTrainingScenarioTimetableStep,
+  completeTrainingScenarioDefinitionTask,
   createTrainingScenarioStartSession,
   getTrainingScenarioDefinition,
   scoreTrainingScenario,
@@ -105,6 +107,101 @@ import type { TimetablePlaybackPlan } from '../../src/screens/line-map/timetable
   assert.equal(complete.scenarioTasks.completeScenario, false)
   assert.equal(score.taskResults.find((task) => task.id === 'confirm-service-mode')?.complete, true)
   assert.equal(score.taskResults.find((task) => task.id === 'review-launch-outcome')?.complete, false)
+}
+
+{
+  const current = createTrainingScenarioStartSession(createInitialSession(), 'TRAIN_LAUNCH')
+  const prepared = applyTrainingScenarioWorkflowAction(current, 'PREPARE_LAUNCH_ROUTE')
+  const dispatched = applyTrainingScenarioWorkflowAction(prepared.next, 'DISPATCH_LAUNCH')
+  const verified = applyTrainingScenarioWorkflowAction(dispatched.next, 'VERIFY_LAUNCH_MAINLINE')
+  const launchTrain = verified.next.trains.find((train) => train.id === '306')
+  const score = scoreTrainingScenario(verified.next)
+
+  assert.equal(prepared.allowed, true)
+  assert.equal(prepared.next.lineMap.routeSegments['route-r655-617-command']?.status, 'SET')
+  assert.equal(prepared.next.lineMap.routeSegments['rail-653']?.status, 'SET')
+  assert.equal(dispatched.allowed, true)
+  assert.equal(dispatched.next.lineMap.routeSegments['route-r655-617-command']?.status, 'SET')
+  assert.equal(dispatched.next.lineMap.routeSegments['rail-653']?.status, 'DISPATCHED')
+  assert.equal(dispatched.next.lineMap.routeSegments['rail-P609']?.status, 'DISPATCHED')
+  assert.equal(verified.allowed, true)
+  assert.equal(verified.next.lineMap.routeSegments['rail-653']?.status, 'UNSET')
+  assert.equal(verified.next.lineMap.routeSegments['rail-P609']?.status, 'UNSET')
+  assert.equal(verified.next.lineMap.routeSegments['rail-P611']?.status, 'UNSET')
+  assert.equal(verified.next.lineMap.routeSegments['rail-617']?.status, 'DISPATCHED')
+  assert.equal(launchTrain?.occupancySegmentId, 'rail-617')
+  assert.equal(launchTrain?.isMoving, true)
+  assert.equal(launchTrain?.readinessMode, 'MAINLINE_SERVICE')
+  assert.equal(verified.next.scenarioTasks.selectTrain, true)
+  assert.equal(verified.next.scenarioTasks.setRoute, true)
+  assert.equal(verified.next.scenarioTasks.dispatchTrain, true)
+  assert.equal(verified.next.scenarioTasks.completeScenario, true)
+  assert.equal(verified.next.scenarioMode, 'COMPLETE')
+  assert.equal(score.taskResults.find((task) => task.id === 'confirm-service-mode')?.complete, true)
+  assert.equal(score.taskResults.find((task) => task.id === 'review-launch-outcome')?.complete, true)
+  assert.equal(score.result, 'PASS')
+}
+
+{
+  const current = createTrainingScenarioStartSession(createInitialSession(), 'TRAIN_WITHDRAWAL')
+  const declared = applyTrainingScenarioWorkflowAction(current, 'DECLARE_WITHDRAWAL_DESTINATION')
+  const triggered = applyTrainingScenarioWorkflowAction(declared.next, 'TRIGGER_WITHDRAWAL_MOVEMENT')
+  const verified = applyTrainingScenarioWorkflowAction(triggered.next, 'VERIFY_WITHDRAWAL_ENDPOINT')
+  const endpointTrain = verified.next.trains.find((train) => train.id === '312')
+  const score = scoreTrainingScenario(verified.next)
+
+  assert.equal(declared.allowed, true)
+  assert.equal(declared.next.lineMap.routeSegments['route-r608-803-command']?.status, 'SET')
+  assert.equal(declared.next.lineMap.routeSegments['rail-618']?.status, 'SET')
+  assert.equal(triggered.allowed, true)
+  assert.equal(triggered.next.lineMap.routeSegments['rail-618']?.status, 'DISPATCHED')
+  assert.equal(triggered.next.lineMap.routeSegments['rail-616']?.status, 'DISPATCHED')
+  assert.equal(verified.allowed, true)
+  assert.equal(verified.next.lineMap.routeSegments['rail-618']?.status, 'UNSET')
+  assert.equal(verified.next.lineMap.routeSegments['rail-650']?.status, 'UNSET')
+  assert.equal(verified.next.lineMap.routeSegments['rail-652']?.status, 'DISPATCHED')
+  assert.equal(endpointTrain?.occupancySegmentId, 'rail-652')
+  assert.equal(endpointTrain?.isMoving, false)
+  assert.equal(endpointTrain?.status, 'WAIT')
+  assert.equal(verified.next.scenarioTasks.selectTrain, true)
+  assert.equal(verified.next.scenarioTasks.setRoute, true)
+  assert.equal(verified.next.scenarioTasks.dispatchTrain, true)
+  assert.equal(verified.next.scenarioTasks.completeScenario, true)
+  assert.equal(verified.next.scenarioMode, 'COMPLETE')
+  assert.equal(score.taskResults.find((task) => task.id === 'declare-depot-destination')?.complete, true)
+  assert.equal(score.taskResults.find((task) => task.id === 'verify-depot-endpoint')?.complete, true)
+  assert.equal(score.taskResults.find((task) => task.id === 'review-withdrawal-outcome')?.complete, true)
+  assert.equal(score.result, 'PASS')
+}
+
+{
+  const current = createTrainingScenarioStartSession(createInitialSession(), 'TRAIN_LAUNCH')
+  const mismatch = applyTrainingScenarioWorkflowAction(current, 'DECLARE_WITHDRAWAL_DESTINATION')
+
+  assert.equal(mismatch.allowed, false)
+  assert.equal(mismatch.next.scenarioNotice.tone, 'warning')
+}
+
+{
+  const current = createTrainingScenarioStartSession(createInitialSession(), 'TRAIN_LAUNCH')
+  const mainline = completeTrainingScenarioDefinitionTask(
+    current,
+    'confirm-service-mode',
+    'IOS Scenario Runtime',
+  )
+  const reviewed = completeTrainingScenarioDefinitionTask(
+    mainline.next,
+    'review-launch-outcome',
+    'IOS Scenario Runtime',
+  )
+  const score = scoreTrainingScenario(reviewed.next)
+
+  assert.equal(mainline.allowed, true)
+  assert.equal(reviewed.allowed, true)
+  assert.equal(reviewed.next.scenarioTasks.completeScenario, true)
+  assert.equal(reviewed.next.scenarioMode, 'COMPLETE')
+  assert.equal(score.taskResults.find((task) => task.id === 'confirm-service-mode')?.complete, true)
+  assert.equal(score.taskResults.find((task) => task.id === 'review-launch-outcome')?.complete, true)
 }
 
 {

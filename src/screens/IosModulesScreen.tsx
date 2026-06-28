@@ -6,12 +6,16 @@ import SelectField from '../components/SelectField'
 import SessionRunway from '../components/SessionRunway'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import {
+  applyTrainingScenarioWorkflowAction,
+  completeTrainingScenarioDefinitionTask,
+  completeTrainingScenarioTask,
   createTrainingScenarioStartSession,
   getTrainingScenarioDefinition,
+  isTrainingScenarioWorkflowActionComplete,
   scoreTrainingScenario,
   trainingScenarioDefinitions,
 } from '../trainingScenarios'
-import type { TrainingScenarioKind } from '../trainingScenarios'
+import type { TrainingScenarioKind, TrainingScenarioWorkflowAction } from '../trainingScenarios'
 import { updateSessionLifecycle } from '../sessionState'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
@@ -44,6 +48,22 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
   { label: 'Assessment', value: 'ASSESSMENT' },
   { label: 'Player', value: 'PLAYER' },
 ]
+
+const runtimeWorkflowActionsByScenarioKind: Partial<Record<TrainingScenarioKind, Array<{
+  action: TrainingScenarioWorkflowAction
+  label: string
+}>>> = {
+  TRAIN_LAUNCH: [
+    { action: 'PREPARE_LAUNCH_ROUTE', label: 'Prepare launch route' },
+    { action: 'DISPATCH_LAUNCH', label: 'Dispatch launch train' },
+    { action: 'VERIFY_LAUNCH_MAINLINE', label: 'Verify mainline entry' },
+  ],
+  TRAIN_WITHDRAWAL: [
+    { action: 'DECLARE_WITHDRAWAL_DESTINATION', label: 'Declare NED / RT2D' },
+    { action: 'TRIGGER_WITHDRAWAL_MOVEMENT', label: 'Trigger withdrawal' },
+    { action: 'VERIFY_WITHDRAWAL_ENDPOINT', label: 'Verify depot endpoint' },
+  ],
+}
 
 function formatScenarioTime() {
   const now = new Date()
@@ -98,6 +118,8 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   const selectedScenarioDefinition = trainingScenarioDefinitions.find((scenario) => scenario.kind === selectedScenarioKind)
     ?? trainingScenarioDefinitions[0]
   const trainingScenarioScore = scoreTrainingScenario(session)
+  const activeScenarioDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
+  const runtimeWorkflowActions = runtimeWorkflowActionsByScenarioKind[activeScenarioDefinition.kind] ?? []
 
   const addTrainee = () => {
     if (!traineeEmail.trim()) {
@@ -135,26 +157,74 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
         ? `${definition.title} marked complete. Report evidence is ready for review.`
         : `${definition.title} ${action === 'PAUSE' ? 'paused' : 'resumed'} from IOS.`
 
+      if (action === 'COMPLETE') {
+        const guard = completeTrainingScenarioTask(current, 'completeScenario', noticeText, 'IOS Scenario Runtime')
+
+        if (!guard.allowed) {
+          return guard.next
+        }
+
+        return {
+          ...guard.next,
+          alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...guard.next.alarmSummaryRows].slice(0, 12),
+          eventRows: [event, ...guard.next.eventRows].slice(0, 4),
+        }
+      }
+
       return {
         ...current,
         alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
         evidenceLog: appendScenarioEvidence(
           current.evidenceLog,
-          createScenarioEvidence('IOS Scenario Runtime', `Scenario ${action.toLowerCase()}`, action === 'COMPLETE' ? 'accepted' : 'info', noticeText),
+          createScenarioEvidence('IOS Scenario Runtime', `Scenario ${action.toLowerCase()}`, 'info', noticeText),
         ),
         eventRows: [event, ...current.eventRows].slice(0, 4),
         scenarioMode: nextMode,
         scenarioNotice: {
           text: noticeText,
-          tone: action === 'COMPLETE' ? 'success' as const : 'info' as const,
+          tone: 'info' as const,
         },
-        scenarioTasks: action === 'COMPLETE'
-          ? { ...current.scenarioTasks, completeScenario: true }
-          : current.scenarioTasks,
         sessionMeta: updateSessionLifecycle(current.sessionMeta, nextMode),
       }
     })
     setRuntimeNote(action === 'COMPLETE' ? 'Scenario completed. Open Reports or Assessment Rubric for scoring.' : `Scenario ${action.toLowerCase()} applied.`)
+  }
+
+  const confirmRuntimeTask = (taskId: string, label: string) => {
+    updateSession((current) => {
+      const definition = getTrainingScenarioDefinition(current.activeScenario.id)
+      const guard = completeTrainingScenarioDefinitionTask(current, taskId, 'IOS Scenario Runtime')
+
+      if (!guard.allowed) {
+        return guard.next
+      }
+
+      const event = createModuleEvent(
+        `IOS scenario task confirmed: ${label}`,
+        'DONE',
+        'yellow',
+        definition.defaultTargetTrainId,
+      )
+
+      return {
+        ...guard.next,
+        alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...guard.next.alarmSummaryRows].slice(0, 12),
+        eventRows: [event, ...guard.next.eventRows].slice(0, 4),
+      }
+    })
+    setRuntimeNote(`${label} confirmed in scenario runtime.`)
+  }
+
+  const runRuntimeWorkflowAction = (action: TrainingScenarioWorkflowAction) => {
+    let message = 'Scenario workflow action applied.'
+
+    updateSession((current) => {
+      const result = applyTrainingScenarioWorkflowAction(current, action)
+      message = result.message
+
+      return result.next
+    })
+    setRuntimeNote(message)
   }
 
   const startPlayerMode = () => {
@@ -305,12 +375,53 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                 </button>
               </div>
               <div className="module-info-card">
-                <strong>{session.activeScenario.title} | Train {getTrainingScenarioDefinition(session.activeScenario.id).defaultTargetTrainId}</strong>
+                <strong>{session.activeScenario.title} | Train {activeScenarioDefinition.defaultTargetTrainId}</strong>
                 <span>{runtimeNote}</span>
               </div>
+              <div className="module-runtime-outcome">
+                <div>
+                  <span>Scenario result</span>
+                  <strong>{trainingScenarioScore.result}</strong>
+                </div>
+                <div>
+                  <span>Scenario score</span>
+                  <strong>{trainingScenarioScore.score}%</strong>
+                </div>
+                <div>
+                  <span>Tasks complete</span>
+                  <strong>{trainingScenarioScore.completedTasks}/{trainingScenarioScore.totalTasks}</strong>
+                </div>
+                <div>
+                  <span>Mode</span>
+                  <strong>{session.scenarioMode}</strong>
+                </div>
+              </div>
+              {runtimeWorkflowActions.length > 0 && (
+                <div className="module-runtime-workflow" aria-label="Scenario workflow actions">
+                  {runtimeWorkflowActions.map((workflowAction) => {
+                    const complete = isTrainingScenarioWorkflowActionComplete(session, workflowAction.action)
+
+                    return (
+                      <button
+                        type="button"
+                        className={complete ? 'is-complete' : ''}
+                        onClick={() => runRuntimeWorkflowAction(workflowAction.action)}
+                        key={workflowAction.action}
+                      >
+                        {complete ? 'Done | ' : ''}{workflowAction.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
               <div className="module-runtime-grid">
                 {trainingScenarioScore.taskResults.map((task) => (
-                  <button type="button" className={task.complete ? 'is-primary' : ''} key={task.id}>
+                  <button
+                    type="button"
+                    className={task.complete ? 'is-primary' : ''}
+                    onClick={() => confirmRuntimeTask(task.id, task.label)}
+                    key={task.id}
+                  >
                     {task.complete ? 'Done' : 'Open'} | {task.label}
                   </button>
                 ))}

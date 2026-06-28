@@ -6,13 +6,31 @@ import {
   updateScenarioTask,
 } from './scenarioWorkflow'
 import { initialScenarioTasks, updateSessionLifecycle } from './sessionState'
+import {
+  enforceLineMapRailStateOwnership,
+} from './screens/line-map/lineMapRailStateAuthority'
+import { normalizeLineMapRuntimeState } from './screens/line-map/lineMapRuntimeState'
+import { getDefinedSignalRouteByLabel } from './screens/line-map/routeDefinitions'
+import {
+  createSignalRouteSetPatch,
+  createTrainMovementRouteSegmentStates,
+} from './screens/line-map/scadaRouteState'
 import type { TimetablePlaybackPlan } from './screens/line-map/timetablePlayback'
+import {
+  RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+} from './screens/line-map/trainMovementRoutes'
+import type { TrainRouteAnimationStep } from './screens/line-map/trainMovementRoutes'
 import type {
   AlarmSummaryRow,
+  LineMapRouteSegmentState,
+  LineMapRuntimeState,
   MonitorAlarmRow,
   OccSessionState,
   ScenarioEvidence,
   ScenarioTaskId,
+  TrainDirection,
+  TrainState,
 } from './types'
 
 export type TrainingScenarioKind = 'TRAIN_LAUNCH' | 'TRAIN_WITHDRAWAL' | 'DOOR_FAULT'
@@ -47,6 +65,22 @@ export type TrainingScenarioScore = {
   score: number
   taskResults: Array<TrainingScenarioTaskDefinition & { complete: boolean }>
   totalTasks: number
+}
+
+export type TrainingScenarioWorkflowAction =
+  | 'PREPARE_LAUNCH_ROUTE'
+  | 'DISPATCH_LAUNCH'
+  | 'VERIFY_LAUNCH_MAINLINE'
+  | 'DECLARE_WITHDRAWAL_DESTINATION'
+  | 'TRIGGER_WITHDRAWAL_MOVEMENT'
+  | 'VERIFY_WITHDRAWAL_ENDPOINT'
+
+type TrainingScenarioWorkflowDefinition = {
+  kind: TrainingScenarioKind
+  lineMapAction?: TrainingScenarioWorkflowAction
+  message: string
+  taskIds: readonly string[]
+  value: string
 }
 
 export const idleTrainingScenarioDefinition: TrainingScenarioDefinition = {
@@ -228,6 +262,50 @@ const launchRoutePathIds = new Set([
   'timetable-skg-to-pgl-upper-mainline',
   'timetable-skg-to-pgc-upper-mainline',
 ])
+const trainingScenarioWorkflowDefinitions: Record<TrainingScenarioWorkflowAction, TrainingScenarioWorkflowDefinition> = {
+  PREPARE_LAUNCH_ROUTE: {
+    kind: 'TRAIN_LAUNCH',
+    lineMapAction: 'PREPARE_LAUNCH_ROUTE',
+    message: 'Launch route R655_617 prepared from RT1/S655 into SKG mainline.',
+    taskIds: ['select-launch-train', 'set-launch-route'],
+    value: 'LAUNCH ROUTE',
+  },
+  DISPATCH_LAUNCH: {
+    kind: 'TRAIN_LAUNCH',
+    lineMapAction: 'DISPATCH_LAUNCH',
+    message: 'Launch train dispatched into timetable mainline service.',
+    taskIds: ['dispatch-launch-train', 'confirm-service-mode'],
+    value: 'LAUNCH DISPATCH',
+  },
+  VERIFY_LAUNCH_MAINLINE: {
+    kind: 'TRAIN_LAUNCH',
+    lineMapAction: 'VERIFY_LAUNCH_MAINLINE',
+    message: 'Launch train verified on SKG mainline service. Scenario complete.',
+    taskIds: ['review-launch-outcome'],
+    value: 'LAUNCH COMPLETE',
+  },
+  DECLARE_WITHDRAWAL_DESTINATION: {
+    kind: 'TRAIN_WITHDRAWAL',
+    lineMapAction: 'DECLARE_WITHDRAWAL_DESTINATION',
+    message: 'Withdrawal destination declared as NED / RT2D.',
+    taskIds: ['select-withdrawal-train', 'set-withdrawal-route', 'declare-depot-destination'],
+    value: 'NED RT2D',
+  },
+  TRIGGER_WITHDRAWAL_MOVEMENT: {
+    kind: 'TRAIN_WITHDRAWAL',
+    lineMapAction: 'TRIGGER_WITHDRAWAL_MOVEMENT',
+    message: 'Withdrawal departure time applied and movement triggered.',
+    taskIds: ['trigger-withdrawal-movement'],
+    value: 'WITHDRAW DEPART',
+  },
+  VERIFY_WITHDRAWAL_ENDPOINT: {
+    kind: 'TRAIN_WITHDRAWAL',
+    lineMapAction: 'VERIFY_WITHDRAWAL_ENDPOINT',
+    message: 'Withdrawal train verified at depot endpoint. Scenario complete.',
+    taskIds: ['verify-depot-endpoint', 'review-withdrawal-outcome'],
+    value: 'DEPOT ENDPOINT',
+  },
+}
 
 export function getTrainingScenarioDefinition(id: string | undefined) {
   return scenarioDefinitionById.get(id ?? '') ?? idleTrainingScenarioDefinition
@@ -387,6 +465,334 @@ export function completeTrainingScenarioDefinitionTask(
       sessionMeta: updateSessionLifecycle(current.sessionMeta, 'RUNNING'),
     },
   }
+}
+
+export function applyTrainingScenarioWorkflowAction(
+  current: OccSessionState,
+  action: TrainingScenarioWorkflowAction,
+): { allowed: boolean; message: string; next: OccSessionState } {
+  const workflow = trainingScenarioWorkflowDefinitions[action]
+  const definition = getTrainingScenarioDefinition(current.activeScenario.id)
+
+  if (definition.kind !== workflow.kind || definition.id === 'idle') {
+    const message = `${workflow.message} is not available for ${definition.title}.`
+
+    return {
+      allowed: false,
+      message,
+      next: {
+        ...current,
+        scenarioNotice: {
+          text: message,
+          tone: 'warning' as const,
+        },
+      },
+    }
+  }
+
+  let next = current
+
+  for (const taskId of workflow.taskIds) {
+    const result = completeTrainingScenarioDefinitionTask(next, taskId, 'IOS Scenario Workflow')
+
+    if (!result.allowed) {
+      return {
+        allowed: false,
+        message: result.next.scenarioNotice.text,
+        next: result.next,
+      }
+    }
+
+    next = result.next
+  }
+
+  const workflowState = applyTrainingScenarioWorkflowLineMapAction(next, workflow)
+  const event = createMonitorEvent(definition.defaultTargetTrainId, workflow.message, workflow.value, 'yellow')
+
+  return {
+    allowed: true,
+    message: workflow.message,
+    next: {
+      ...workflowState,
+      alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...next.alarmSummaryRows].slice(0, 12),
+      eventRows: [event, ...next.eventRows].slice(0, 4),
+      scenarioNotice: {
+        text: workflow.message,
+        tone: 'info' as const,
+      },
+      selectedTrainId: definition.defaultTargetTrainId,
+    },
+  }
+}
+
+export function isTrainingScenarioWorkflowActionComplete(
+  session: OccSessionState,
+  action: TrainingScenarioWorkflowAction,
+) {
+  const workflow = trainingScenarioWorkflowDefinitions[action]
+  const definition = getTrainingScenarioDefinition(session.activeScenario.id)
+
+  if (definition.kind !== workflow.kind || definition.id === 'idle') {
+    return false
+  }
+
+  return workflow.taskIds.every((taskId) => {
+    const task = definition.tasks.find((item) => item.id === taskId)
+
+    if (!task) {
+      return false
+    }
+
+    return isTrainingScenarioTaskComplete(session, task)
+  })
+}
+
+function applyTrainingScenarioWorkflowLineMapAction(
+  current: OccSessionState,
+  workflow: TrainingScenarioWorkflowDefinition,
+): OccSessionState {
+  if (!workflow.lineMapAction) {
+    return current
+  }
+
+  const trainId = getTrainingScenarioDefinition(current.activeScenario.id).defaultTargetTrainId
+
+  switch (workflow.lineMapAction) {
+    case 'PREPARE_LAUNCH_ROUTE':
+      return {
+        ...current,
+        lineMap: applyScenarioSignalRouteSet(current.lineMap, 'Route R655_617', trainId),
+        selectedTrainId: trainId,
+      }
+
+    case 'DISPATCH_LAUNCH': {
+      const lineMapWithRoute = applyScenarioSignalRouteSet(current.lineMap, 'Route R655_617', trainId)
+      const lineMap = applyScenarioTrainRouteStep(
+        lineMapWithRoute,
+        trainId,
+        RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+        0,
+      )
+
+      return {
+        ...current,
+        lineMap,
+        selectedTrainId: trainId,
+        trains: upsertScenarioWorkflowTrain(
+          current.trains,
+          trainId,
+          RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS[0],
+          {
+            direction: 'right',
+            isMoving: true,
+            service: 'NB',
+            status: 'RUN',
+          },
+        ),
+      }
+    }
+
+    case 'VERIFY_LAUNCH_MAINLINE': {
+      const finalStepIndex = RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.length - 1
+      const lineMapWithRoute = applyScenarioSignalRouteSet(current.lineMap, 'Route R655_617', trainId)
+      const lineMap = applyScenarioTrainRouteStep(
+        lineMapWithRoute,
+        trainId,
+        RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+        finalStepIndex,
+      )
+
+      return {
+        ...current,
+        lineMap,
+        selectedTrainId: trainId,
+        trains: upsertScenarioWorkflowTrain(
+          current.trains,
+          trainId,
+          RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS[finalStepIndex],
+          {
+            direction: 'right',
+            isMoving: true,
+            service: 'NB',
+            status: 'RUN',
+          },
+        ),
+      }
+    }
+
+    case 'DECLARE_WITHDRAWAL_DESTINATION':
+      return {
+        ...current,
+        lineMap: applyScenarioSignalRouteSet(current.lineMap, 'Route R608_803', trainId),
+        selectedTrainId: trainId,
+      }
+
+    case 'TRIGGER_WITHDRAWAL_MOVEMENT': {
+      const lineMapWithRoute = applyScenarioSignalRouteSet(current.lineMap, 'Route R608_803', trainId)
+      const lineMap = applyScenarioTrainRouteStep(
+        lineMapWithRoute,
+        trainId,
+        TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+        0,
+      )
+
+      return {
+        ...current,
+        lineMap,
+        selectedTrainId: trainId,
+        trains: upsertScenarioWorkflowTrain(
+          current.trains,
+          trainId,
+          TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS[0],
+          {
+            direction: 'left',
+            isMoving: true,
+            service: 'SB',
+            status: 'RUN',
+          },
+        ),
+      }
+    }
+
+    case 'VERIFY_WITHDRAWAL_ENDPOINT': {
+      const finalStepIndex = TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.length - 1
+      const lineMapWithRoute = applyScenarioSignalRouteSet(current.lineMap, 'Route R608_803', trainId)
+      const lineMap = applyScenarioTrainRouteStep(
+        lineMapWithRoute,
+        trainId,
+        TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+        finalStepIndex,
+      )
+
+      return {
+        ...current,
+        lineMap,
+        selectedTrainId: trainId,
+        trains: upsertScenarioWorkflowTrain(
+          current.trains,
+          trainId,
+          TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS[finalStepIndex],
+          {
+            direction: 'left',
+            isMoving: false,
+            service: 'SB',
+            status: 'WAIT',
+          },
+        ),
+      }
+    }
+
+    default:
+      return current
+  }
+}
+
+function applyScenarioSignalRouteSet(
+  lineMap: LineMapRuntimeState,
+  routeLabel: string,
+  trainId: string,
+): LineMapRuntimeState {
+  const current = normalizeLineMapRuntimeState(lineMap)
+  const routeDefinition = getDefinedSignalRouteByLabel(routeLabel)
+
+  if (!routeDefinition) {
+    return current
+  }
+
+  const routePatch = createSignalRouteSetPatch(routeDefinition, { id: trainId }, 'SET')
+  const routeSegments = {
+    ...current.routeSegments,
+    ...routePatch.routeSegments,
+  }
+
+  enforceLineMapRailStateOwnership(routeSegments, {
+    prioritySegmentIds: routePatch.prioritySegmentIds,
+  })
+
+  return {
+    ...current,
+    routeSegments,
+  }
+}
+
+function applyScenarioTrainRouteStep(
+  lineMap: LineMapRuntimeState,
+  trainId: string,
+  routeSteps: readonly TrainRouteAnimationStep[],
+  currentStepIndex: number,
+): LineMapRuntimeState {
+  const current = normalizeLineMapRuntimeState(lineMap)
+  const routeSegments = createTrainMovementRouteSegmentStates(
+    current.routeSegments,
+    trainId,
+    routeSteps,
+    currentStepIndex,
+    {
+      shouldPreserveSegmentState: (_segmentId, state) => isActiveRouteStateOwnedByAnotherTrain(state, trainId),
+    },
+  )
+
+  enforceLineMapRailStateOwnership(routeSegments, {
+    completedTrainId: trainId,
+    prioritySegmentIds: routeSteps.map((step) => step.segmentId),
+  })
+
+  return {
+    ...current,
+    routeSegments,
+  }
+}
+
+function upsertScenarioWorkflowTrain(
+  trains: readonly TrainState[],
+  trainId: string,
+  step: TrainRouteAnimationStep,
+  updates: {
+    direction: TrainDirection
+    isMoving: boolean
+    service: string
+    status: TrainState['status']
+  },
+) {
+  const existingTrain = trains.find((train) => train.id === trainId)
+  const nextTrain: TrainState = {
+    ...(existingTrain ?? {
+      id: trainId,
+      direction: updates.direction,
+      service: updates.service,
+      status: updates.status,
+      x: step.point.x,
+      y: step.point.y,
+    }),
+    direction: updates.direction,
+    isMoving: updates.isMoving,
+    lineMapVisible: true,
+    occupancySegmentId: step.segmentId,
+    readinessMode: 'MAINLINE_SERVICE',
+    service: updates.service,
+    status: updates.status,
+    timetablePlayback: existingTrain?.timetablePlayback ?? false,
+    trainNumber: existingTrain?.trainNumber ?? trainId,
+    x: step.point.x,
+    y: step.point.y,
+  }
+
+  if (!existingTrain) {
+    return [...trains, nextTrain]
+  }
+
+  return trains.map((train) => (train.id === trainId ? nextTrain : train))
+}
+
+function isActiveRouteStateOwnedByAnotherTrain(
+  state: LineMapRouteSegmentState | undefined,
+  trainId: string,
+) {
+  return Boolean(
+    state?.trainId
+    && state.trainId !== trainId
+    && (state.status === 'DISPATCHED' || state.status === 'HELD'),
+  )
 }
 
 export function applyTrainingScenarioTimetableStep(
