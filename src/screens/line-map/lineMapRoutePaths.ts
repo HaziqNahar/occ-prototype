@@ -1,7 +1,11 @@
 import {
   PGC_TO_SKG_MAINLINE_ROUTE_STEPS,
+  PGC_TO_S608_HOLD_UPPER_ROUTE_STEPS,
   PGL_TO_SKG_MAINLINE_ROUTE_STEPS,
   PGC_TO_RT2_DEPOT_TIMETABLE_ROUTE_STEPS,
+  RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  S1104_TO_S608_HOLD_ROUTE_STEPS,
+  S702_TO_S608_HOLD_ROUTE_STEPS,
   SKG_TO_PGC_MAINLINE_ROUTE_STEPS,
   SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
   SKG_TO_PGL_MAINLINE_ROUTE_STEPS,
@@ -10,15 +14,17 @@ import {
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from './trainMovementRoutes'
 import type { TrainRouteAnimationStep } from './trainMovementRoutes'
+import type { TrainDirection } from '../../types'
 import {
   getDefinedSignalRoutesByLabels,
 } from './routeDefinitions'
 
 export type LineMapRoutePathOwner = 'manual' | 'timetable'
-export type ManualRouteDestinationKind = 'ANY' | 'RT2_DEPOT'
+export type ManualRouteDestinationKind = 'ANY' | 'RT2_DEPOT' | 'SKG' | 'SKG_NB_LAUNCH'
 
 export type ManualLineMapRoutePathDefinition = {
   destinationKind: ManualRouteDestinationKind
+  direction?: TrainDirection
   excludedTrainIds?: readonly string[]
   id: string
   movementRouteSteps: readonly TrainRouteAnimationStep[]
@@ -26,6 +32,8 @@ export type ManualLineMapRoutePathDefinition = {
   requiresStartAtFirstStep?: boolean
   routeLabel: string
   routeLabels: readonly string[]
+  routeModePanelCodes: readonly string[]
+  service?: 'NB' | 'SB'
   stateRouteStepIndexOffset?: number
   stateRouteSteps: readonly TrainRouteAnimationStep[]
   trainIds?: readonly string[]
@@ -84,6 +92,24 @@ export type TimetableLineMapRoutePathDefinition = {
 
 export type LineMapRoutePathDefinition = ManualLineMapRoutePathDefinition | TimetableLineMapRoutePathDefinition
 
+const SIGNAL_ROUTE_PANEL_CODES: Partial<Record<string, 'SKG' | 'PGL' | 'PGC'>> = {
+  S608: 'SKG',
+  S613: 'SKG',
+  S617: 'SKG',
+  S619: 'SKG',
+  S655: 'SKG',
+  S700: 'PGL',
+  S701: 'PGL',
+  S702: 'PGL',
+  S704: 'PGL',
+  S705: 'PGL',
+  S707: 'PGL',
+  S1101: 'PGC',
+  S1102: 'PGC',
+  S1104: 'PGC',
+  S1105: 'PGC',
+}
+
 export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoutePathDefinition[] = [
   {
     destinationKind: 'RT2_DEPOT',
@@ -91,11 +117,97 @@ export const MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly ManualLineMapRoute
     movementRouteSteps: TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
     owner: 'manual',
     requiresStartAtFirstStep: true,
-    routeLabel: 'Route R608_803',
+    routeLabel: 'Manual S608 hold to RT2 depot',
     routeLabels: ['Route R608_803'],
+    routeModePanelCodes: getRouteModePanelCodesForRouteLabels(['Route R608_803']),
     stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
       ['Route R608_803'],
       TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+    ),
+  },
+  {
+    destinationKind: 'SKG_NB_LAUNCH',
+    direction: 'right',
+    id: 'manual-rt1-launch-to-skg-northbound',
+    movementRouteSteps: RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+    owner: 'manual',
+    routeLabel: 'Manual RT1 launch to SKG northbound',
+    routeLabels: ['Route R655_617'],
+    routeModePanelCodes: getRouteModePanelCodesForRouteLabels(['Route R655_617']),
+    service: 'NB',
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R655_617'],
+      RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+    ),
+  },
+  {
+    destinationKind: 'SKG',
+    id: 'manual-upper-mainline-to-s608-hold',
+    movementRouteSteps: PGC_TO_S608_HOLD_UPPER_ROUTE_STEPS,
+    owner: 'manual',
+    routeLabel: 'Manual destination SKG/SKGS upper route to S608 hold',
+    routeLabels: [
+      'Route R1105_1107',
+      'Route R1101_1105',
+      'Route R707_1101',
+      'Route R705_707',
+      'Route R701_705',
+      'Route R619_701',
+      'Route R617_619',
+      'Route R613_621',
+    ],
+    routeModePanelCodes: getRouteModePanelCodesForRouteLabels([
+      'Route R1105_1107',
+      'Route R1101_1105',
+      'Route R707_1101',
+      'Route R705_707',
+      'Route R701_705',
+      'Route R619_701',
+      'Route R617_619',
+      'Route R613_621',
+    ]),
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      [
+        'Route R1105_1107',
+        'Route R1101_1105',
+        'Route R707_1101',
+        'Route R705_707',
+        'Route R701_705',
+        'Route R619_701',
+        'Route R617_619',
+        'Route R613_621',
+      ],
+      PGC_TO_S608_HOLD_UPPER_ROUTE_STEPS,
+    ),
+  },
+  {
+    destinationKind: 'SKG',
+    id: 'manual-lower-mainline-to-s608-hold',
+    movementRouteSteps: S1104_TO_S608_HOLD_ROUTE_STEPS,
+    owner: 'manual',
+    routeLabel: 'Manual destination SKG/SKGS lower route to S608 hold',
+    routeLabels: ['Route R1104_704', 'Route R704_700', 'Route R700_608'],
+    routeModePanelCodes: getRouteModePanelCodesForRouteLabels([
+      'Route R1104_704',
+      'Route R704_700',
+      'Route R700_608',
+    ]),
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R1104_704', 'Route R704_700', 'Route R700_608'],
+      S1104_TO_S608_HOLD_ROUTE_STEPS,
+    ),
+  },
+  {
+    destinationKind: 'SKG',
+    id: 'manual-s702-to-s608-hold',
+    movementRouteSteps: S702_TO_S608_HOLD_ROUTE_STEPS,
+    owner: 'manual',
+    routeLabel: 'Manual destination SKG/SKGS via S702 to S608 hold',
+    routeLabels: ['Route R702_608'],
+    routeModePanelCodes: getRouteModePanelCodesForRouteLabels(['Route R702_608']),
+    stateRouteSteps: createRouteDefinitionBackedStateRouteSteps(
+      ['Route R702_608'],
+      S702_TO_S608_HOLD_ROUTE_STEPS,
     ),
   },
 ] as const
@@ -138,7 +250,6 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     ],
     signalRouteRefs: [
       'Route R655_617',
-      'Route R617_619',
       'Route R619_701',
       'Route R701_705',
       'Route R705_707',
@@ -165,7 +276,6 @@ export const TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS: readonly TimetableLineMa
     ],
     signalRouteRefs: [
       'Route R655_617',
-      'Route R617_619',
       'Route R619_701',
       'Route R701_705',
       'Route R705_707',
@@ -282,7 +392,14 @@ export function getManualLineMapRoutePath(
   trainId: string,
   destinationKind: ManualRouteDestinationKind,
 ) {
-  return MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.find((routePath) => (
+  return getManualLineMapRoutePathCandidates(trainId, destinationKind)[0]
+}
+
+export function getManualLineMapRoutePathCandidates(
+  trainId: string,
+  destinationKind: ManualRouteDestinationKind,
+) {
+  return MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.filter((routePath) => (
     routePath.destinationKind === destinationKind
     && (!routePath.trainIds || routePath.trainIds.includes(trainId))
     && (!routePath.excludedTrainIds || !routePath.excludedTrainIds.includes(trainId))
@@ -298,6 +415,34 @@ export function getManualLineMapRoutePathStateStepIndex(
 
 export function getManualLineMapRoutePathSegmentIds(routePath: ManualLineMapRoutePathDefinition): readonly string[] {
   return getSignalRouteSegmentIds(routePath.routeLabels)
+}
+
+export function getManualLineMapRoutePathSetRouteCount(
+  routePath: ManualLineMapRoutePathDefinition,
+  routeSegments: Record<string, { status: string } | undefined>,
+) {
+  return getDefinedSignalRoutesByLabels(routePath.routeLabels)
+    .filter((routeDefinition) => (
+      routeDefinition.commandStateSegmentIds.some((segmentId) => routeSegments[segmentId]?.status === 'SET')
+    ))
+    .length
+}
+
+export function getManualLineMapRoutePathLatestSetRouteUpdatedAt(
+  routePath: ManualLineMapRoutePathDefinition,
+  routeSegments: Record<string, { status: string; updatedAt?: number } | undefined>,
+) {
+  return getDefinedSignalRoutesByLabels(routePath.routeLabels)
+    .flatMap((routeDefinition) => routeDefinition.commandStateSegmentIds)
+    .reduce((latestUpdatedAt, segmentId) => {
+      const routeSegment = routeSegments[segmentId]
+
+      if (routeSegment?.status !== 'SET') {
+        return latestUpdatedAt
+      }
+
+      return Math.max(latestUpdatedAt, routeSegment.updatedAt ?? 0)
+    }, 0)
 }
 
 export function getSignalRouteSegmentIds(routeLabels: readonly string[]): readonly string[] {
@@ -325,4 +470,12 @@ function createRouteDefinitionBackedStateRouteSteps(
   const routeSegmentIds = new Set(getSignalRouteSegmentIds(routeLabels))
 
   return movementRouteSteps.filter((step) => routeSegmentIds.has(step.segmentId))
+}
+
+function getRouteModePanelCodesForRouteLabels(routeLabels: readonly string[]): readonly string[] {
+  const panelCodes = getDefinedSignalRoutesByLabels(routeLabels)
+    .map((routeDefinition) => SIGNAL_ROUTE_PANEL_CODES[routeDefinition.signalLabel])
+    .filter((panelCode): panelCode is 'SKG' | 'PGL' | 'PGC' => Boolean(panelCode))
+
+  return [...new Set(panelCodes)]
 }

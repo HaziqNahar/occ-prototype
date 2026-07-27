@@ -40,6 +40,7 @@ export type TimetablePlaybackPlan = {
   routeLabel: string
   routeSteps: readonly TrainRouteAnimationStep[]
   platformStops: readonly TimetablePlatformStopDefinition[]
+  skipDepotLaunchLeadIn?: boolean
   steps: readonly TrainRouteAnimationStep[]
   stepOffsetsMs: readonly number[]
   scheduleNumber: string
@@ -355,6 +356,7 @@ function createTimetablePlaybackTrain(
     isMoving: !routePlaybackComplete && stepIndex < lastStepIndex && !isStationStopped,
     lineMapVisible: routePlaybackComplete ? false : true,
     occupancySegmentId: !routePlaybackComplete ? step.segmentId : undefined,
+    readinessMode: 'MAINLINE_SERVICE',
     scheduleNumber: plan.scheduleNumber,
     service: plan.service,
     status: waitingAtStation ? 'WAIT' : 'RUN',
@@ -390,7 +392,7 @@ export function upsertTimetablePlaybackTrain(
           itamaGranted: train.itamaGranted,
           itamaNotAuthorisedPreparationConfirmed: train.itamaNotAuthorisedPreparationConfirmed,
           itamaStatus: train.itamaStatus,
-          readinessMode: train.readinessMode,
+          readinessMode: train.readinessMode ?? playbackTrain.readinessMode,
         }
       : train
   ))

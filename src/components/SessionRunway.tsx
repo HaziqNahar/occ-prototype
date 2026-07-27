@@ -3,13 +3,15 @@ import type { OccSessionState, SessionTransportSnapshot } from '../types'
 
 type SessionRunwayProps = {
   session: OccSessionState
+  variant?: 'trainer' | 'trainee'
 }
 
-function SessionRunway({ session }: SessionRunwayProps) {
+function SessionRunway({ session, variant = 'trainer' }: SessionRunwayProps) {
   const scenarioScore = scoreTrainingScenario(session)
   const progress = scenarioScore.score
   const evidenceLog = session.evidenceLog ?? []
   const joinedScreens = Object.values(session.sessionMeta?.screens ?? {})
+  const joinedMonitorCount = Math.min(joinedScreens.length, 3)
   const transportSnapshots = joinedScreens
     .map((screen) => screen.transport)
     .filter((transport): transport is SessionTransportSnapshot => Boolean(transport))
@@ -19,6 +21,29 @@ function SessionRunway({ session }: SessionRunwayProps) {
   const connectedWorkerScreens = transportSnapshots.filter((transport) => transport.sharedWorker === 'CONNECTED').length
   const connectedChannelScreens = transportSnapshots.filter((transport) => transport.broadcastChannel === 'CONNECTED').length
   const lastLaunch = session.sessionMeta?.lastMonitorLaunch
+
+  if (variant === 'trainee') {
+    return (
+      <section className="trainee-session-status" aria-label="Session readiness">
+        <div>
+          <span>Session</span>
+          <strong>{session.sessionMeta?.code ?? 'OCC-TRAINING-001'}</strong>
+        </div>
+        <div>
+          <span>Status</span>
+          <strong>{session.sessionMeta?.lifecycle ?? 'Ready'}</strong>
+        </div>
+        <div>
+          <span>Scenario</span>
+          <strong>{session.activeScenario.title}</strong>
+        </div>
+        <div>
+          <span>Assigned monitor</span>
+          <strong>Monitor 02 - Line Map</strong>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="session-runway" aria-label="Connected session flow">
@@ -41,7 +66,7 @@ function SessionRunway({ session }: SessionRunwayProps) {
         </div>
         <div>
           <span>Joined screens</span>
-          <strong>{joinedScreens.length}/3 monitors</strong>
+          <strong>{joinedMonitorCount}/3 connected</strong>
         </div>
         <div>
           <span>Transport bus</span>

@@ -16,6 +16,8 @@ import {
 } from '../../src/screens/line-map/timetablePlaybackScheduler'
 import {
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
+  SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
+  SKG_TO_PGC_TIMETABLE_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
 
 const plan: TimetablePlaybackPlan = {
@@ -37,6 +39,28 @@ const plan: TimetablePlaybackPlan = {
   to: 'RT2_DEPOT',
   trainId: '312',
   via: ['SKG'],
+}
+
+const launchPlan: TimetablePlaybackPlan = {
+  endSeconds: 600,
+  firstStepIndex: SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
+  from: 'SKG',
+  panelCode: 'SKG',
+  platformStops: [{ platformCode: 'SKG', stepIndex: SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX, track: 'NB' }],
+  routeLabel: 'Timetable path RT1 launch to SKG/PGL/PGC upper mainline',
+  routeSteps: SKG_TO_PGC_TIMETABLE_ROUTE_STEPS,
+  scheduleNumber: '1000',
+  service: 'NB',
+  signalRouteRefs: ['Route R655_617'],
+  startSeconds: 0,
+  stationRouteId: 'timetable-skg-to-pgc-upper-mainline',
+  stepOffsetsMs: SKG_TO_PGC_TIMETABLE_ROUTE_STEPS.map((_, index) => index * 350),
+  stepSignedOffsetsMs: SKG_TO_PGC_TIMETABLE_ROUTE_STEPS.map((_, index) => (
+    (index - SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX) * 350
+  )),
+  steps: SKG_TO_PGC_TIMETABLE_ROUTE_STEPS,
+  to: 'PGC',
+  trainId: '301',
 }
 
 function timetablePathPlan(routePath: (typeof TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS)[number]): TimetablePlaybackPlan {
@@ -228,6 +252,62 @@ function timetablePathPlan(routePath: (typeof TIMETABLE_LINE_MAP_ROUTE_PATH_DEFI
       { delayMs: 16500, platformDoorPhase: 'ROUTE_STEP', stepIndex: 3 },
     ],
     'a refresh during a door hold must keep the train pinned at the station stop before the next rail step',
+  )
+}
+
+{
+  const schedule = createTimetablePlaybackSchedule([launchPlan])
+  const launchRouteEntries = schedule
+    .filter((entry) => !entry.platformDoorPhase && !entry.completeRoute)
+    .slice(0, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX + 1)
+
+  assert.deepEqual(
+    launchRouteEntries.map((entry) => ({
+      delayMs: entry.delayMs,
+      segmentId: entry.plan.steps[entry.stepIndex]?.segmentId,
+      stepIndex: entry.stepIndex,
+    })),
+    [
+      { delayMs: 0, segmentId: 'rail-655', stepIndex: 0 },
+      { delayMs: 900, segmentId: 'rail-653', stepIndex: 1 },
+      { delayMs: 1800, segmentId: 'rail-P609', stepIndex: 2 },
+      { delayMs: 2700, segmentId: 'rail-P611', stepIndex: 3 },
+      { delayMs: 3600, segmentId: 'rail-613', stepIndex: 4 },
+      { delayMs: 4500, segmentId: 'rail-615', stepIndex: 5 },
+      { delayMs: 5400, segmentId: 'rail-617', stepIndex: 6 },
+    ],
+    'compressed SKG-origin playback must still visibly launch from RT1/S655 before the SKG stop',
+  )
+
+  assert.equal(
+    schedule.find((entry) => entry.platformDoorPhase === 'UNKNOWN_BEFORE')?.delayMs,
+    6400,
+    'SKG platform door sequence must begin after the visible RT1 launch lead-in reaches rail-617',
+  )
+}
+
+{
+  const schedule = createTimetablePlaybackSchedule([{
+    ...launchPlan,
+    skipDepotLaunchLeadIn: true,
+  }])
+  const routeEntries = schedule.filter((entry) => !entry.platformDoorPhase && !entry.completeRoute)
+
+  assert.equal(
+    routeEntries.some((entry) => entry.stepIndex < SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX),
+    false,
+    'manual launch handoff must not replay the RT1 lead-in before SKG',
+  )
+  assert.deepEqual(
+    routeEntries.slice(0, 2).map((entry) => ({
+      segmentId: entry.plan.steps[entry.stepIndex]?.segmentId,
+      stepIndex: entry.stepIndex,
+    })),
+    [
+      { segmentId: 'rail-617', stepIndex: SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX },
+      { segmentId: 'rail-619', stepIndex: SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX + 1 },
+    ],
+    'manual launch handoff must resume from the SKG northbound platform rail',
   )
 }
 

@@ -280,7 +280,6 @@
   font-weight: 750;
   line-height: 1.35;
 }
-
 .remember {
   display: flex;
   align-items: center;
@@ -641,7 +640,7 @@
   right: auto;
   left: 1290px;
   z-index: 20;
-  border-radius: 4px;
+  border-radius: 0;
   padding: 0.25rem 0.35rem;
   background: #1f2937;
   box-shadow: none;
@@ -885,6 +884,38 @@
   padding: 1rem;
   background: linear-gradient(180deg, rgba(19, 34, 56, 0.96), rgba(13, 26, 44, 0.96));
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.34);
+}
+
+.trainee-session-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--control-line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: linear-gradient(180deg, rgba(19, 34, 56, 0.96), rgba(13, 26, 44, 0.96));
+}
+
+.trainee-session-status div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--control-line);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  background: rgba(8, 18, 32, 0.68);
+}
+
+.trainee-session-status span {
+  color: #9fb3ca;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trainee-session-status strong {
+  color: #ffffff;
+  font-size: 0.85rem;
 }
 
 .session-runway-heading {
@@ -1162,10 +1193,13 @@
 
 .module-table,
 .module-scenario-grid,
+.module-runtime-hero,
 .module-runtime-controls,
 .module-runtime-outcome,
 .module-runtime-workflow,
 .module-runtime-grid,
+.module-runtime-task-board,
+.module-runtime-secondary-actions,
 .module-report-grid,
 .module-player-grid {
   display: grid;
@@ -1176,6 +1210,7 @@
 .module-table-row,
 .module-info-card,
 .module-scenario-grid button,
+.module-runtime-hero div,
 .module-runtime-outcome div,
 .module-report-grid div,
 .module-player-grid div {
@@ -1203,6 +1238,7 @@
 
 .module-table-row span,
 .module-info-card span,
+.module-runtime-hero span,
 .module-runtime-outcome span,
 .module-scenario-grid span,
 .module-player-grid span,
@@ -1214,6 +1250,7 @@
 }
 
 .module-table-row em,
+.module-runtime-hero em,
 .module-scenario-grid em {
   color: #d8ecff;
   font-style: normal;
@@ -1241,12 +1278,92 @@
   grid-template-columns: repeat(4, minmax(120px, 1fr));
 }
 
+.module-runtime-hero {
+  grid-template-columns: 1.15fr 0.85fr 1fr;
+}
+
+.module-runtime-hero div {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-height: 104px;
+}
+
+.module-runtime-hero strong {
+  color: #ffffff;
+  font-size: 1.25rem;
+  line-height: 1.12;
+}
+
+.module-runtime-hero em {
+  color: #cbd5e1;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
 .module-runtime-controls {
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
 }
 
 .module-runtime-outcome {
-  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+}
+
+.module-role-flow-grid,
+.module-runtime-assist-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.module-role-flow-grid {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.module-role-flow-grid div,
+.module-runtime-assist-panel {
+  border: 1px solid rgba(99, 179, 237, 0.28);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: rgba(8, 18, 32, 0.72);
+}
+
+.module-role-flow-grid div {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.module-role-flow-grid span,
+.module-runtime-assist-panel span {
+  color: #9fb5ca;
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.module-role-flow-grid strong,
+.module-runtime-assist-panel strong {
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.module-role-flow-grid em {
+  color: #d8ecff;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.module-runtime-assist-panel {
+  border-color: rgba(251, 191, 36, 0.36);
+  background: rgba(54, 39, 20, 0.55);
+}
+
+.module-runtime-assist-panel > div:first-child {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .module-runtime-outcome div {
@@ -1257,6 +1374,309 @@
 .module-runtime-outcome strong {
   font-size: 1.35rem;
   line-height: 1.05;
+}
+
+.module-runtime-final-summary {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  border: 1px solid rgba(251, 191, 36, 0.42);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: rgba(74, 50, 24, 0.72);
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.module-runtime-final-summary.is-complete {
+  border-color: rgba(64, 255, 164, 0.46);
+  background: rgba(7, 85, 58, 0.28);
+  box-shadow: inset 4px 0 0 #40ffa4;
+}
+
+.module-runtime-final-summary strong {
+  color: #ffffff;
+}
+
+.module-runtime-final-summary span,
+.module-runtime-final-summary em {
+  color: #d8ecff;
+  font-size: 0.86rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.module-live-activity {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  border: 1px solid rgba(99, 179, 237, 0.28);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: rgba(8, 18, 32, 0.72);
+}
+
+.module-trainee-supervision {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: rgba(8, 27, 35, 0.74);
+}
+
+.module-trainee-supervision-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.module-trainee-supervision-row {
+  display: grid;
+  grid-template-columns: 1.05fr 1.1fr 1.35fr 0.85fr;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 54px;
+  border: 1px solid rgba(45, 212, 191, 0.24);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(15, 23, 42, 0.66);
+}
+
+.module-trainee-supervision-row div {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.module-trainee-supervision-row strong,
+.module-trainee-supervision-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-trainee-supervision-row strong {
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.module-trainee-supervision-row span {
+  color: #bdd6e8;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.module-live-activity-header,
+.module-live-activity-row {
+  display: grid;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.module-live-activity-header {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.module-live-activity-header div {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.module-live-activity-header span {
+  color: #9fb5ca;
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.module-live-activity-header strong {
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.module-live-activity-header em {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.module-live-activity-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.module-evidence-category-grid,
+.report-evidence-category-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.module-evidence-category-grid div,
+.report-evidence-category-grid div {
+  display: grid;
+  gap: 0.16rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.module-evidence-category-grid strong,
+.report-evidence-category-grid strong {
+  color: #ffffff;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.module-evidence-category-grid span,
+.report-evidence-category-grid span {
+  color: #cbd5e1;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.module-assessment-breakdown,
+.assessment-task-breakdown {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.68);
+  padding: 0.75rem;
+}
+
+.module-assessment-breakdown-grid,
+.assessment-task-breakdown {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.module-assessment-breakdown-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.module-assessment-breakdown-grid article,
+.assessment-task-breakdown article {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-left: 4px solid #f6a400;
+  border-radius: 8px;
+  background: rgba(5, 17, 32, 0.68);
+  padding: 0.6rem 0.7rem;
+}
+
+.module-assessment-breakdown-grid article.is-complete,
+.assessment-task-breakdown article.is-complete {
+  border-left-color: #40ffa4;
+  background: rgba(7, 50, 42, 0.68);
+}
+
+.module-assessment-breakdown-grid span,
+.assessment-task-breakdown span {
+  color: #cbd5e1;
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.module-assessment-breakdown-grid strong,
+.assessment-task-breakdown strong {
+  color: #ffffff;
+  display: block;
+  font-size: 0.9rem;
+  margin-top: 0.22rem;
+}
+
+.module-assessment-breakdown-grid em,
+.assessment-task-breakdown em {
+  color: #c7d5e8;
+  display: block;
+  font-size: 0.76rem;
+  font-style: normal;
+  margin-top: 0.18rem;
+}
+
+.assessment-task-breakdown article {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.module-live-activity-row {
+  grid-template-columns: 78px minmax(240px, 1fr) 170px 86px;
+  min-height: 46px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.module-live-activity-row.is-accepted {
+  border-color: rgba(64, 255, 164, 0.34);
+  box-shadow: inset 4px 0 0 #40ffa4;
+}
+
+.module-live-activity-row.is-info {
+  border-color: rgba(96, 165, 250, 0.32);
+  box-shadow: inset 4px 0 0 #60a5fa;
+}
+
+.module-live-activity-row.is-rejected {
+  border-color: rgba(248, 113, 113, 0.42);
+  box-shadow: inset 4px 0 0 #ef4444;
+}
+
+.module-live-activity-row.is-trainee {
+  background: rgba(13, 55, 47, 0.64);
+}
+
+.module-live-activity-row.is-trainer {
+  background: rgba(24, 37, 62, 0.7);
+}
+
+.module-live-activity-row.is-milestone {
+  background: rgba(62, 42, 14, 0.68);
+}
+
+.module-live-activity-row.is-system {
+  background: rgba(33, 43, 58, 0.7);
+}
+
+.module-live-activity-row time,
+.module-live-activity-row b,
+.module-live-activity-row em {
+  color: #d8ecff;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.module-live-activity-row div {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.module-live-activity-row strong,
+.module-live-activity-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-live-activity-row strong {
+  color: #ffffff;
+  font-size: 0.84rem;
+}
+
+.module-live-activity-row span {
+  color: #cbd5e1;
+  font-size: 0.76rem;
+  font-weight: 750;
 }
 
 .module-runtime-workflow {
@@ -1275,6 +1695,14 @@
   box-shadow: inset 4px 0 0 #40ffa4;
 }
 
+.module-runtime-workflow button:disabled {
+  border-color: rgba(148, 163, 184, 0.18);
+  color: rgba(226, 232, 240, 0.48);
+  background: rgba(15, 23, 42, 0.56);
+  box-shadow: none;
+  cursor: default;
+}
+
 .module-runtime-controls button.is-primary {
   border-color: rgba(99, 179, 237, 0.65);
   background: linear-gradient(180deg, var(--control-action-hover), var(--control-action));
@@ -1291,6 +1719,240 @@
   min-height: 86px;
 }
 
+.module-runtime-controls button:disabled,
+.module-runtime-task button:disabled {
+  border-color: rgba(148, 163, 184, 0.18);
+  color: rgba(226, 232, 240, 0.48);
+  background: rgba(15, 23, 42, 0.56);
+  box-shadow: none;
+  cursor: default;
+}
+
+.module-runtime-task-board {
+  gap: 0.5rem;
+}
+
+.module-runtime-task,
+.module-runtime-empty {
+  display: grid;
+  align-items: center;
+  border: 1px solid var(--control-line);
+  border-radius: 10px;
+  background: rgba(8, 18, 32, 0.78);
+}
+
+.module-runtime-task {
+  grid-template-columns: 46px minmax(220px, 1fr) 116px 92px 62px 112px;
+  gap: 0.65rem;
+  min-height: 64px;
+  padding: 0.55rem 0.65rem;
+}
+
+.module-runtime-task.is-critical {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.module-runtime-task.is-complete {
+  border-color: rgba(64, 255, 164, 0.42);
+  background: rgba(7, 85, 58, 0.28);
+}
+
+.module-runtime-task.is-current {
+  border-color: rgba(96, 165, 250, 0.62);
+  box-shadow: inset 4px 0 0 #60a5fa;
+}
+
+.module-runtime-task > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  color: #111827;
+  background: #e5e7eb;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.module-runtime-task.is-complete > span {
+  background: #6dffb7;
+}
+
+.module-runtime-task div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.module-runtime-task strong,
+.module-runtime-empty strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-runtime-task em,
+.module-runtime-empty span {
+  overflow: hidden;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-runtime-task b,
+.module-runtime-task small {
+  color: #d8ecff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.module-runtime-stage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  padding: 0 0.7rem;
+  color: #d8ecff;
+  background: rgba(15, 23, 42, 0.7);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.module-runtime-stage.is-pre-action {
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.82);
+}
+
+.module-runtime-stage.is-in-progress {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fef3c7;
+  background: rgba(74, 50, 24, 0.82);
+}
+
+.module-runtime-stage.is-verified {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #dbeafe;
+  background: rgba(21, 62, 118, 0.78);
+}
+
+.module-runtime-stage.is-scored {
+  border-color: rgba(64, 255, 164, 0.5);
+  color: #dcfce7;
+  background: rgba(7, 85, 58, 0.78);
+}
+
+.module-runtime-task button,
+.module-runtime-secondary-actions button {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  color: #ffffff;
+  background: linear-gradient(180deg, var(--control-utility-hover), var(--control-utility));
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.module-runtime-task:not(.is-complete) button {
+  border-color: rgba(99, 179, 237, 0.65);
+  background: linear-gradient(180deg, var(--control-action-hover), var(--control-action));
+}
+
+.module-runtime-empty {
+  gap: 0.25rem;
+  padding: 0.85rem;
+}
+
+.module-runtime-secondary-actions {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
+.trainee-current-action,
+.trainee-evidence-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: rgba(8, 18, 32, 0.74);
+}
+
+.trainee-current-action {
+  grid-template-columns: minmax(260px, 1fr) 180px;
+  align-items: center;
+  border-color: rgba(99, 179, 237, 0.4);
+  box-shadow: inset 4px 0 0 var(--control-button-active);
+}
+
+.trainee-current-action-main {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.trainee-current-action-main span,
+.module-live-activity-header span {
+  color: #9fb5ca;
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.trainee-current-action-main strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 1.12rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainee-current-action-main em {
+  overflow: hidden;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainee-current-action button {
+  min-height: 44px;
+  border: 1px solid rgba(99, 179, 237, 0.65);
+  border-radius: 8px;
+  color: #ffffff;
+  background: linear-gradient(180deg, var(--control-action-hover), var(--control-action));
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.trainee-current-action button:disabled {
+  border-color: rgba(148, 163, 184, 0.18);
+  color: rgba(226, 232, 240, 0.48);
+  background: rgba(15, 23, 42, 0.56);
+  cursor: default;
+}
+
+.trainee-evidence-panel {
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
 .module-report-grid {
   grid-template-columns: repeat(4, minmax(140px, 1fr));
 }
@@ -1302,6 +1964,160 @@
 
 .module-report-grid strong {
   font-size: 1.5rem;
+}
+
+.module-final-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.module-final-review-card {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  min-height: 174px;
+  border: 1px solid rgba(99, 179, 237, 0.28);
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: rgba(8, 18, 32, 0.72);
+}
+
+.module-final-review-card > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.module-final-review-card span,
+.module-final-review-card p {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.module-final-review-card > div:first-child span {
+  color: #9fb5ca;
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.module-final-review-card strong {
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.module-final-review-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.module-final-review-list article,
+.module-final-task-list article {
+  display: grid;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.module-final-review-list article {
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 0.6rem;
+  min-height: 40px;
+  padding: 0.45rem 0.55rem;
+}
+
+.module-final-review-list article.is-complete,
+.module-final-task-list article.is-complete {
+  border-color: rgba(64, 255, 164, 0.36);
+  box-shadow: inset 4px 0 0 #40ffa4;
+}
+
+.module-final-review-list article.is-open,
+.module-final-task-list article.is-open {
+  border-color: rgba(251, 191, 36, 0.42);
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.module-final-review-list b {
+  color: #d8ecff;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.module-final-review-list span {
+  overflow: hidden;
+  color: #ffffff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-final-task-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.module-final-task-list article {
+  grid-template-columns: 42px minmax(230px, 1fr) 92px 116px 82px;
+  gap: 0.65rem;
+  min-height: 52px;
+  padding: 0.5rem 0.65rem;
+}
+
+.module-final-task-list article > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: #111827;
+  background: #e5e7eb;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.module-final-task-list article.is-complete > span {
+  background: #6dffb7;
+}
+
+.module-final-task-list div {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.module-final-task-list strong,
+.module-final-task-list em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-final-task-list strong {
+  color: #ffffff;
+  font-size: 0.84rem;
+}
+
+.module-final-task-list em {
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.module-final-task-list b,
+.module-final-task-list small {
+  color: #d8ecff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .module-player-grid {
@@ -2065,6 +2881,40 @@
   width: 1275px !important;
   height: 1019px !important;
   aspect-ratio: auto;
+}
+
+/* Keep the timetable monitor compact while letting its host fill the window. */
+.occ-workspace--scada-first .occ-monitor-frame:has(.scada-dom-root--timetable) {
+  width: 650px !important;
+  max-width: calc(100vw - 0.7rem) !important;
+  height: 520px;
+  justify-self: center;
+  justify-items: start;
+  overflow: hidden;
+}
+
+.occ-workspace--scada-first .occ-monitor-frame:has(.scada-dom-root--timetable) .win98-window {
+  width: 650px !important;
+  max-width: 650px !important;
+}
+
+.occ-workspace--scada-first .occ-monitor-frame:has(.scada-dom-root--timetable) .occ-monitor-scale {
+  width: 1275px !important;
+  height: 1019px !important;
+  aspect-ratio: auto;
+  transform: scale(0.5);
+  transform-origin: top left;
+}
+
+.occ-workspace--scada-first:has(.scada-dom-root--timetable) {
+  min-width: 0 !important;
+  width: 100vw;
+  max-width: 100vw;
+  overflow: hidden !important;
+}
+
+.occ-workspace--scada-first:has(.scada-dom-root--timetable) .occ-workspace-header {
+  left: 0 !important;
 }
 
 .win98-window {
@@ -3563,14 +4413,15 @@
   display: block;
   color: #cbd5e1;
   font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
+  font-weight: 500;
+  text-transform: none;
 }
 
 .report-kpi strong {
   display: block;
   margin: 0.28rem 0;
   font-size: 1.55rem;
+  font-weight: 650;
 }
 
 .report-grid {
@@ -3603,7 +4454,7 @@
 .report-section-title span {
   color: #cbd5e1;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .report-task,
@@ -3656,12 +4507,12 @@
   color: #cbd5e1;
   font-size: 0.76rem;
   font-style: normal;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .report-task em {
   color: #d8ecff;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .report-task.is-complete em {
@@ -3698,8 +4549,8 @@
   color: #cbd5e1;
   font-size: 0.72rem;
   font-style: normal;
-  font-weight: 900;
-  text-transform: uppercase;
+  font-weight: 500;
+  text-transform: none;
 }
 
 .report-event p,
@@ -3707,12 +4558,39 @@
   margin: 0;
   color: #ffffff;
   font-size: 0.9rem;
-  font-weight: 750;
+  font-weight: 500;
 }
 
 .report-evidence-row strong {
   color: #ffffff;
   font-size: 0.82rem;
+}
+
+.report-trainee-roster {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 10px;
+}
+
+.report-trainee-roster div {
+  background: rgba(6, 18, 33, 0.78);
+  border: 1px solid rgba(148, 177, 212, 0.28);
+  border-radius: 6px;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+}
+
+.report-trainee-roster strong,
+.report-trainee-roster span,
+.report-trainee-roster em {
+  font-size: 0.78rem;
+}
+
+.report-trainee-roster em {
+  color: #9db5cf;
+  font-style: normal;
 }
 
 .report-evidence-empty {
@@ -3837,11 +4715,18 @@
   .module-form-row,
   .module-session-grid,
   .module-scenario-grid,
+  .module-runtime-hero,
+  .module-role-flow-grid,
   .module-runtime-controls,
   .module-runtime-outcome,
   .module-runtime-workflow,
   .module-runtime-grid,
+  .module-runtime-task,
+  .trainee-current-action,
+  .module-runtime-secondary-actions,
   .module-report-grid,
+  .module-final-review-grid,
+  .module-final-task-list article,
   .module-player-grid,
   .session-runway-summary,
   .session-runway-steps,
@@ -5709,9 +6594,9 @@
 .line-map-body-viewport {
   position: absolute;
   left: 0;
-  top: 172px;
+  top: 180px;
   width: 1275px;
-  height: 755px;
+  height: 747px;
   overflow: hidden;
   background: #405e75;
 }
@@ -6725,10 +7610,18 @@
 .alarm-dom-panel {
   position: absolute;
   left: 0;
-  top: 69px;
+  top: 176px;
   width: 1275px;
-  height: 857px;
-  background: #b8c7dc;
+  height: 752px;
+  background: #c0c0c0;
+}
+
+.scada-dom-root--alarms {
+  background: #c0c0c0 !important;
+}
+
+.scada-dom-root--alarms .scada-dom-surface {
+  background: #c0c0c0 !important;
 }
 
 .alarm-dom-strip {
@@ -6736,33 +7629,42 @@
   left: 0;
   top: 0;
   width: 1275px;
-  height: 26px;
+  height: 22px;
   padding-left: 6px;
   box-sizing: border-box;
   border: 1px solid #fff;
   background: #9aa6b8;
   color: #fff;
-  font-size: 14px;
-  font-weight: 900;
-  line-height: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.scada-dom-root--alarms .alarm-dom-strip {
+  border-top: 1px solid #f8f8f8;
+  border-bottom: 1px solid #808080;
+  background: linear-gradient(90deg, #808080 0%, #c0c0c0 100%);
+  color: #eeeeee;
+  text-shadow: 1px 1px 0 #666666;
 }
 
 .alarm-dom-tabs {
   position: absolute;
   left: 2px;
-  top: 31px;
+  top: 22px;
   display: flex;
   align-items: flex-end;
 }
 
 .alarm-dom-tabs button {
-  height: 30px;
-  border: 1px solid #808080;
+  height: 32px;
+  box-sizing: border-box;
+  border: 2px solid #808080;
   border-top-color: #fff;
   border-left-color: #fff;
   background: #c0c0c0;
   padding: 0 4px;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 28px;
 }
@@ -6774,16 +7676,16 @@
 
 .alarm-dom-controls {
   position: absolute;
-  left: 8px;
-  top: 63px;
+  left: 12px;
+  top: 53px;
   width: 1258px;
   height: 58px;
 }
 
 .alarm-dom-controls label {
   position: absolute;
-  top: 7px;
-  font-size: 14px;
+  top: 10px;
+  font-size: 12px;
   line-height: 20px;
 }
 
@@ -6807,50 +7709,54 @@
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(1) {
-  left: 384px;
-  top: 5px;
+  left: 388px;
+  top: 10px;
   width: 110px;
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(2) {
-  left: 504px;
-  top: 5px;
+  left: 508px;
+  top: 10px;
   width: 112px;
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(3) {
-  left: 624px;
-  top: 5px;
+  left: 628px;
+  top: 10px;
   width: 112px;
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(4) {
   left: 880px;
-  top: -25px;
+  top: -28px;
   width: 80px;
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(5) {
   left: 1002px;
-  top: -25px;
+  top: -28px;
   width: 80px;
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(6) {
   left: 1090px;
-  top: -25px;
+  top: -28px;
   width: 80px;
 }
 
 .alarm-dom-controls .scada-dom-button:nth-of-type(7) {
   left: 1180px;
-  top: -25px;
+  top: -28px;
   width: 78px;
+}
+
+.scada-dom-root--alarms .alarm-dom-controls .scada-dom-button {
+  background: #aeb2c3;
 }
 
 .alarm-dom-sort {
   left: 1002px;
-  top: 20px !important;
+  top: 10px !important;
 }
 
 .alarm-dom-sort output {
@@ -6862,19 +7768,19 @@
 
 .alarm-dom-table {
   position: absolute;
-  left: 8px;
-  top: 85px;
-  width: 1248px;
-  height: 650px;
+  left: 12px;
+  top: 88px;
+  width: 1254px;
+  height: 664px;
   border: 1px solid #000;
-  background: #bfbfbf;
+  background: #c0c0c0;
   overflow: hidden;
 }
 
 .alarm-dom-row {
   display: grid;
-  grid-template-columns: 50px 40px 42px 146px 196px 566px 208px;
-  width: 1248px;
+  grid-template-columns: 40px 40px 40px 140px 200px 572px 206px;
+  width: 1238px;
   min-height: 31px;
   box-sizing: border-box;
 }
@@ -6895,7 +7801,7 @@
 .alarm-dom-row--head {
   height: 30px;
   background: #aeb4c3;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 900;
   line-height: 21px;
 }
@@ -6905,8 +7811,8 @@
   border: 0;
   border-top: 1px solid #000;
   padding: 0;
-  font-size: 16px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 700;
   text-align: left;
   cursor: pointer;
 }
@@ -6931,6 +7837,11 @@
 .alarm-dom-row--empty {
   height: 31px;
   border-top: 1px solid #000;
+  background: #c0c0c0;
+}
+
+.scada-dom-root--alarms .alarm-dom-status {
+  display: none;
 }
 
 .alarm-dom-empty {
@@ -7442,6 +8353,11 @@
   font-weight: 900;
   line-height: 14px;
   text-align: center;
+}
+
+.scada-dom-footer-status > span:first-child {
+  visibility: hidden;
+  min-height: 14px;
 }
 
 .scada-dom-root--alarms .scada-dom-footer-status {
@@ -9192,7 +10108,7 @@
   left: 0;
   top: 0;
   width: 1275px;
-  height: 172px;
+  height: 180px;
   background: #d4d0c8;
   border: 0;
   font-family: Arial, Helvetica, sans-serif;
@@ -9212,104 +10128,206 @@
 .line-map-alarm-strip::after {
   content: '';
   position: absolute;
-  left: 28px;
+  left: 37px;
   right: 0;
-  top: 99px;
+  top: 103px;
   height: 1px;
   background: #000000;
 }
 
-.line-map-side-tabs {
+.line-map-edge-tab-stack {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 29px;
-  height: 100px;
+  left: 4px;
+  top: 4px;
+  z-index: 20;
+  width: 32px;
+  height: 99px;
+  box-sizing: border-box;
   display: grid;
-  grid-template-rows: 53px 39px;
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 0 51px,
-      #808080 51px 52px,
-      #ffffff 52px 98px,
-      #808080 98px 99px,
-      #000000 99px 100px,
-      transparent 100px
-    ) 28px 0 / 1px 100% no-repeat,
-    #d4d0c8;
+  grid-template-rows: 56px 43px;
+  gap: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.line-map-side-tabs::before,
-.line-map-side-tabs::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  z-index: 3;
-  width: 29px;
-  height: 1px;
-  background: #000000;
-  pointer-events: none;
-}
-
-.line-map-side-tabs::before {
-  top: 52px;
-}
-
-.line-map-side-tabs::after {
-  top: 92px;
-}
-
-.line-map-side-tab {
+.line-map-edge-tab {
   appearance: none;
   position: relative;
-  z-index: 1;
+  z-index: 21;
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  border: 0;
+  width: 32px;
+  min-width: 32px;
+  margin: 0;
+  border: 1px solid;
+  border-color: #f7f7f7 #808080 #000000 #f7f7f7;
+  border-bottom-width: 2px;
+  border-radius: 0;
   padding: 0;
   background: #d4d0c8;
   color: #000000;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
   font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.line-map-edge-tab span {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  text-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 17px;
 }
 
-.line-map-side-tab:focus-visible {
+.line-map-edge-tab--alarms {
+  border-radius: 4px 0 0 0;
+}
+
+.line-map-edge-tab--calls {
+  height: 43px;
+  margin-top: 0;
+  border-radius: 0 0 0 4px;
+}
+
+.line-map-edge-tab--active {
+  z-index: 23;
+  width: 33px;
+  border-right: 0;
+  background: #d4d0c8;
+  box-shadow: none;
+}
+
+.line-map-edge-tab:focus-visible {
   outline: 1px dotted #000000;
-  outline-offset: -3px;
-}
-
-.line-map-side-tab--active {
-  background: #d4d0c8;
-  color: #000000;
-  font-weight: 700;
-}
-
-.line-map-side-tab--calls,
-.line-map-side-tab:not(.line-map-side-tab--active) {
-  font-size: 11px;
-  line-height: 19px;
-}
-
-.line-map-side-tab:not(.line-map-side-tab--active) {
-  background: #d4d0c8;
-  color: #000000;
-  font-weight: 700;
+  outline-offset: -5px;
 }
 
 .line-map-alarm-counts {
   position: absolute;
+  left: 47px;
+  top: 3px;
+  width: 114px;
+  height: 92px;
+}
+
+.line-map-calls-workspace {
+  position: absolute;
   left: 35px;
   top: 3px;
-  width: 105px;
-  height: 92px;
+  z-index: 1;
+  right: 5px;
+  height: 96px;
+  display: grid;
+  grid-template-columns: 188px 22px minmax(0, 1fr);
+  gap: 3px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+}
+
+.line-map-alarms-workspace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.line-map-call-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, 23px);
+  gap: 4px 5px;
+  align-content: start;
+  box-sizing: border-box;
+  border: 0;
+  padding: 6px;
+  background: transparent;
+}
+
+.line-map-call-control {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 23px;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #918d70;
+  padding: 0 2px;
+  background: #d4d0c8;
+  color: #000000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 19px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.line-map-call-control--active {
+  background: #fff2a3;
+}
+
+.line-map-call-control--spaced {
+  letter-spacing: 0.22em;
+}
+
+.line-map-call-control--inactive {
+  border: 2px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  color: #707070;
+  background: #b7b7b7;
+  cursor: pointer;
+}
+
+.line-map-call-control--inactive:active {
+  border-color: #404040 #ffffff #ffffff #404040;
+}
+
+.line-map-call-indicator {
+  display: block;
+  width: 15px;
+  height: 15px;
+  margin-top: 7px;
+  box-sizing: border-box;
+  border: 1px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+  box-shadow: inset 1px 1px 0 #000000;
+}
+
+.line-map-call-list {
+  min-width: 0;
+  border: 0;
+  background: #aeb2c3;
+  box-shadow: none;
+}
+
+.line-map-call-list-shell {
+  min-width: 0;
+  height: 86px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17px;
+  box-sizing: border-box;
+  border: 1px solid #404040;
+  background: #aeb2c3;
+  overflow: hidden;
+}
+
+.line-map-call-scrollbar {
+  width: 17px;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: 17px 1fr 17px;
+  border: 0;
+  border-left: 1px solid #000000;
+  background: #d4d0c8;
 }
 
 .line-map-alarm-counts::before {
@@ -9317,7 +10335,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 100px;
+  width: 114px;
   height: 60px;
   box-sizing: border-box;
   border: 1px solid;
@@ -9331,15 +10349,19 @@
   align-items: center;
   justify-content: space-between;
   position: relative;
-  width: 82px;
-  height: 21px;
-  margin-left: 8px;
-  font-size: 12px;
+  width: 97px;
+  height: 27px;
+  margin: 0 0 0 8px;
+  font-size: 13px;
+}
+
+.line-map-alarm-counts label:first-of-type {
+  margin-top: 4px;
 }
 
 .line-map-alarm-counts output {
   display: inline-block;
-  width: 36px;
+  width: 44px;
   height: 18px;
   box-sizing: border-box;
   border: 1px solid;
@@ -9380,36 +10402,37 @@
   font-size: 0;
 }
 
-.line-map-alarm-clear::before {
-  content: '';
+.line-map-alarm-clear img {
   display: block;
   width: 13px;
   height: 16px;
-  background: url('./assets/alarm-icons/alarm_ack.png') 0 0 / 13px 16px no-repeat;
+  object-fit: contain;
 }
 
 .line-map-alarm-display {
-  left: 33px;
+  left: 31px;
   gap: 3px;
-  width: 72px;
-  min-width: 72px;
+  width: 81px;
+  min-width: 81px;
   padding-left: 3px;
+  cursor: pointer;
   font-size: 12px;
   text-align: left;
+  text-decoration: none;
 }
 
-.line-map-alarm-display i {
+.line-map-alarm-display img {
   display: block;
   flex: 0 0 auto;
   width: 16px;
   height: 14px;
   border: 0;
-  background: url('./assets/alarm-icons/alarm_display.png') 0 0 / 16px 14px no-repeat;
+  object-fit: contain;
 }
 
 .line-map-alarm-table {
   position: absolute;
-  left: 141px;
+  left: 167px;
   top: 3px;
   right: 20px;
   height: 96px;
@@ -9423,7 +10446,7 @@
 .line-map-alarm-row {
   position: relative;
   display: grid;
-  grid-template-columns: 20px 140px 180px 1fr 170px;
+  grid-template-columns: 20px 20px 120px 180px minmax(0, 1fr) 170px;
   width: 100%;
   height: 23px;
   margin: 0;
@@ -9431,9 +10454,15 @@
   border-bottom: 1px solid #000000;
   padding: 0;
   color: #000000;
-  font-size: 14px;
-  font-weight: 400;
+  font-size: 16px;
+  font-weight: 700;
   text-align: left;
+}
+
+.line-map-alarm-row::before {
+  content: '';
+  min-width: 0;
+  border-right: 1px solid #000000;
 }
 
 .line-map-alarm-row span {
@@ -9443,15 +10472,21 @@
   white-space: nowrap;
 }
 
+.line-map-alarm-row span:first-of-type {
+  padding-right: 0;
+  padding-left: 0;
+  text-align: center;
+}
+
 .line-map-alarm-scrollbar {
   position: absolute;
   top: 3px;
-  right: 5px;
-  width: 15px;
+  right: 4px;
+  width: 17px;
   height: 96px;
   box-sizing: border-box;
   display: grid;
-  grid-template-rows: 15px 1fr 15px;
+  grid-template-rows: 17px 1fr 17px;
   border: 1px solid #000000;
   background: #d4d0c8;
   z-index: 2;
@@ -9469,7 +10504,7 @@
 .line-map-alarm-scrollbar-button::before {
   content: '';
   position: absolute;
-  left: 3px;
+  left: 4px;
   width: 0;
   height: 0;
   border-left: 4px solid transparent;
@@ -9490,14 +10525,14 @@
   display: block;
   border-top: 1px solid #000000;
   border-bottom: 1px solid #000000;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      #ffffff 0,
-      #ffffff 1px,
-      #d4d0c8 1px,
-      #d4d0c8 2px
-    );
+  background-color: #d4d0c8;
+  background-image:
+    linear-gradient(45deg, #ffffff 25%, transparent 25%),
+    linear-gradient(-45deg, #ffffff 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ffffff 75%),
+    linear-gradient(-45deg, transparent 75%, #ffffff 75%);
+  background-position: 0 0, 0 1px, 1px -1px, -1px 0;
+  background-size: 2px 2px;
 }
 
 .line-map-alarm-row--orange {
@@ -9514,43 +10549,49 @@
 
 .line-map-station-ribbon {
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 67px;
-  background: #aeb2c3;
-  border-top: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
+  left: 8px;
+  right: 8px;
+  height: 62px;
+  box-sizing: border-box;
+  background: #afb2c3;
+  border: 1px solid #404040;
+  box-shadow: none;
+}
+
+.line-map-station-ribbon::before {
+  display: none;
 }
 
 .line-map-station-line {
   position: absolute;
-  left: 25px;
-  top: 41px;
+  left: 26px;
+  top: 42px;
   width: 1052px;
   height: 3px;
-  background: #003cff;
+  background: #0000ff;
 }
 
 .line-map-station-node {
   position: absolute;
-  top: 6px;
+  top: 8px;
   width: 66px;
   margin-left: -28px;
-  color: #003cff;
-  font-size: 20px;
+  color: #0000ff;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 0;
   text-align: center;
+  transform: translate(1px, 1px);
 }
 
 .line-map-station-node i {
   position: absolute;
-  left: 17px;
-  top: 24px;
-  width: 26px;
-  height: 26px;
+  left: 18px;
+  top: 23px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #003cff;
+  background: #0000ff;
 }
 
 .line-map-station-node span {
@@ -9561,11 +10602,13 @@
 
 .line-map-station-ribbon strong {
   position: absolute;
-  left: 1178px;
-  top: 27px;
+  right: 8px;
+  left: auto;
+  top: 28px;
   color: #ffff40;
-  font-size: 21px;
+  font-size: 16px;
   line-height: 20px;
+  white-space: nowrap;
 }
 
 .line-map-schematic-base {
@@ -10293,7 +11336,7 @@
   top: -24px;
   width: 42px;
   color: #ffffff;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 400;
   line-height: 8px;
   pointer-events: none;
@@ -10801,7 +11844,7 @@
 
 .line-map-footer-dom .line-map-footer-print {
   position: absolute;
-  left: 1073px;
+  left: 838px;
   top: 49px;
   width: 40px;
   height: 40px;
@@ -10813,7 +11856,7 @@
 
 .scada-dom-footer .line-map-footer-print {
   position: absolute;
-  left: 1073px;
+  left: 838px;
   top: 49px;
   width: 40px;
   height: 40px;
@@ -10942,7 +11985,7 @@
 }
 
 .scada-dom-root--timetable .scada-dom-footer--compact .line-map-footer-print {
-  left: 1073px;
+  left: 838px;
   top: 6px !important;
 }
 
@@ -10968,44 +12011,237 @@
   box-sizing: border-box;
 }
 
-/* Monitor 03: timetable-only view with the upper chart band removed. */
+/* Monitor 03: keep the reference-style blue chart band above the timetable. */
 .scada-dom-root--timetable .timetable-dom-charts {
-  display: none;
+  display: block !important;
+  width: 1275px;
+  height: 366px;
+  background: #426278;
+  background-image: none;
 }
 
 .scada-dom-root--timetable .timetable-dom-title-strip {
-  top: 0;
+  top: 366px;
+  height: 20px;
 }
 
 .scada-dom-root--timetable .timetable-dom-panel {
-  top: 32px;
-  height: 907px;
+  top: 398px;
+  height: 507px;
+  border: 1px solid #fff;
+  background: #c0c0c0;
+  background-image: none;
 }
 
 .scada-dom-root--timetable .timetable-dom-panel::before {
-  height: 907px;
+  content: none;
+  display: none;
 }
 
 .scada-dom-root--timetable .timetable-dom-table {
-  height: 650px;
+  height: 286px;
 }
 
 .scada-dom-root--timetable .timetable-dom-custom-scrollbar {
   top: 148px;
-  height: 650px;
+  height: 286px;
 }
 
 .scada-dom-root--timetable .timetable-dom-custom-scrollbar::before {
-  height: 616px;
+  height: 252px;
 }
 
 .scada-dom-root--timetable .timetable-dom-actions {
-  top: 814px;
+  top: 440px;
   gap: 10px;
 }
 
 .scada-dom-root--timetable .timetable-dom-help,
 .scada-dom-root--timetable .timetable-dom-print,
 .scada-dom-root--timetable .timetable-dom-close {
-  top: 876px;
+  top: 492px;
+}
+
+/* Monitor 03: empty dark-blue upper half; only the timetable occupies the lower half. */
+.scada-dom-root--timetable .timetable-dom-charts {
+  display: block !important;
+  background: #426278 !important;
+}
+
+.scada-dom-root--timetable,
+.scada-dom-root--timetable .scada-dom-surface {
+  background: #426278 !important;
+}
+
+.scada-dom-root--timetable .timetable-dom-charts > *,
+.scada-dom-root--timetable .timetable-dom-chart-divider {
+  display: none !important;
+}
+
+/* Monitor 03 uses the full monitor composition; do not apply the legacy 50% preview scale. */
+.occ-workspace--scada-first .occ-monitor-frame:has(.scada-dom-root--timetable) .occ-monitor-scale {
+  width: 1275px !important;
+  height: 1019px !important;
+  transform: none !important;
+  transform-origin: top left;
+}
+
+/* Fit every native SCADA monitor window inside the browser viewport. */
+.occ-workspace--scada-first.occ-workspace--scada-fit {
+  width: 100vw !important;
+  height: 100vh;
+  min-width: 0 !important;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden !important;
+  place-items: start center;
+}
+
+.occ-workspace--scada-fit .occ-workspace-header {
+  display: none;
+}
+
+.occ-workspace--scada-first.occ-workspace--scada-fit .occ-monitor-frame {
+  position: relative;
+  width: var(--scada-frame-width) !important;
+  height: var(--scada-frame-height);
+  max-width: none !important;
+  justify-self: center !important;
+  margin: 0 auto;
+  overflow: hidden !important;
+}
+
+.occ-workspace--scada-first.occ-workspace--scada-fit .occ-monitor-frame .win98-window {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1293px !important;
+  max-width: none !important;
+  margin: 0;
+}
+
+/* SCADA line-identification buttons use the reference workstation colour coding. */
+.scada-dom-footer .scada-dom-footer-mode-button--yellow {
+  background: #fff58c !important;
+}
+
+.scada-dom-footer .scada-dom-footer-mode-button--neutral {
+  background: #c0c0c0 !important;
+}
+
+/* Signals without a route definition are non-controllable in the BGK–PGC area. */
+.line-map-signal--non-controllable::before,
+.line-map-signal--non-controllable::after {
+  background: #808080 !important;
+}
+
+/* The reference has one continuous grey lower section, flush to the chart edges. */
+.scada-dom-root--timetable,
+.scada-dom-root--timetable .scada-dom-surface {
+  background: linear-gradient(
+    to bottom,
+    #426278 0 366px,
+    #c0c0c0 366px 966px,
+    #b0c4de 966px 1019px
+  ) !important;
+}
+
+.scada-dom-root--timetable .timetable-dom-title-strip {
+  left: 0;
+  top: 366px;
+  width: 1275px;
+  border-top: 1px solid #f8f8f8;
+  border-bottom: 1px solid #808080;
+  background: linear-gradient(90deg, #808080 0%, #c0c0c0 100%) !important;
+  color: #eeeeee;
+  text-shadow: 1px 1px 0 #666666;
+}
+
+.scada-dom-root--timetable .timetable-dom-panel {
+  left: 4px;
+  top: 398px;
+  width: 1259px;
+  height: 568px;
+  border: 1px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  background: #c0c0c0;
+  box-shadow: none;
+}
+
+.scada-dom-root--timetable .timetable-dom-actions {
+  left: 539px;
+  top: 448px;
+  height: 49px;
+  gap: 10px;
+}
+
+.scada-dom-root--timetable .timetable-dom-trip-button {
+  width: 110px;
+  height: 49px;
+}
+
+.scada-dom-root--timetable .timetable-dom-help,
+.scada-dom-root--timetable .timetable-dom-print,
+.scada-dom-root--timetable .timetable-dom-close {
+  top: 519px;
+  width: 80px;
+  height: 30px;
+}
+
+.scada-dom-root--timetable .timetable-dom-help {
+  left: 0;
+}
+
+.scada-dom-root--timetable .timetable-dom-print {
+  left: 1088px;
+}
+
+.scada-dom-root--timetable .timetable-dom-close {
+  left: 1178px;
+}
+
+/* Trainee monitor tabs styles */
+.trainee-monitor-tabs {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 1275px;
+  background: #1a1e29;
+  padding: 6px 10px 0 10px;
+  border-bottom: 2px solid #d4d0c8;
+  box-sizing: border-box;
+}
+
+.trainee-tab {
+  background: #808080;
+  color: #dfdfdf;
+  border: 2px solid #808080;
+  border-bottom: none;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  padding: 8px 18px;
+  font-family: "MS Sans Serif", "Courier New", sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  outline: none;
+  position: relative;
+  top: 2px;
+  transition: all 0.1s ease;
+}
+
+.trainee-tab:hover {
+  background: #a0a0a0;
+  color: #fff;
+}
+
+.trainee-tab.is-active {
+  background: #d4d0c8;
+  color: #000;
+  border: 2px solid #d4d0c8;
+  border-bottom: none;
+  padding-top: 10px;
+  top: 0px;
+  z-index: 10;
+  box-shadow: inset -1px 1px 0 #fff, inset 1px 1px 0 #fff;
 }

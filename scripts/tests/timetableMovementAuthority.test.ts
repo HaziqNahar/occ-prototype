@@ -68,6 +68,50 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 }
 
 {
+  const baseSession = sessionWithRows([timetableRow()])
+  const session = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            itamaStatus: 'NOT_GRANTED' as const,
+            lineMapVisible: false,
+          }
+        : train
+    )),
+  }
+  const [authority] = createTimetableMovementAuthorities(session, {}, new Date(2026, 0, 1, 10, 6, 0))
+
+  assert.ok(authority)
+  assert.equal(authority.allowed, false)
+  assert.equal(authority.blockedReason, 'Train 312 ITAMA is not granted')
+  assert.deepEqual(createAllowedTimetablePlaybackPlans(session, {}, new Date(2026, 0, 1, 10, 6, 0)), [])
+}
+
+{
+  const baseSession = sessionWithRows([timetableRow()])
+  const session = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            lineMapVisible: false,
+            readinessMode: 'MAINLINE_OFF_SERVICE' as const,
+          }
+        : train
+    )),
+  }
+  const [authority] = createTimetableMovementAuthorities(session, {}, new Date(2026, 0, 1, 10, 6, 0))
+
+  assert.ok(authority)
+  assert.equal(authority.allowed, false)
+  assert.equal(authority.blockedReason, 'Train 312 readiness is not Mainline Service')
+  assert.deepEqual(createAllowedTimetablePlaybackPlans(session, {}, new Date(2026, 0, 1, 10, 6, 0)), [])
+}
+
+{
   const session = {
     ...sessionWithRows([timetableRow()]),
     trains: [

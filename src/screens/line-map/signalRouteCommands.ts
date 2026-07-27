@@ -30,6 +30,14 @@ export function getSignalRouteTargetTrain(trains: readonly TrainState[], selecte
     ?? trains[0]
 }
 
+export function getSignalRouteTargetTrainForSession(session: OccSessionState) {
+  const scenarioTargetTrain = session.scenarioMode === 'RUNNING' && session.activeScenario.targetTrainId
+    ? session.trains.find((train) => train.id === session.activeScenario.targetTrainId)
+    : undefined
+
+  return scenarioTargetTrain ?? getSignalRouteTargetTrain(session.trains, session.selectedTrainId)
+}
+
 export function hasSignalRouteCommand(signal: Pick<LineMapSignalData, 'label'>, routeLabel: string) {
   return isSignalRouteDefinitionCommandable(getSignalRouteDefinition(signal.label, routeLabel))
 }
@@ -81,7 +89,7 @@ export function applySignalRouteSetSession(
   signal: LineMapSignalData,
   routeLabel: string,
 ): OccSessionState {
-  const targetTrain = getSignalRouteTargetTrain(current.trains, current.selectedTrainId)
+  const targetTrain = getSignalRouteTargetTrainForSession(current)
   const routeOwner = targetTrain ?? { id: '' }
   const event = targetTrain
     ? createMonitorEvent(

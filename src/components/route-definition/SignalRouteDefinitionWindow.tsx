@@ -121,7 +121,7 @@ function SignalRouteDefinitionWindow({
     >
       <div className="sig-route-titlebar" {...popupDrag.titleBarProps}>SIG Define Route</div>
       <div className="sig-route-body">
-        <h3>{equipmentLabel} (Signal {signalLabel})</h3>
+        <h3>{equipmentLabel} {'{'}Signal {signalLabel}{'}'}</h3>
         <fieldset className="sig-route-fieldset">
           <legend>Available Routes</legend>
           <div className="sig-route-column-headings" role="row">
@@ -243,7 +243,13 @@ function SignalRouteDefinitionWindow({
         <label className="sig-route-status">
           <span>Status</span>
           <output>
-            {selectedRouteSet ? 'Route set successful' : !hasSelectedRouteRow || selectedRouteCommandAvailable ? statusText : 'Route command unavailable'}
+            {!hasSelectedRouteRow
+              ? ''
+              : selectedRouteSet
+                ? 'Route set successful'
+                : selectedRouteCommandAvailable
+                  ? statusText
+                  : 'Route command unavailable'}
           </output>
         </label>
         <div className="sig-route-footer">
@@ -262,7 +268,7 @@ function SignalRouteDefinitionWindow({
             <legend>Please confirm command...</legend>
             <div className="train-command-confirmation__grid">
               <label>Equipment</label>
-              <div>{equipmentLabel} (Signal {signalLabel})</div>
+              <div>{equipmentLabel} {'{'}Signal {signalLabel}{'}'}</div>
               <label>Attribute</label>
               <div>{confirmationRouteLabel}</div>
               <label>Command</label>

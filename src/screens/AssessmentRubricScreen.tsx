@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SessionRunway from '../components/SessionRunway'
+import { getScenarioAssessmentSummary } from '../iosScenarioAssessment'
 import { assessmentRubric } from '../scenarioLibrary'
 import { scoreTrainingScenario } from '../trainingScenarios'
 import type { AppRoute, OccSessionState } from '../types'
@@ -14,6 +15,7 @@ type AssessmentRubricScreenProps = {
 function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenProps) {
   const rejectedActions = session.eventRows.filter((event) => event.message.toLowerCase().includes('rejected')).length
   const trainingScenarioScore = scoreTrainingScenario(session)
+  const assessmentSummary = getScenarioAssessmentSummary(session)
   const liveScore = trainingScenarioScore.score
   const resultLabel = trainingScenarioScore.result
 
@@ -64,6 +66,14 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
               <span>Mode</span>
               <strong>{session.trainingMode}</strong>
             </div>
+            <div>
+              <span>Live monitor tasks</span>
+              <strong>{assessmentSummary.liveMonitorComplete}/{assessmentSummary.liveMonitorTotal}</strong>
+            </div>
+            <div>
+              <span>Instructor review</span>
+              <strong>{assessmentSummary.instructorReviewComplete}/{assessmentSummary.instructorReviewTotal}</strong>
+            </div>
           </div>
         </aside>
 
@@ -99,17 +109,39 @@ function AssessmentRubricScreen({ onNavigate, session }: AssessmentRubricScreenP
           </div>
 
           <div className="assessment-checklist">
-            {trainingScenarioScore.taskResults.map((task, index) => {
+            {assessmentSummary.rows.map((task, index) => {
               const complete = task.complete
 
               return (
                 <div className={complete ? 'is-complete' : ''} key={task.id}>
                   <span>{String(index + 1).padStart(2, '0')}</span>
                   <strong>{task.label}</strong>
-                  <em>{complete ? 'Complete' : 'Pending'}</em>
+                  <em>{task.statusLabel}</em>
                 </div>
               )
             })}
+          </div>
+
+          <div className="assessment-task-breakdown" aria-label="Scenario task scoring breakdown">
+            {assessmentSummary.rows.map((task) => (
+              <article className={task.complete ? 'is-complete' : 'is-open'} key={task.id}>
+                <div>
+                  <span>{task.critical ? 'Critical' : 'Standard'} | {task.completionSource}</span>
+                  <strong>{task.label}</strong>
+                  <em>{task.monitor} | Owner: {task.owner}</em>
+                </div>
+                <div>
+                  <span>Stage</span>
+                  <strong>{task.stageLabel}</strong>
+                  <em>{task.statusLabel}</em>
+                </div>
+                <div>
+                  <span>Score</span>
+                  <strong>{task.scoreContribution}/{task.weight}%</strong>
+                  <em>{task.evidenceCount} evidence</em>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
       </section>

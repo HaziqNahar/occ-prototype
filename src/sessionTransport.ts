@@ -73,6 +73,7 @@ type SessionTransportOptions = {
 export type OccSessionTransport = {
   close: () => void
   publish: (session: OccSessionState) => void
+  reset: (session: OccSessionState) => void
   registerScreen: (screen: ScreenRegistration, session: OccSessionState) => void
   requestMonitorPeerLaunch: () => string
   sourceId: string
@@ -168,17 +169,17 @@ export function createOccSessionTransport({
 
   // Publish full session snapshots to the backend first. If the backend is
   // unavailable, the worker/channel/storage fallbacks keep the session alive.
-  const publishToBackend = (session: OccSessionState) => {
+  const publishToBackend = (session: OccSessionState, force = false) => {
     if (backendBaseUrl === null) {
       return
     }
 
-    void fetch(buildOccApiUrl(backendBaseUrl, '/api/session'), {
+    void fetch(buildOccApiUrl(backendBaseUrl, force ? '/api/session/reset' : '/api/session'), {
       body: JSON.stringify({ session, sourceId }),
       headers: {
         'content-type': 'application/json',
       },
-      method: 'PUT',
+      method: force ? 'POST' : 'PUT',
     })
       .then(async (response) => {
         if (response.status !== 409) {
@@ -369,6 +370,22 @@ export function createOccSessionTransport({
       lastSessionTransport = 'local'
       writeSessionToStorage(session)
       publishToBackend(session)
+      worker?.port.postMessage({
+        session,
+        sourceId,
+        type: 'session:update',
+      })
+      channel?.postMessage({
+        session,
+        sourceId,
+        transport: 'broadcast-channel',
+        type: 'session:update',
+      })
+    },
+    reset: (session: OccSessionState) => {
+      lastSessionTransport = 'local'
+      writeSessionToStorage(session)
+      publishToBackend(session, true)
       worker?.port.postMessage({
         session,
         sourceId,

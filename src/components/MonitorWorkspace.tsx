@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import type { AppRoute, OccSessionState } from '../types'
 
@@ -13,6 +13,21 @@ type MonitorWorkspaceProps = {
   title: string
 }
 
+const SCADA_WINDOW_WIDTH = 1293
+const SCADA_WINDOW_HEIGHT = 1111
+
+function getScadaWindowScale() {
+  if (typeof window === 'undefined') {
+    return 1
+  }
+
+  return Math.min(
+    1,
+    window.innerWidth / SCADA_WINDOW_WIDTH,
+    window.innerHeight / SCADA_WINDOW_HEIGHT,
+  )
+}
+
 function MonitorWorkspace({
   children,
   extraActions,
@@ -21,13 +36,43 @@ function MonitorWorkspace({
   scadaFirst = false,
   title,
 }: MonitorWorkspaceProps) {
+  const fitsScadaViewport = scadaFirst
   const [isMaximized, setIsMaximized] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [windowNote, setWindowNote] = useState('SCADA window ready')
+  const [scadaWindowScale, setScadaWindowScale] = useState(() => (
+    fitsScadaViewport ? getScadaWindowScale() : 1
+  ))
   const menuItems = ['File', 'View', 'Command', 'Power', 'ECS', 'Traffic', 'Comms', 'Admin', 'Help']
 
+  useEffect(() => {
+    if (!fitsScadaViewport) {
+      return undefined
+    }
+
+    const fitWindowToViewport = () => setScadaWindowScale(getScadaWindowScale())
+    fitWindowToViewport()
+    window.addEventListener('resize', fitWindowToViewport)
+
+    return () => window.removeEventListener('resize', fitWindowToViewport)
+  }, [fitsScadaViewport])
+
+  const scadaFrameStyle = fitsScadaViewport
+    ? {
+        '--scada-frame-height': `${SCADA_WINDOW_HEIGHT * scadaWindowScale}px`,
+        '--scada-frame-width': `${SCADA_WINDOW_WIDTH * scadaWindowScale}px`,
+      } as CSSProperties
+    : undefined
+
+  const scadaWindowStyle = fitsScadaViewport
+    ? {
+        transform: `scale(${scadaWindowScale})`,
+        transformOrigin: 'top left',
+      } satisfies CSSProperties
+    : undefined
+
   return (
-    <main className={`occ-workspace ${scadaFirst ? 'occ-workspace--scada-first' : ''}`}>
+    <main className={`occ-workspace ${scadaFirst ? 'occ-workspace--scada-first occ-workspace--scada-fit' : ''}`}>
       <header className="occ-workspace-header">
         <div className="occ-workspace-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
@@ -47,8 +92,13 @@ function MonitorWorkspace({
         </div>
       </header>
 
-      <section className="occ-monitor-frame" aria-label="Line map monitor frame">
-        <div className={`win98-window ${isMaximized ? 'is-maximized' : ''}`} role="group" aria-label={`${title} Windows 98 SCADA window`}>
+      <section className="occ-monitor-frame" aria-label="Line map monitor frame" style={scadaFrameStyle}>
+        <div
+          className={`win98-window ${isMaximized ? 'is-maximized' : ''}`}
+          role="group"
+          aria-label={`${title} Windows 98 SCADA window`}
+          style={scadaWindowStyle}
+        >
           <div className="win98-titlebar">
             <span>{monitorLabel} | NEL_SIG_Traffic_Detail - {title}</span>
             <div className="win98-window-controls">

@@ -12,21 +12,20 @@ import {
   getTrainServiceDirectionLabel,
 } from './trainTimeOptions'
 import type { TrainTimeSelection } from './trainTimeOptions'
+import type { TrainDepartureCommandResult } from './trainControlTypes'
 import usePopupDrag from './usePopupDrag'
 import Win98HtmlButton from './Win98HtmlButton'
 
 function TrainTimeDialog({
-  initialSelection,
   kind,
   onApply,
   onConfirmDeparture,
   onClose,
   train,
 }: {
-  initialSelection?: TrainTimeSelection
   kind: 'arrival' | 'departure'
   onApply: (message: string, selection: TrainTimeSelection) => void
-  onConfirmDeparture?: () => void
+  onConfirmDeparture?: (selection: TrainTimeSelection) => TrainDepartureCommandResult
   onClose: () => void
   train: TrainState
 }) {
@@ -41,11 +40,11 @@ function TrainTimeDialog({
     mm: '00',
     ss: '00',
   })
-  const [station, setStation] = useState(initialSelection?.station ?? '')
+  const [station, setStation] = useState('')
   const [stationDropdownOpen, setStationDropdownOpen] = useState(false)
   const [stationScrollIndex, setStationScrollIndex] = useState(0)
   const [stationScrollDrag, setStationScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
-  const [platformSiding, setPlatformSiding] = useState(initialSelection?.platformSiding ?? '')
+  const [platformSiding, setPlatformSiding] = useState('')
   const [platformDropdownOpen, setPlatformDropdownOpen] = useState(false)
   const [platformScrollIndex, setPlatformScrollIndex] = useState(0)
   const [platformScrollDrag, setPlatformScrollDrag] = useState<{ startIndex: number; startY: number } | null>(null)
@@ -220,13 +219,19 @@ function TrainTimeDialog({
       station,
     }
 
-    onApply(nextStatus, selection)
-    setTimeConfirmationCommand(null)
-
     if (kind === 'departure') {
-      onConfirmDeparture?.()
+      const departureResult = onConfirmDeparture?.(selection)
+
+      if (departureResult && !departureResult.accepted) {
+        onApply(`${departureResult.message}\nCommand rejected`, selection)
+        setTimeConfirmationCommand(null)
+        onClose()
+        return
+      }
     }
 
+    onApply(nextStatus, selection)
+    setTimeConfirmationCommand(null)
     onClose()
   }
 

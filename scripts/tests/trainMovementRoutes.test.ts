@@ -16,6 +16,9 @@ import { createLineMapRuntimeState } from '../../src/screens/line-map/lineMapRun
 import {
   getTrainRouteStepFromTrainOccupancyOrLineMap,
 } from '../../src/screens/line-map/trainRoutePlaybackState'
+import {
+  resolveTrainMovementAuthority,
+} from '../../src/screens/line-map/trainMovementAuthority'
 
 function assertTimetableStepsExcludeGuideRails(routeName: string, segmentIds: readonly string[]) {
   assert.equal(
@@ -56,6 +59,39 @@ assert.equal(
   true,
   'render lookup should prefer rail-P611 over the next mainline rail-613 during RT1 launch',
 )
+
+{
+  const decision = resolveTrainMovementAuthority(
+    {
+      direction: 'right',
+      id: '306',
+      itamaStatus: 'GRANTED',
+      lineMapVisible: true,
+      occupancySegmentId: 'rail-653',
+      readinessMode: 'MAINLINE_SERVICE',
+      service: 'NB',
+      status: 'WAIT',
+      timetablePlayback: false,
+      x: RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS[1].point.x,
+      y: RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS[1].point.y,
+    },
+    {
+      kind: 'arrival',
+      peak: true,
+      platformSiding: 'SKGN',
+      regulationThreshold: 0,
+      station: 'SKG',
+      time: { hours: 0, minutes: 0, seconds: 0 },
+    },
+  )
+
+  assert.equal(decision.allowed, true)
+  assert.equal(decision.allowed && decision.routeLabel, 'Manual RT1 launch to SKG northbound')
+  assert.deepEqual(
+    decision.allowed && decision.movementRouteSteps.map((step) => step.segmentId),
+    ['rail-655', 'rail-653', 'rail-P609', 'rail-P611', 'rail-613', 'rail-615', 'rail-617'],
+  )
+}
 
 {
   const p611StepIndex = RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS.findIndex((step) => step.segmentId === 'rail-P611')

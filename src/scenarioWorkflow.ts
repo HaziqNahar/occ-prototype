@@ -201,25 +201,37 @@ export function updateScenarioTask(
   }
 }
 
-export function getScenarioTaskBlocker(tasks: ScenarioTaskState | undefined, taskId: ScenarioTaskId) {
+export function getScenarioTaskBlocker(
+  tasks: ScenarioTaskState | undefined,
+  taskId: ScenarioTaskId,
+  activeScenarioId?: string,
+  targetTrainId?: string,
+) {
   const currentTasks = { ...initialScenarioTasks, ...tasks }
+  const defaultTrainId = activeScenarioId === 'train-withdrawal'
+    ? '312'
+    : activeScenarioId === 'train-launch'
+      ? '306'
+      : '317'
+  const trainLabel = (targetTrainId || defaultTrainId) ? `Train ${targetTrainId || defaultTrainId}` : 'the target train'
+  const isDoorFault = activeScenarioId === 'door-fault' || activeScenarioId === 'idle' || !activeScenarioId
 
-  if (taskId === 'ackAlarm' && !currentTasks.selectTrain) {
-    return 'Select Train 317 before acknowledging the injected alarm.'
+  if (taskId === 'ackAlarm' && isDoorFault && !currentTasks.selectTrain) {
+    return `Select ${trainLabel} before acknowledging the injected alarm.`
   }
 
   if (taskId === 'setRoute') {
     if (!currentTasks.selectTrain) {
-      return 'Select Train 317 before applying route.'
+      return `Select ${trainLabel} before applying route.`
     }
 
-    if (!currentTasks.ackAlarm) {
+    if (isDoorFault && !currentTasks.ackAlarm) {
       return 'Acknowledge the door fault before applying route.'
     }
   }
 
   if (taskId === 'dispatchTrain') {
-    if (!currentTasks.ackAlarm) {
+    if (isDoorFault && !currentTasks.ackAlarm) {
       return 'Acknowledge the door fault before dispatch.'
     }
 
@@ -229,7 +241,7 @@ export function getScenarioTaskBlocker(tasks: ScenarioTaskState | undefined, tas
   }
 
   if (taskId === 'completeScenario' && !currentTasks.dispatchTrain) {
-    return 'Dispatch Train 317 before completing the scenario.'
+    return `Dispatch ${trainLabel} before completing the scenario.`
   }
 
   return ''
@@ -270,7 +282,7 @@ export function completeScenarioTask(
   successText: string,
   source = 'OCC Workflow',
 ): { allowed: boolean; next: OccSessionState } {
-  const blocker = getScenarioTaskBlocker(current.scenarioTasks, taskId)
+  const blocker = getScenarioTaskBlocker(current.scenarioTasks, taskId, current.activeScenario.id, current.activeScenario.targetTrainId)
 
   if (blocker) {
     return {
@@ -300,15 +312,15 @@ export function completeScenarioTask(
 
 export function getScenarioStepBlocker(current: OccSessionState, nextStep: number) {
   if (nextStep === 3) {
-    return getScenarioTaskBlocker(current.scenarioTasks, 'setRoute')
+    return getScenarioTaskBlocker(current.scenarioTasks, 'setRoute', current.activeScenario.id, current.activeScenario.targetTrainId)
   }
 
   if (nextStep === 4) {
-    return getScenarioTaskBlocker(current.scenarioTasks, 'dispatchTrain')
+    return getScenarioTaskBlocker(current.scenarioTasks, 'dispatchTrain', current.activeScenario.id, current.activeScenario.targetTrainId)
   }
 
   if (nextStep >= 5) {
-    return getScenarioTaskBlocker(current.scenarioTasks, 'completeScenario')
+    return getScenarioTaskBlocker(current.scenarioTasks, 'completeScenario', current.activeScenario.id, current.activeScenario.targetTrainId)
   }
 
   return ''
@@ -436,10 +448,13 @@ export function submitBackendScenarioAction(
   void submitOccSessionAction(session, action)
     .then((payload) => {
       const normalized = normalizeClientSession(payload.session)
+      const nextSession = payload.accepted && fallback
+        ? fallback(normalized)
+        : normalized
 
       updateSession(() => ({
-        ...normalized,
-        selectedTrainId: action.trainId ?? normalized.selectedTrainId,
+        ...nextSession,
+        selectedTrainId: action.trainId ?? nextSession.selectedTrainId,
       }))
       onComplete?.(payload.accepted, payload.reason)
     })

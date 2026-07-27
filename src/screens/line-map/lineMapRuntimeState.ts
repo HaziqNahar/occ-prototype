@@ -28,7 +28,7 @@ import {
   setLineMapRouteSegmentState,
 } from './lineMapRouteSegmentState'
 
-export const LINE_MAP_LAYOUT_VERSION = 10
+export const LINE_MAP_LAYOUT_VERSION = 11
 
 const DEFAULT_P_ROUTE_SEGMENT_IDS: ReadonlySet<string> = new Set(
   EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS.flatMap((group) => group.sides[0]),

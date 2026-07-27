@@ -2,42 +2,31 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import SelectField from '../components/SelectField'
 import SessionRunway from '../components/SessionRunway'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import type { AppRoute, OccSessionState, TraineeParticipant, TraineeRole } from '../types'
 
 type TraineeLobbyScreenProps = {
-  onNavigate: (route: AppRoute) => void
   session: OccSessionState
   updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
 }
 
-const roleMonitorMap: Record<TraineeRole, { monitor: string; route: AppRoute }> = {
-  'Traffic Controller': { monitor: 'Monitor 02 - Line Map', route: '/screen/line-map' },
-  'Station Manager': { monitor: 'Monitor 01 - Alarms', route: '/screen/alarms' },
-  Engineer: { monitor: 'Monitor 03 - Timetable', route: '/screen/timetable' },
-  Observer: { monitor: 'IOS - Trainer Observation', route: '/ios' },
-}
+const traineeRole: TraineeRole = 'Traffic Controller'
+const traineeAssignment = 'Monitor 02 - Line Map'
 
-const traineeRoles = Object.keys(roleMonitorMap) as TraineeRole[]
-const roleOptions = traineeRoles.map((item) => ({ label: item, value: item }))
-
-function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobbyScreenProps) {
+function TraineeLobbyScreen({ session, updateSession }: TraineeLobbyScreenProps) {
   const [sessionCode, setSessionCode] = useState('OCC-317')
   const [name, setName] = useState('Trainee Controller')
   const [email, setEmail] = useState('trainee.controller@sbs.local')
-  const [role, setRole] = useState<TraineeRole>('Traffic Controller')
   const [joinNote, setJoinNote] = useState('Enter session details and join the training roster.')
-  const selectedAssignment = roleMonitorMap[role]
 
   const joinSession = () => {
     const participant: TraineeParticipant = {
       email,
       joinedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      monitor: selectedAssignment.monitor,
+      monitor: traineeAssignment,
       name,
-      role,
+      role: traineeRole,
       status: 'Joined',
     }
 
@@ -49,7 +38,7 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
           'Session Lobby',
           'Trainee joined',
           'info',
-          `${name} joined as ${role}. Assigned to ${selectedAssignment.monitor}.`,
+          `${name} joined as trainee operator. Assigned to ${traineeAssignment}.`,
         ),
       ),
       trainees: [
@@ -57,7 +46,19 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
         ...current.trainees.filter((trainee) => trainee.email !== email),
       ].slice(0, 8),
     }))
-    setJoinNote(`${name} joined ${sessionCode} as ${role}. Assigned to ${selectedAssignment.monitor}.`)
+    setJoinNote(`${name} joined ${sessionCode}. Use the live OCC screens to perform assigned tasks.`)
+  }
+
+  const openOccMonitors = () => {
+    const screens: Array<{ name: string; path: AppRoute }> = [
+      { name: 'occ-monitor-1-alarms', path: '/screen/alarms' },
+      { name: 'occ-monitor-2-line-map', path: '/screen/line-map' },
+      { name: 'occ-monitor-3-timetable', path: '/screen/timetable' },
+    ]
+
+    screens.forEach((screen) => {
+      window.open(screen.path, screen.name)
+    })
   }
 
   return (
@@ -75,13 +76,11 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
           </div>
         </div>
         <div className="module-tool-actions">
-          <button type="button" onClick={() => onNavigate('/ios/modules')}>IOS Modules</button>
-          <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario Builder</button>
-          <button type="button" onClick={() => onNavigate(selectedAssignment.route)}>Open Assigned Screen</button>
+          <button type="button" onClick={openOccMonitors}>Open OCC Monitors</button>
         </div>
       </header>
 
-      <SessionRunway session={session} />
+      <SessionRunway session={session} variant="trainee" />
 
       <section className="lobby-layout">
         <section className="lobby-join-panel">
@@ -89,7 +88,7 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
           <h2>{session.activeScenario.title}</h2>
           <p className="module-copy">
             Session lobby for showing session enrolment, role assignment, and
-            future multi-crew provisioning.
+            trainee readiness before using the live OCC operating screens.
           </p>
 
           <div className="lobby-form-grid">
@@ -105,16 +104,12 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
               <span>Email</span>
               <input value={email} onChange={(event) => setEmail(event.target.value)} />
             </label>
-            <label>
-              <span>Role</span>
-              <SelectField ariaLabel="Role" value={role} options={roleOptions} onChange={setRole} />
-            </label>
           </div>
 
           <div className="lobby-assignment-card">
             <div>
               <span>Assigned monitor</span>
-              <strong>{selectedAssignment.monitor}</strong>
+              <strong>{traineeAssignment}</strong>
             </div>
             <div>
               <span>Active incident</span>
@@ -128,7 +123,7 @@ function TraineeLobbyScreen({ onNavigate, session, updateSession }: TraineeLobby
 
           <div className="scenario-builder-actions">
             <button type="button" onClick={joinSession}>Join Training Session</button>
-            <button type="button" onClick={() => onNavigate(selectedAssignment.route)}>Open Assigned Screen</button>
+            <button type="button" onClick={openOccMonitors}>Open OCC Monitors</button>
           </div>
 
           <div className="scenario-builder-note">

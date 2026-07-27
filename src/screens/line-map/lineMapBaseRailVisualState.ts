@@ -28,7 +28,7 @@ export function createLineMapBaseRailVisualStates(): LineMapRuntimeState['routeS
   return Object.fromEntries([
     ...Array.from(BASE_ACTIVE_STRAIGHT_RAIL_IDS).map((segmentId) => [
       segmentId,
-      createBaseRailVisualState(segmentId, 'SET'),
+      createBaseRailVisualState(segmentId, 'UNSET'),
     ]),
     ...Object.entries(BASE_LINE_MAP_RAIL_VISUAL_STATUSES).map(([segmentId, status]) => [
       segmentId,
@@ -39,7 +39,7 @@ export function createLineMapBaseRailVisualStates(): LineMapRuntimeState['routeS
 
 export function getLineMapBaseRailVisualState(segmentId: string) {
   if (BASE_ACTIVE_STRAIGHT_RAIL_IDS.has(segmentId)) {
-    return createBaseRailVisualState(segmentId, 'SET')
+    return createBaseRailVisualState(segmentId, 'UNSET')
   }
 
   const status = BASE_LINE_MAP_RAIL_VISUAL_STATUSES[segmentId as keyof typeof BASE_LINE_MAP_RAIL_VISUAL_STATUSES]

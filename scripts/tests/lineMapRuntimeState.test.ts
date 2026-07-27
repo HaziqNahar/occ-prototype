@@ -73,7 +73,7 @@ function lineMap(routeSegments: LineMapRuntimeState['routeSegments']): LineMapRu
   })
 
   assert.deepEqual(normalized.routeSegments, {})
-  assert.equal(getLineMapBaseRailVisualState('rail-705')?.status, 'SET')
+  assert.equal(getLineMapBaseRailVisualState('rail-705')?.status, 'UNSET')
   assert.equal(getLineMapBaseRailVisualState('rail-651'), undefined)
 }
 
@@ -105,8 +105,8 @@ function lineMap(routeSegments: LineMapRuntimeState['routeSegments']): LineMapRu
   assert.equal(cleared.routeSegments['route-r704-700-command'], undefined)
   assert.equal(cleared.routeSegments['rail-712'], undefined)
   assert.equal(cleared.routeSegments['rail-710'], undefined)
-  assert.equal(getLineMapBaseRailVisualState('rail-712')?.status, 'SET')
-  assert.equal(getLineMapBaseRailVisualState('rail-710')?.status, 'SET')
+  assert.equal(getLineMapBaseRailVisualState('rail-712')?.status, 'UNSET')
+  assert.equal(getLineMapBaseRailVisualState('rail-710')?.status, 'UNSET')
 }
 
 {

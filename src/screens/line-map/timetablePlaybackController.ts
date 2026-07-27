@@ -20,6 +20,10 @@ import {
 } from './timetableMovementAuthority'
 import type { TimetableMovementAuthority } from './timetableMovementAuthority'
 import {
+  getTrainReadinessMode,
+  isTrainItamaGranted,
+} from './model'
+import {
   createTimetablePlaybackSchedule,
   scheduleTimetablePlaybackEntries,
 } from './timetablePlaybackScheduler'
@@ -97,6 +101,17 @@ export function getActiveTimetablePlaybackTrainIds(plans: readonly TimetablePlay
   return new Set(plans.map((plan) => plan.trainId))
 }
 
+export function filterTimetableRowsForAutomaticMovement(
+  rows: readonly TimetableRow[],
+  blockedTrainIds: ReadonlySet<string>,
+) {
+  if (blockedTrainIds.size === 0) {
+    return rows
+  }
+
+  return rows.filter((row) => !blockedTrainIds.has(row.train))
+}
+
 export function getActiveTimetableMovementAuthorityTrainIds(authorities: readonly TimetableMovementAuthority[]) {
   return new Set(authorities.map((authority) => authority.trainId))
 }
@@ -137,8 +152,11 @@ export function applyTimetablePlaybackRunStart(
     return cleaned
   }
 
+  const lineMap = clearHeldTimetableTrainRouteState(cleaned.lineMap, heldTrainIds)
+
   return {
     ...cleaned,
+    lineMap,
     trains: cleaned.trains.map((train) => (
       heldTrainIds.has(train.id) && train.timetablePlayback
         ? {
@@ -151,11 +169,41 @@ export function applyTimetablePlaybackRunStart(
   }
 }
 
+function clearHeldTimetableTrainRouteState(
+  lineMap: OccSessionState['lineMap'],
+  trainIds: ReadonlySet<string>,
+): OccSessionState['lineMap'] {
+  const routeSegments = { ...lineMap.routeSegments }
+  let changed = false
+
+  Object.entries(routeSegments).forEach(([segmentId, state]) => {
+    if (!trainIds.has(state.trainId)) {
+      return
+    }
+
+    delete routeSegments[segmentId]
+    changed = true
+  })
+
+  return changed
+    ? {
+        ...lineMap,
+        routeSegments,
+      }
+    : lineMap
+}
+
 export function applyTimetablePlaybackStepSession(
   current: OccSessionState,
   plan: TimetablePlaybackPlan,
   stepIndex: number,
 ): OccSessionState {
+  const blocked = holdTimetablePlaybackTrainIfMovementBlocked(current, plan.trainId)
+
+  if (blocked) {
+    return blocked
+  }
+
   const step = plan.steps[stepIndex]
 
   if (!step) {
@@ -198,6 +246,12 @@ export function applyTimetablePlatformDoorPhaseSession(
   stepIndex: number,
   phase: TimetablePlatformDoorPhase,
 ): OccSessionState {
+  const blocked = holdTimetablePlaybackTrainIfMovementBlocked(current, plan.trainId)
+
+  if (blocked) {
+    return blocked
+  }
+
   const platformStop = getTimetablePlatformStopForStep(plan, stepIndex)
 
   if (!platformStop) {
@@ -214,6 +268,12 @@ export function applyTimetablePlaybackCompletionSession(
   current: OccSessionState,
   plan: TimetablePlaybackPlan,
 ): OccSessionState {
+  const blocked = holdTimetablePlaybackTrainIfMovementBlocked(current, plan.trainId)
+
+  if (blocked) {
+    return blocked
+  }
+
   const completed = completeTimetablePlaybackStepState(current, plan)
   const scenarioNext = applyTrainingScenarioTimetableCompletion(completed, plan)
 
@@ -236,6 +296,35 @@ export function applyTimetablePlaybackScheduleEntrySession(
   }
 
   return applyTimetablePlaybackStepSession(current, entry.plan, entry.stepIndex)
+}
+
+function holdTimetablePlaybackTrainIfMovementBlocked(
+  current: OccSessionState,
+  trainId: string,
+): OccSessionState | null {
+  const train = current.trains.find((candidate) => candidate.id === trainId)
+
+  if (!train || !isTimetableTrainMovementBlocked(train)) {
+    return null
+  }
+
+  return {
+    ...current,
+    trains: current.trains.map((candidate) => (
+      candidate.id === trainId
+        ? {
+            ...candidate,
+            isMoving: false,
+            status: 'WAIT' as const,
+          }
+        : candidate
+    )),
+  }
+}
+
+function isTimetableTrainMovementBlocked(train: OccSessionState['trains'][number]) {
+  return getTrainReadinessMode(train) !== 'MAINLINE_SERVICE'
+    || !isTrainItamaGranted(train)
 }
 
 export function scheduleTimetablePlaybackRun({

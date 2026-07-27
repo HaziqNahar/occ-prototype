@@ -11,6 +11,9 @@ server/data/
 # Temporary files generated during local verification
 tmp/
 outputs/
+.playwright-data/
+playwright-report/
+test-results/
 
 # Logs
 logs/

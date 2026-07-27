@@ -7,6 +7,7 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from 'react'
 import ScadaFooter from '../../components/ScadaFooter'
+import { AlarmCallsHeaderDom, StationRibbon } from '../../components/MonitorAlarmCalls'
 import Win98HtmlButton from '../../components/train-control/Win98HtmlButton'
 import usePopupDrag from '../../components/train-control/usePopupDrag'
 import {
@@ -30,7 +31,6 @@ import {
   schematicAnnotations,
   sectionDividers,
   shapedUpperTrackPieces,
-  stationRibbonItems,
   staticTrackBoundaries,
   staticTrackPaths,
   staticTrackPieces,
@@ -64,16 +64,21 @@ import {
   resolveRouteRailVisualPaint,
 } from './railVisualState'
 import { getLineMapBaseRailVisualState } from './lineMapBaseRailVisualState'
-import { getSignalRouteLampTone } from './signalRouteState'
+import { getSignalRouteLabels, getSignalRouteLampTone } from './signalRouteState'
 import type { AppRoute, LineMapRuntimeState, RouteControlMode, TrainCommand, TrainState } from '../../types'
 
-const BODY_TOP = 172
+const BODY_TOP = 180
 const MAIN_UPPER_TRACK_Y = 215
 const MAIN_LOWER_TRACK_Y = 455
 const LEFT_STRIP_OFFSET = 8.5
 const LEFT_STRIP_WIDTH = 3
 const MAP_ARROW_TRAIN_DIRECTION_RADIUS = 120
 const TRAIN_MARKER_SAME_RAIL_STACK_STEP_PX = 28
+const NON_CONTROLLABLE_SIGNAL_STATION_CODES = ['BGK', 'PGC'] as const
+const NON_CONTROLLABLE_SIGNAL_X_BOUNDS = NON_CONTROLLABLE_SIGNAL_STATION_CODES
+  .map((stationCode) => platformData.find((platform) => platform.code === stationCode)?.x)
+  .filter((x): x is number => typeof x === 'number')
+  .sort((a, b) => a - b)
 const TRACK_Y_BY_SECTION = [
   { start: MAP_SECTION_OFFSETS.section01, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
   { start: MAP_SECTION_OFFSETS.section02, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
@@ -81,6 +86,8 @@ const TRACK_Y_BY_SECTION = [
   { start: MAP_SECTION_OFFSETS.section04, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
 ] as const
 type LineMapMonitorDomProps = {
+  alarmNotAcknowledged: number
+  alarmTotal: number
   children?: ReactNode
   lineMap: LineMapRuntimeState
   onCommand: (command: TrainCommand) => void
@@ -368,6 +375,8 @@ function getAnnotationTop(annotation: SchematicAnnotation) {
 }
 
 export default function LineMapMonitorDom({
+  alarmNotAcknowledged,
+  alarmTotal,
   children,
   lineMap,
   onCommand,
@@ -386,7 +395,6 @@ export default function LineMapMonitorDom({
   panX,
   routeAutomationStatus,
   routeControlModes,
-  selectedTrain,
   selectedTrainId,
   trainOccupancyRouteSegments = {},
   trains,
@@ -478,7 +486,11 @@ export default function LineMapMonitorDom({
       tabIndex={0}
     >
       <div className="line-map-coordinate-surface">
-        <LineMapHeaderDom onNavigate={onNavigate} />
+        <LineMapHeaderDom
+          alarmNotAcknowledged={alarmNotAcknowledged}
+          alarmTotal={alarmTotal}
+          onNavigate={onNavigate}
+        />
 
         <div className="line-map-body-viewport">
           <div className="line-map-body-world">
@@ -518,7 +530,7 @@ export default function LineMapMonitorDom({
           active="TRAFFIC"
           leftMode="Train"
           onToolSelect={handleFooterToolSelect}
-          status={selectedTrain ? `TRN ${selectedTrain.id} selected` : 'MNADZRULS'}
+          status="[ TSR1 ] @ OCC"
         />
         {children}
       </div>
@@ -526,86 +538,24 @@ export default function LineMapMonitorDom({
   )
 }
 
-function LineMapHeaderDom({ onNavigate }: { onNavigate: (route: AppRoute) => void }) {
-  const [activeSideTab, setActiveSideTab] = useState<'alarms' | 'calls'>('alarms')
-  const rows = [
-    ['S', '05/11 11:00:06', 'SIG/SKG/RT1/SIGN0655', 'Signal S655: Signal Lamp Filament Status', 'BURNT', 'orange'],
-    ['S', '05/11 11:02:17', 'EMU/032/TRN/XXXXXXXX', 'Train 032: Action Needed (from operator for recovery)', 'YES', 'red'],
-    ['S', '05/11 11:02:17', 'EMU/032/TRN/XXXXXXXX', 'Train 032:Train ITAMA Status', 'NOT GRANTED', 'yellow'],
-    ['S', '05/11 11:02:21', 'EMU/049/TRN/XXXXXXXX', 'Train 049: Train Hold', 'APPLIED', 'yellow'],
-  ] as const
-
+function LineMapHeaderDom({
+  alarmNotAcknowledged,
+  alarmTotal,
+  onNavigate,
+}: {
+  alarmNotAcknowledged: number
+  alarmTotal: number
+  onNavigate: (route: AppRoute) => void
+}) {
   return (
     <header className="line-map-header-dom">
-      <section className="line-map-alarm-strip" aria-label="Alarm summary">
-        <div className="line-map-side-tabs" role="tablist" aria-label="Alarm summary tabs">
-          <button
-            aria-selected={activeSideTab === 'alarms'}
-            className={`line-map-side-tab ${activeSideTab === 'alarms' ? 'line-map-side-tab--active' : ''}`}
-            onClick={() => setActiveSideTab('alarms')}
-            role="tab"
-            type="button"
-          >
-            Alarms
-          </button>
-          <button
-            aria-selected={activeSideTab === 'calls'}
-            className={`line-map-side-tab line-map-side-tab--calls ${activeSideTab === 'calls' ? 'line-map-side-tab--active' : ''}`}
-            onClick={() => setActiveSideTab('calls')}
-            role="tab"
-            type="button"
-          >
-            Calls
-          </button>
-        </div>
-        <div className="line-map-alarm-counts">
-          <label>Not Ack <output>3</output></label>
-          <label>Total <output>70</output></label>
-          <button className="line-map-alarm-clear" onClick={() => onNavigate('/screen/alarms')} type="button">×</button>
-          <button className="line-map-alarm-display" onClick={() => onNavigate('/screen/alarms')} type="button">
-            <i />
-            Display
-          </button>
-        </div>
-        <div className="line-map-alarm-table">
-          {rows.map((row) => (
-            <button
-              className={`line-map-alarm-row line-map-alarm-row--${row[5]}`}
-              key={`${row[1]}-${row[2]}-${row[4]}`}
-              onClick={() => onNavigate('/screen/alarms')}
-              type="button"
-            >
-              <span>{row[0]}</span>
-              <span>{row[1]}</span>
-              <span>{row[2]}</span>
-              <span>{row[3]}</span>
-              <span>{row[4]}</span>
-            </button>
-          ))}
-        </div>
-        <div className="line-map-alarm-scrollbar" aria-hidden="true">
-          <span className="line-map-alarm-scrollbar-button line-map-alarm-scrollbar-button--up" />
-          <span className="line-map-alarm-scrollbar-track" />
-          <span className="line-map-alarm-scrollbar-button line-map-alarm-scrollbar-button--down" />
-        </div>
-      </section>
-      <StationRibbon top={105} />
+      <AlarmCallsHeaderDom
+        alarmNotAcknowledged={alarmNotAcknowledged}
+        alarmTotal={alarmTotal}
+        onNavigate={onNavigate}
+      />
+      <StationRibbon top={109} />
     </header>
-  )
-}
-
-function StationRibbon({ top }: { top: number }) {
-  return (
-    <div className="line-map-station-ribbon" style={{ top }}>
-      <div className="line-map-station-line" />
-      {stationRibbonItems.map((station) => (
-        <div className="line-map-station-node" key={station.label} style={{ left: station.x }}>
-          <span>{station.label}</span>
-          {station.label.includes('DEPOT') ? null : <i />}
-        </div>
-      ))}
-      <strong>OVERALL</strong>
-    </div>
   )
 }
 
@@ -1529,7 +1479,7 @@ function getStaticTrackPieceColor(state: 'condition' | 'default' | 'set' | 'unse
     return '#ffffff'
   }
 
-  return '#ffffff'
+  return '#eedc7f'
 }
 
 function getSignalTrack(signal: LineMapSignalData, fallback: 'lower' | 'upper') {
@@ -1579,6 +1529,10 @@ function getRouteTrackPieceState(
 ) {
   if (isRouteStateActive(lineMap.routeSegments[railId])) {
     return 'set'
+  }
+
+  if (getLineMapBaseRailVisualState(railId)?.status === 'UNSET') {
+    return 'unset'
   }
 
   if (piece.state !== 'unset') {
@@ -1953,6 +1907,7 @@ function PlatformPanel({
 }) {
   const northDoorStatus = lineMap.platformDoorStates[`${platform.code}-NB`]?.status
   const southDoorStatus = lineMap.platformDoorStates[`${platform.code}-SB`]?.status
+  const showCdLabel = !['DBG', 'SKG', 'PGL', 'PGC'].includes(platform.code)
 
   return (
     <div className="line-map-platform-panel" style={{ left: platform.x - 36, top: platform.y }}>
@@ -1961,7 +1916,7 @@ function PlatformPanel({
         <span>PSD</span>
         <span>PH</span>
         <span>SPKS</span>
-        <span>CD</span>
+        <span>{showCdLabel ? 'CD' : ''}</span>
         <span>ESB</span>
         <span>ESP</span>
       </div>
@@ -1970,7 +1925,7 @@ function PlatformPanel({
         <span>ESB</span>
         <span>ESP</span>
         <span>SPKS</span>
-        <span>CD</span>
+        <span>{showCdLabel ? 'CD' : ''}</span>
         <span>PSD</span>
         <span>PH</span>
       </div>
@@ -2226,6 +2181,12 @@ function SignalMarker({
   const lineFlipClass = signal.label === 'S655' ? 'line-map-signal--s655-flipped-line' : ''
   const signalId = getSignalDomId(signal)
   const lampTone = getSignalRouteLampTone(signal, lineMap)
+  const [nonControllableSignalStartX, nonControllableSignalEndX] = NON_CONTROLLABLE_SIGNAL_X_BOUNDS
+  const isNonControllable = typeof nonControllableSignalStartX === 'number'
+    && typeof nonControllableSignalEndX === 'number'
+    && signal.x >= nonControllableSignalStartX
+    && signal.x <= nonControllableSignalEndX
+    && getSignalRouteLabels(signal.label).length === 0
   const handleContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -2241,7 +2202,8 @@ function SignalMarker({
   return (
     <button
       aria-label={`Open signal menu for signal ${signal.label}`}
-      className={`line-map-signal line-map-signal--${side} line-map-signal--${track}-track line-map-signal--${lampTone} ${labelPositionClass} ${layoutClass} ${orientationClass} ${lineFlipClass} ${lower ? 'line-map-signal--lower' : ''}`}
+      className={`line-map-signal line-map-signal--${side} line-map-signal--${track}-track line-map-signal--${lampTone} ${isNonControllable ? 'line-map-signal--non-controllable' : ''} ${labelPositionClass} ${layoutClass} ${orientationClass} ${lineFlipClass} ${lower ? 'line-map-signal--lower' : ''}`}
+      data-controllable={isNonControllable ? 'false' : 'true'}
       data-signal-id={signal.label}
       data-testid={signalId}
       id={signalId}

@@ -6,6 +6,7 @@ import SelectField from '../components/SelectField'
 import SessionRunway from '../components/SessionRunway'
 import { scenarioTemplates } from '../scenarioLibrary'
 import { appendScenarioEvidence, createEmptyScenarioTasks, createScenarioEvidence } from '../scenario'
+import { createTrainingScenarioStartSession } from '../trainingScenarios'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
 type ScenarioBuilderScreenProps = {
@@ -19,6 +20,16 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
   { label: 'Assessment', value: 'ASSESSMENT' },
   { label: 'Player', value: 'PLAYER' },
 ]
+
+const visibleScenarioTemplateIds = new Set([
+  'train-launch',
+  'train-withdrawal',
+  'door-fault',
+])
+
+const visibleScenarioTemplates = scenarioTemplates.filter((scenario) => (
+  visibleScenarioTemplateIds.has(scenario.id)
+))
 
 function formatScenarioTime() {
   const now = new Date()
@@ -73,36 +84,73 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
   const loadScenarioToIos = () => {
     const event = createBuilderEvent(`Scenario loaded: ${selectedScenario.title}`, trainingMode, 'yellow')
 
-    updateSession((current) => ({
-      ...current,
-      activeScenario: {
-        duration: customDuration,
-        id: selectedScenario.id,
-        incident: selectedIncident,
-        target: selectedScenario.target,
-        title: selectedScenario.title,
-      },
-      alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: [
-        createScenarioEvidence(
-          'Scenario Builder',
-          'Scenario loaded',
-          'info',
-          `${selectedScenario.title} loaded in ${trainingMode}. Incident: ${selectedIncident}.`,
-        ),
-      ],
-      eventRows: [event, ...current.eventRows].slice(0, 4),
-      scenarioMode: 'IDLE',
-      scenarioNotice: {
-        text: `${selectedScenario.title} loaded in ${trainingMode} mode. Target ${selectedScenario.target}.`,
-        tone: 'info',
-      },
-      scenarioStep: 0,
-      scenarioTasks: createEmptyScenarioTasks(),
-      selectedTrainId: '317',
-      trainingMode,
-    }))
-    setBuilderNote(`${selectedScenario.title} loaded into IOS as ${trainingMode}.`)
+    updateSession((current) => {
+      if (selectedScenario.trainingScenarioKind) {
+        const armed = createTrainingScenarioStartSession(
+          { ...current, trainingMode },
+          selectedScenario.trainingScenarioKind,
+        )
+
+        return {
+          ...armed,
+          activeScenario: {
+            ...armed.activeScenario,
+            duration: customDuration,
+            incident: selectedIncident,
+          },
+          alarmSummaryRows: [createSummaryEvent(event), ...armed.alarmSummaryRows].slice(0, 12),
+          evidenceLog: appendScenarioEvidence(
+            armed.evidenceLog,
+            createScenarioEvidence(
+              'Scenario Builder',
+              'Scenario loaded and armed',
+              'info',
+              `${selectedScenario.title} loaded in ${trainingMode}. Incident: ${selectedIncident}.`,
+            ),
+          ),
+          eventRows: [event, ...armed.eventRows].slice(0, 4),
+          scenarioNotice: {
+            text: `${selectedScenario.title} loaded and armed in ${trainingMode} mode. ${armed.scenarioNotice.text}`,
+            tone: 'info',
+          },
+        }
+      }
+
+      return {
+        ...current,
+        activeScenario: {
+          duration: customDuration,
+          id: selectedScenario.id,
+          incident: selectedIncident,
+          target: selectedScenario.target,
+          title: selectedScenario.title,
+        },
+        alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
+        evidenceLog: [
+          createScenarioEvidence(
+            'Scenario Builder',
+            'Scenario loaded',
+            'info',
+            `${selectedScenario.title} loaded in ${trainingMode}. Incident: ${selectedIncident}.`,
+          ),
+        ],
+        eventRows: [event, ...current.eventRows].slice(0, 4),
+        scenarioMode: 'IDLE',
+        scenarioNotice: {
+          text: `${selectedScenario.title} loaded in ${trainingMode} mode. Target ${selectedScenario.target}.`,
+          tone: 'info',
+        },
+        scenarioStep: 0,
+        scenarioTasks: createEmptyScenarioTasks(),
+        selectedTrainId: '317',
+        trainingMode,
+      }
+    })
+    setBuilderNote(
+      selectedScenario.trainingScenarioKind
+        ? `${selectedScenario.title} loaded and armed in IOS as ${trainingMode}.`
+        : `${selectedScenario.title} loaded into IOS as ${trainingMode}.`,
+    )
   }
 
   const pushIncidentPreview = () => {
@@ -168,7 +216,7 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
           <p className="module-eyebrow">Scenario Library</p>
           <h2>Available Templates</h2>
           <div className="scenario-template-list">
-            {scenarioTemplates.map((scenario) => (
+            {visibleScenarioTemplates.map((scenario) => (
               <button
                 type="button"
                 className={scenario.id === selectedScenario.id ? 'is-selected' : ''}

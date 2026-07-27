@@ -143,6 +143,7 @@ export const S613_R613_621_REAL_ROUTE_SEGMENT_IDS = [
   'rail-611',
   'rail-P613',
   'rail-P608',
+  'rail-614',
   'rail-616',
   'rail-618',
   'rail-620',
@@ -178,10 +179,13 @@ export const S619_R619_701_ROUTE_COMMAND_SEGMENT_IDS = [
 ] as const
 
 export const S655_R655_617_REAL_ROUTE_SEGMENT_IDS = [
+  'rail-655',
   'rail-653',
   'rail-P609',
   'rail-P611',
   'rail-613',
+  'rail-615',
+  'rail-617',
 ] as const
 export const S655_R655_617_ROUTE_STATE_SEGMENT_ID = 'route-r655-617-command'
 export const S655_R655_617_ROUTE_COMMAND_SEGMENT_IDS = [
@@ -250,6 +254,22 @@ export const S701_R701_709_ROUTE_STATE_SEGMENT_ID = 'route-r701-709-command'
 export const S701_R701_709_ROUTE_COMMAND_SEGMENT_IDS = [
   S701_R701_709_ROUTE_STATE_SEGMENT_ID,
   ...S701_R701_709_REAL_ROUTE_SEGMENT_IDS,
+] as const
+
+export const S702_R702_608_REAL_ROUTE_SEGMENT_IDS = [
+  'rail-P703',
+  'rail-P702',
+  'rail-704',
+  'rail-702',
+  'rail-700',
+  'rail-622',
+  'rail-620',
+  'rail-618',
+] as const
+export const S702_R702_608_ROUTE_STATE_SEGMENT_ID = 'route-r702-608-command'
+export const S702_R702_608_ROUTE_COMMAND_SEGMENT_IDS = [
+  S702_R702_608_ROUTE_STATE_SEGMENT_ID,
+  ...S702_R702_608_REAL_ROUTE_SEGMENT_IDS,
 ] as const
 
 export const S704_REAL_ROUTE_SEGMENT_IDS = [
@@ -459,6 +479,7 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
     signalLabel: 'S613',
   },
   {
+    allowedLogicalExclusiveRailPairs: [['rail-P608', 'rail-614']],
     commandSegmentIds: S613_R613_621_ROUTE_COMMAND_SEGMENT_IDS,
     commandStateSegmentIds: [S613_R613_621_ROUTE_STATE_SEGMENT_ID],
     fleetControlDisabled: true,
@@ -519,6 +540,13 @@ export const SIGNAL_ROUTE_DEFINITIONS = [
     realSegmentIds: S701_R701_709_REAL_ROUTE_SEGMENT_IDS,
     routeLabel: 'Route R701_709',
     signalLabel: 'S701',
+  },
+  {
+    commandSegmentIds: S702_R702_608_ROUTE_COMMAND_SEGMENT_IDS,
+    commandStateSegmentIds: [S702_R702_608_ROUTE_STATE_SEGMENT_ID],
+    realSegmentIds: S702_R702_608_REAL_ROUTE_SEGMENT_IDS,
+    routeLabel: 'Route R702_608',
+    signalLabel: 'S702',
   },
   {
     commandSegmentIds: S704_ROUTE_COMMAND_SEGMENT_IDS,

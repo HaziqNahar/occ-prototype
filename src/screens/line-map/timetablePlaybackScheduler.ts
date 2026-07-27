@@ -8,6 +8,9 @@ import {
 } from './timetableStationStopState'
 import type { TimetableStationStopPhase } from './timetableStationStopState'
 import { shouldScheduleTimetablePlatformDoorCycle } from './timetablePlatformStops'
+import {
+  SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
+} from './trainMovementRoutes'
 
 export type TimetablePlaybackScheduler = (callback: () => void, delayMs: number) => number
 
@@ -19,6 +22,8 @@ export type TimetablePlaybackScheduleEntry = {
   stationStopPhase?: TimetableStationStopPhase
   stepIndex: number
 }
+
+const TIMETABLE_DEPOT_LAUNCH_LEAD_IN_STEP_MS = 900
 
 export function createTimetablePlaybackSchedule(
   plans: readonly TimetablePlaybackPlan[],
@@ -52,13 +57,14 @@ function getTimetablePlaybackScheduledStepIndexes(plan: TimetablePlaybackPlan) {
   const signedStepDelays = plan.steps.map((_, stepIndex) => (
     getTimetablePlaybackSignedStepDelay(plan, stepIndex)
   ))
+  const firstScheduledStepIndex = getTimetablePlaybackFirstScheduledStepIndex(plan)
   const currentStepIndex = signedStepDelays.reduce<number | undefined>((current, delayMs, stepIndex) => (
     delayMs <= 0 ? stepIndex : current
   ), undefined)
   const stepIndexes = new Set<number>()
 
   signedStepDelays.forEach((delayMs, stepIndex) => {
-    if (stepIndex >= plan.firstStepIndex && delayMs >= 0) {
+    if (stepIndex >= firstScheduledStepIndex && delayMs >= 0) {
       stepIndexes.add(stepIndex)
     }
   })
@@ -66,7 +72,7 @@ function getTimetablePlaybackScheduledStepIndexes(plan: TimetablePlaybackPlan) {
   if (
     currentStepIndex !== undefined
     && (
-      currentStepIndex >= plan.firstStepIndex
+      currentStepIndex >= firstScheduledStepIndex
       || isTimetablePlatformStopHolding(plan, currentStepIndex)
     )
   ) {
@@ -74,6 +80,10 @@ function getTimetablePlaybackScheduledStepIndexes(plan: TimetablePlaybackPlan) {
   }
 
   return [...stepIndexes].sort((left, right) => left - right)
+}
+
+function getTimetablePlaybackFirstScheduledStepIndex(plan: TimetablePlaybackPlan) {
+  return shouldUseDepotLaunchLeadIn(plan) ? 0 : plan.firstStepIndex
 }
 
 function isTimetablePlatformStopHolding(plan: TimetablePlaybackPlan, stepIndex: number) {
@@ -98,7 +108,68 @@ function getTimetablePlaybackSignedStepDelay(plan: TimetablePlaybackPlan, stepIn
 }
 
 function getTimetablePlaybackBaseSignedStepDelay(plan: TimetablePlaybackPlan, stepIndex: number) {
+  const launchLeadInDelay = getTimetableDepotLaunchLeadInDelay(plan, stepIndex)
+
+  if (launchLeadInDelay !== undefined) {
+    return launchLeadInDelay
+  }
+
+  return getRawTimetablePlaybackBaseSignedStepDelay(plan, stepIndex) + getTimetableDepotLaunchLeadInShift(plan)
+}
+
+function getRawTimetablePlaybackBaseSignedStepDelay(plan: TimetablePlaybackPlan, stepIndex: number) {
   return plan.stepSignedOffsetsMs[stepIndex] ?? plan.stepOffsetsMs[stepIndex] ?? 0
+}
+
+function getTimetableDepotLaunchLeadInDelay(plan: TimetablePlaybackPlan, stepIndex: number) {
+  if (!shouldUseDepotLaunchLeadIn(plan) || stepIndex > SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX) {
+    return undefined
+  }
+
+  return stepIndex * TIMETABLE_DEPOT_LAUNCH_LEAD_IN_STEP_MS
+}
+
+function getTimetableDepotLaunchLeadInShift(plan: TimetablePlaybackPlan) {
+  if (!shouldUseDepotLaunchLeadIn(plan)) {
+    return 0
+  }
+
+  const launchPlatformDelayMs = getTimetableDepotLaunchPlatformDelayMs()
+  const rawPlatformDelayMs = Math.max(
+    0,
+    getRawTimetablePlaybackBaseSignedStepDelay(plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX),
+  )
+
+  return Math.max(0, launchPlatformDelayMs - rawPlatformDelayMs)
+}
+
+function getTimetableDepotLaunchPlatformDelayMs() {
+  return SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX * TIMETABLE_DEPOT_LAUNCH_LEAD_IN_STEP_MS
+}
+
+function shouldUseDepotLaunchLeadIn(plan: TimetablePlaybackPlan) {
+  if (plan.skipDepotLaunchLeadIn) {
+    return false
+  }
+
+  const hasSkgLaunchStop = plan.platformStops.some((stop) => (
+    stop.platformCode === 'SKG'
+    && stop.stepIndex === SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX
+    && stop.track === 'NB'
+  ))
+
+  if (!hasSkgLaunchStop || !plan.signalRouteRefs.includes('Route R655_617')) {
+    return false
+  }
+
+  if (plan.firstStepIndex > SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX) {
+    return false
+  }
+
+  return getRawTimetablePlaybackBaseSignedStepDelay(
+    plan,
+    SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
+  ) < getTimetableDepotLaunchPlatformDelayMs()
 }
 
 function createTimetablePlatformDoorPhaseEntries(

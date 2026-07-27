@@ -11,6 +11,7 @@ import {
   createTimetablePlaybackRouteModeKey,
   createTimetablePlaybackRunKey,
   createTimetablePlaybackScopeKey,
+  filterTimetableRowsForAutomaticMovement,
   pruneInactiveTimetablePlaybackPlanSchedules,
   scheduleTimetablePlaybackPlans,
   scheduleTimetablePlaybackRun,
@@ -79,6 +80,59 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 
   assert.equal(createAutomaticTimetablePlaybackPlans(session, {}, now).length, 1)
   assert.equal(createAutomaticTimetablePlaybackPlans(session, { SKG: 'OCCM' }, now).length, 0)
+}
+
+{
+  const rows = [
+    timetableRow({ train: '312' }),
+    timetableRow({ train: '314' }),
+  ]
+
+  assert.deepEqual(
+    filterTimetableRowsForAutomaticMovement(rows, new Set(['312'])).map((row) => row.train),
+    ['314'],
+  )
+  assert.equal(filterTimetableRowsForAutomaticMovement(rows, new Set()).length, 2)
+}
+
+{
+  const baseSession = sessionWithRows([timetableRow()])
+  const session = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            lineMapVisible: true,
+            readinessMode: 'MAINLINE_OFF_SERVICE' as const,
+            timetablePlayback: true,
+          }
+        : train
+    )),
+  }
+  const now = new Date(2026, 0, 1, 10, 6, 0)
+
+  assert.equal(createAutomaticTimetablePlaybackPlans(session, {}, now).length, 0)
+}
+
+{
+  const baseSession = sessionWithRows([timetableRow()])
+  const session = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            itamaStatus: 'NOT_GRANTED' as const,
+            lineMapVisible: true,
+            timetablePlayback: true,
+          }
+        : train
+    )),
+  }
+  const now = new Date(2026, 0, 1, 10, 6, 0)
+
+  assert.equal(createAutomaticTimetablePlaybackPlans(session, {}, now).length, 0)
 }
 
 {
@@ -180,6 +234,7 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   const stoppedAtStation = applyTimetablePlaybackStepSession(session, plan, SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX)
   const stoppedTrain = stoppedAtStation.trains.find((train) => train.id === '312')
 
+  assert.equal(stoppedAtStation.trains.find((train) => train.id === '312')?.readinessMode, 'MAINLINE_SERVICE')
   assert.equal(stoppedTrain?.status, 'WAIT')
   assert.equal(stoppedTrain?.isMoving, false)
   assert.equal(stoppedTrain?.lineMapVisible, true)
@@ -198,6 +253,7 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 
   assert.equal(resumedTrain?.status, 'RUN')
   assert.equal(resumedTrain?.isMoving, true)
+  assert.equal(resumedTrain?.readinessMode, 'MAINLINE_SERVICE')
 }
 
 {
@@ -262,6 +318,74 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 }
 
 {
+  const baseSession = sessionWithRows([timetableRow()])
+  const plan = createAutomaticTimetablePlaybackPlans(baseSession, {}, new Date(2026, 0, 1, 10, 6, 0))[0]
+  const session = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            isMoving: true,
+            lineMapVisible: true,
+            occupancySegmentId: 'rail-1109',
+            readinessMode: 'MAINLINE_OFF_SERVICE' as const,
+            status: 'RUN' as const,
+            timetablePlayback: true,
+            x: 123,
+            y: 456,
+          }
+        : train
+    )),
+  }
+
+  assert.ok(plan)
+
+  const blocked = applyTimetablePlaybackStepSession(session, plan, plan.firstStepIndex + 1)
+  const blockedTrain = blocked.trains.find((train) => train.id === '312')
+
+  assert.equal(blockedTrain?.x, 123)
+  assert.equal(blockedTrain?.y, 456)
+  assert.equal(blockedTrain?.occupancySegmentId, 'rail-1109')
+  assert.equal(blockedTrain?.isMoving, false)
+  assert.equal(blockedTrain?.status, 'WAIT')
+}
+
+{
+  const baseSession = sessionWithRows([timetableRow()])
+  const plan = createAutomaticTimetablePlaybackPlans(baseSession, {}, new Date(2026, 0, 1, 10, 6, 0))[0]
+  const session = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '312'
+        ? {
+            ...train,
+            isMoving: true,
+            itamaStatus: 'NOT_GRANTED' as const,
+            lineMapVisible: true,
+            occupancySegmentId: 'rail-1109',
+            status: 'RUN' as const,
+            timetablePlayback: true,
+            x: 321,
+            y: 654,
+          }
+        : train
+    )),
+  }
+
+  assert.ok(plan)
+
+  const blocked = applyTimetablePlaybackStepSession(session, plan, plan.firstStepIndex + 1)
+  const blockedTrain = blocked.trains.find((train) => train.id === '312')
+
+  assert.equal(blockedTrain?.x, 321)
+  assert.equal(blockedTrain?.y, 654)
+  assert.equal(blockedTrain?.occupancySegmentId, 'rail-1109')
+  assert.equal(blockedTrain?.isMoving, false)
+  assert.equal(blockedTrain?.status, 'WAIT')
+}
+
+{
   const scheduledPlanKeys = new Set(['active-plan', 'completed-active-plan', 'inactive-plan'])
   const planTimeouts = new Map<string, number[]>([
     ['active-plan', [101, 102]],
@@ -286,8 +410,7 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
 }
 
 {
-  const session = {
-    ...sessionWithRows([timetableRow({
+  const baseSession = sessionWithRows([timetableRow({
       destinationPoint: 'PGC',
       destinationTime: '10:10:00',
       originPoint: 'SKG',
@@ -296,7 +419,27 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
       stationPoint: 'SKG',
       stationTime: '10:00:00',
       train: '301',
-    })]),
+    })])
+  const session = {
+    ...baseSession,
+    lineMap: {
+      ...baseSession.lineMap,
+      routeSegments: {
+        ...baseSession.lineMap.routeSegments,
+        'rail-617': {
+          segmentId: 'rail-617',
+          status: 'SET' as const,
+          trainId: '999',
+          updatedAt: 1,
+        },
+        'rail-621': {
+          segmentId: 'rail-621',
+          status: 'DISPATCHED' as const,
+          trainId: '301',
+          updatedAt: 1,
+        },
+      },
+    },
     trains: [
       {
         direction: 'right',
@@ -319,6 +462,8 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.equal(heldTrain?.occupancySegmentId, 'rail-621')
   assert.equal(heldTrain?.isMoving, false)
   assert.equal(heldTrain?.status, 'WAIT')
+  assert.equal(held.lineMap.routeSegments['rail-621'], undefined)
+  assert.equal(held.lineMap.routeSegments['rail-617']?.trainId, '999')
 
   const cleaned = applyTimetablePlaybackRunStart(session, [], new Set())
   const cleanedTrain = cleaned.trains.find((train) => train.id === '301')

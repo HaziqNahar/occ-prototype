@@ -86,16 +86,12 @@ function FooterClock() {
 }
 
 export default function ScadaFooter({
-  active,
   compact = false,
-  leftMode,
   onModeSelect,
   onToolSelect,
-  status,
 }: ScadaFooterProps) {
   const [activeTool, setActiveTool] = useState<string | null>(null)
   const [activeMode, setActiveMode] = useState<string | null>(null)
-  const [footerNote, setFooterNote] = useState('')
   const primaryButtons = [
     { icon: footerLayoutIcon, label: 'LAYOUT', tool: 'LAYOUT', width: 108, x: 1 },
     { icon: footerCommandIcon, label: 'COMMAND', tool: 'COMMAND', width: 108, x: 129 },
@@ -113,13 +109,13 @@ export default function ScadaFooter({
     { icon: footerNavWindowRightIcon, label: 'Next window', tool: 'NAV WINDOW RIGHT', width: 47, x: 1176 },
   ]
   const secondaryButtons = [
-    { x: 31, w: 58, label: 'Point No.' },
-    { x: 96, w: 58, label: 'Track No.' },
-    { x: 165, w: 60, label: 'FB No.' },
-    { x: 236, w: 62, label: 'Signal No.' },
-    { x: 305, w: 60, label: 'Train' },
-    { x: 367, w: 84, label: 'NorthBound' },
-    { x: 451, w: 83, label: 'SouthBound' },
+    { x: 31, w: 58, label: 'Point No.', tone: 'yellow' },
+    { x: 96, w: 58, label: 'Track No.', tone: 'yellow' },
+    { x: 165, w: 60, label: 'FB No.', tone: 'neutral' },
+    { x: 236, w: 62, label: 'Signal No.', tone: 'yellow' },
+    { x: 305, w: 60, label: 'Car', tone: 'neutral' },
+    { x: 367, w: 84, label: 'NorthBound', tone: 'yellow' },
+    { x: 451, w: 83, label: 'SouthBound', tone: 'yellow' },
   ]
   const iconButtons = [
     { icon: footerMoveArrowsIcon, label: 'Move view', tool: 'MOVE', x: 550 },
@@ -128,20 +124,15 @@ export default function ScadaFooter({
     { icon: footerWindowPanelIcon, label: 'Open panel', tool: 'PANEL', x: 688 },
     { icon: footerNetworkGearsIcon, label: 'Comms tools', tool: 'COMMS TOOLS', x: 746 },
     { icon: footerCardIcon, label: 'Card', tool: 'CARD', x: 792 },
-    { icon: footerDeviceArrowIcon, label: 'Device control', tool: 'DEVICE', x: 838 },
+    { icon: footerDeviceArrowIcon, label: 'Device control', tool: 'DEVICE', x: 1073 },
   ]
-  const statusTool = activeTool ?? active
-  const statusMode = activeMode ?? leftMode
-
-  const selectTool = (tool: string, note: string) => {
+  const selectTool = (tool: string) => {
     setActiveTool(tool)
-    setFooterNote(note)
     onToolSelect?.(tool)
   }
 
   const selectMode = (mode: string) => {
     setActiveMode(mode)
-    setFooterNote(`${mode} mode selected`)
     onModeSelect?.(mode)
   }
 
@@ -153,7 +144,7 @@ export default function ScadaFooter({
           icon={button.icon}
           key={button.tool}
           label={button.label}
-          onClick={() => selectTool(button.tool, `${button.label} toolbar selected`)}
+          onClick={() => selectTool(button.tool)}
           style={{ left: button.x, top: 8, width: button.width }}
         />
       ))}
@@ -166,7 +157,7 @@ export default function ScadaFooter({
                 aria-pressed={activeTool === button.tool}
                 className={activeTool === button.tool ? 'is-selected' : undefined}
                 key={button.tool}
-                onClick={() => selectTool(button.tool, button.label)}
+                onClick={() => selectTool(button.tool)}
                 style={{ left: button.x, width: button.width }}
                 title={button.label}
                 type="button"
@@ -179,7 +170,7 @@ export default function ScadaFooter({
             aria-label="Help"
             aria-pressed={activeTool === 'HELP'}
             className={`line-map-footer-help-button${activeTool === 'HELP' ? ' is-selected' : ''}`}
-            onClick={() => selectTool('HELP', 'Help')}
+            onClick={() => selectTool('HELP')}
             type="button"
           >
             <img alt="" draggable={false} src={footerHelpIcon} />
@@ -190,6 +181,7 @@ export default function ScadaFooter({
         <FooterButton
           className={[
             'scada-dom-footer-mode-button',
+            `scada-dom-footer-mode-button--${button.tone}`,
             (button.label === 'NorthBound' || button.label === 'SouthBound' ? 'scada-dom-footer-speed-button' : ''),
             (button.label === activeMode ? 'is-selected' : ''),
           ].filter(Boolean).join(' ')}
@@ -206,7 +198,7 @@ export default function ScadaFooter({
             aria-pressed={activeTool === item.tool}
             className={activeTool === item.tool ? 'is-selected' : undefined}
             key={item.tool}
-            onClick={() => selectTool(item.tool, item.label)}
+            onClick={() => selectTool(item.tool)}
             style={{ left: item.x }}
             title={item.label}
             type="button"
@@ -219,7 +211,7 @@ export default function ScadaFooter({
         aria-label="Print"
         aria-pressed={activeTool === 'PRINTER'}
         className={`line-map-footer-print${activeTool === 'PRINTER' ? ' is-selected' : ''}`}
-        onClick={() => selectTool('PRINTER', 'Printer')}
+        onClick={() => selectTool('PRINTER')}
         style={compact ? { top: 7 } : undefined}
         title="Print"
         type="button"
@@ -227,8 +219,8 @@ export default function ScadaFooter({
         <img alt="" draggable={false} src={footerPrinterIcon} />
       </button>
       <div className="scada-dom-footer-status">
-        <span>{footerNote || status}</span>
-        <span>{footerNote ? `${statusTool} / ${statusMode}` : '[ TSR1 ] @ OCC'}</span>
+        <span aria-hidden="true">&nbsp;</span>
+        <span>[ TSR1 ] @ OCC</span>
       </div>
       <FooterClock />
     </div>

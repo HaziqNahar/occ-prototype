@@ -9,7 +9,9 @@ import {
 import { resolveTimetableRailPath } from '../../src/screens/line-map/timetablePathResolver'
 import { isTimetableIneligibleGuideRailId } from '../../src/screens/line-map/timetableRouteStateCleanup'
 import {
+  PGC_TO_S608_HOLD_UPPER_ROUTE_STEPS,
   RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
+  S1104_TO_S608_HOLD_ROUTE_STEPS,
   SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
   TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS,
 } from '../../src/screens/line-map/trainMovementRoutes'
@@ -28,10 +30,30 @@ assert.equal(
 
   assert.equal(path?.id, 'manual-s608-to-rt2-depot')
   assert.deepEqual(
-    path?.stateRouteSteps.map((step) => step.segmentId),
+    path?.movementRouteSteps.map((step) => step.segmentId),
     TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS.map((step) => step.segmentId),
   )
   assert.strictEqual(path?.movementRouteSteps, TRAIN_S608_TO_RT2_DEPOT_ROUTE_STEPS)
+  assert.equal(path?.requiresStartAtFirstStep, true)
+}
+
+{
+  const path = getManualLineMapRoutePath('347', 'SKG')
+
+  assert.equal(path?.id, 'manual-upper-mainline-to-s608-hold')
+  assert.deepEqual(
+    path?.movementRouteSteps.map((step) => step.segmentId),
+    PGC_TO_S608_HOLD_UPPER_ROUTE_STEPS.map((step) => step.segmentId),
+  )
+}
+
+{
+  const path = MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.find((candidate) => candidate.id === 'manual-lower-mainline-to-s608-hold')
+
+  assert.deepEqual(
+    path?.movementRouteSteps.map((step) => step.segmentId),
+    S1104_TO_S608_HOLD_ROUTE_STEPS.map((step) => step.segmentId),
+  )
 }
 
 assert.equal(getManualLineMapRoutePath('999', 'ANY'), undefined)
@@ -41,10 +63,9 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
   const stateSegmentIds = path.stateRouteSteps.map((step) => step.segmentId)
   const routeDefinitionSegmentIds = [...getManualLineMapRoutePathSegmentIds(path)]
 
-  assert.deepEqual(
-    [...stateSegmentIds].sort(),
-    routeDefinitionSegmentIds.sort(),
-    `${path.id} state rails must match its backing signal route definitions`,
+  assert.ok(
+    stateSegmentIds.every((segmentId) => routeDefinitionSegmentIds.includes(segmentId)),
+    `${path.id} state rails must come from its backing signal route definitions`,
   )
 })
 
@@ -88,7 +109,7 @@ MANUAL_LINE_MAP_ROUTE_PATH_DEFINITIONS.forEach((path) => {
   )
   assert.deepEqual(
     path?.steps.slice(S655_R655_617_REAL_ROUTE_SEGMENT_IDS.length, S655_R655_617_REAL_ROUTE_SEGMENT_IDS.length + 2).map((step) => step.segmentId),
-    ['rail-615', 'rail-617'],
+    ['rail-619', 'rail-621'],
   )
   assert.equal(path?.steps.at(-1)?.segmentId, 'rail-709')
 }

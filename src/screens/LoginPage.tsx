@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
+import { fetchOccTransportStatus } from '../backendClient'
 import type { AppRoute, ScreenRole, TrainingMode } from '../types'
 
 const screenRoles: ScreenRole[] = [
@@ -77,6 +78,15 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
   const [sessionHint, setSessionHint] = useState('')
   const [selectedTrainingMode, setSelectedTrainingMode] = useState<TrainingMode>('PRACTICE')
 
+  const checkBackendConnection = useCallback(async () => {
+    try {
+      await fetchOccTransportStatus()
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
   const openAuxiliaryMonitors = () => {
     const screens: Array<{ name: string; path: AppRoute; left: number; top: number }> = [
       { left: 0, name: 'occ-monitor-1-alarms', path: '/screen/alarms', top: 0 },
@@ -88,7 +98,6 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
       const openedWindow = window.open(
         screen.path,
         screen.name,
-        `popup=yes,width=1280,height=1040,left=${screen.left},top=${screen.top}`,
       )
 
       if (!openedWindow) {
@@ -102,20 +111,23 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
     return blockedScreens
   }
 
-  const openThreeMonitorSession = () => {
+  const openThreeMonitorSession = async () => {
+    const backendReady = await checkBackendConnection()
+
+    if (!backendReady) {
+      setSessionHint('Shared backend is not reachable. Run npm.cmd run backend:lan on the host PC, then open the three-monitor session again.')
+      return
+    }
+
     resetSession(selectedTrainingMode)
 
     const screens: AppRoute[] = ['/screen/alarms', '/screen/line-map', '/screen/timetable']
-    const width = 1280
-    const height = 1040
 
-    screens.forEach((screen, index) => {
-      window.open(
-        screen,
-        `occ-monitor-${index + 1}`,
-        `popup=yes,width=${width},height=${height},left=${index * 80},top=${index * 40}`,
-      )
+    screens.forEach((screen) => {
+      window.open(screen, '_blank')
     })
+
+    setSessionHint('Opened Alarms, Line Map, and Timetable in browser tabs.')
   }
 
   return (
@@ -181,13 +193,6 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
               <input type="checkbox" defaultChecked />
               <span>Remember workstation</span>
             </label>
-            <button
-              type="button"
-              className="text-link"
-              onClick={() => setSessionHint('Use Open three-monitor session for coordinated operations, or Sign in to OCC for single-screen line map testing.')}
-            >
-              Session help
-            </button>
           </div>
           {sessionHint && <p className="session-hint">{sessionHint}</p>}
 
@@ -199,7 +204,7 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
               const blockedScreens = openAuxiliaryMonitors()
 
               if (blockedScreens.length) {
-                setSessionHint('Pop-ups blocked. Use Open 01 + 03 from the Line Map monitor.')
+                setSessionHint('Tabs/Pop-ups blocked. Use Open 01 + 03 from the Line Map monitor.')
               }
 
               onNavigate('/screen/line-map')

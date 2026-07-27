@@ -2,13 +2,17 @@ import { createServer } from 'node:http'
 import { mkdir, readFile, appendFile, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { getScenarioActionSession } from './scenarioActionSession.mjs'
+import { createScenarioActionEngine } from './scenarioActionEngine.mjs'
 
 const PORT = Number(process.env.OCC_BACKEND_PORT ?? process.env.PORT ?? 8787)
 const HOST = process.env.OCC_BACKEND_HOST ?? '127.0.0.1'
 const MAX_BODY_BYTES = 1024 * 1024
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url))
-const dataDir = path.join(serverDir, 'data')
+const dataDir = process.env.OCC_BACKEND_DATA_DIR
+  ? path.resolve(process.env.OCC_BACKEND_DATA_DIR)
+  : path.join(serverDir, 'data')
 const sessionFile = path.join(dataDir, 'session.json')
 const reportsFile = path.join(dataDir, 'reports.ndjson')
 const DEFAULT_SESSION_CODE = 'OCC-TRAINING-001'
@@ -340,6 +344,7 @@ function normalizeSession(session, existingSession = null) {
   return {
     ...session,
     lineMap: normalizeLineMapRuntimeState(session?.lineMap),
+    scenarioRevision: Number(session?.scenarioRevision ?? existingSession?.scenarioRevision ?? 0),
     trains: normalizeTrainDoorFailureStates(session),
     assessmentMetrics: normalizeAssessmentMetrics(session, {
       ...(existingSession?.assessmentMetrics ?? {}),
@@ -425,29 +430,37 @@ function updateScenarioTask(tasks, taskId, complete = true) {
   }
 }
 
-function getScenarioTaskBlocker(tasks, taskId) {
+function getScenarioTaskBlocker(tasks, taskId, activeScenarioId, targetTrainId) {
   const currentTasks = {
     ...createEmptyScenarioTasks(),
     ...(tasks ?? {}),
   }
 
-  if (taskId === 'ackAlarm' && !currentTasks.selectTrain) {
+  const defaultTrainId = activeScenarioId === 'train-withdrawal'
+    ? '312'
+    : activeScenarioId === 'train-launch'
+      ? '306'
+      : '317'
+  const trainLabel = (targetTrainId || defaultTrainId) ? `Train ${targetTrainId || defaultTrainId}` : 'the target train'
+  const isDoorFault = activeScenarioId === 'door-fault' || activeScenarioId === 'idle' || !activeScenarioId
+
+  if (taskId === 'ackAlarm' && isDoorFault && !currentTasks.selectTrain) {
     // The first required trainee action is selecting the train under assessment.
-    return 'Select Train 317 before acknowledging the injected alarm.'
+    return `Select ${trainLabel} before acknowledging the injected alarm.`
   }
 
   if (taskId === 'setRoute') {
     if (!currentTasks.selectTrain) {
-      return 'Select Train 317 before applying route.'
+      return `Select ${trainLabel} before applying route.`
     }
 
-    if (!currentTasks.ackAlarm) {
+    if (isDoorFault && !currentTasks.ackAlarm) {
       return 'Acknowledge the door fault before applying route.'
     }
   }
 
   if (taskId === 'dispatchTrain') {
-    if (!currentTasks.ackAlarm) {
+    if (isDoorFault && !currentTasks.ackAlarm) {
       return 'Acknowledge the door fault before dispatch.'
     }
 
@@ -458,7 +471,7 @@ function getScenarioTaskBlocker(tasks, taskId) {
   }
 
   if (taskId === 'completeScenario' && !currentTasks.dispatchTrain) {
-    return 'Dispatch Train 317 before completing the scenario.'
+    return `Dispatch ${trainLabel} before completing the scenario.`
   }
 
   return ''
@@ -584,6 +597,15 @@ function applyAcceptedTask(session, taskId, source, successText) {
     sessionMeta: nextSessionMeta,
   }
 }
+
+const applyScenarioAction = createScenarioActionEngine({
+  applyAcceptedTask,
+  createMonitorEvent,
+  createSummaryEvent,
+  getScenarioTaskBlocker,
+  rejectScenarioAction,
+  updateLineMapRouteState,
+})
 
 function setCorsHeaders(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
@@ -864,7 +886,14 @@ async function acceptSessionUpdate(request, response, force = false) {
     return
   }
 
-  if (!force && currentSession && incomingSession.updatedAt < currentSession.updatedAt) {
+  const incomingScenarioRevision = Number(incomingSession.scenarioRevision ?? 0)
+  const currentScenarioRevision = Number(currentSession?.scenarioRevision ?? 0)
+  const hasStaleScenarioRevision = currentSession && incomingScenarioRevision < currentScenarioRevision
+  const hasStaleTimestamp = currentSession
+    && incomingScenarioRevision === currentScenarioRevision
+    && incomingSession.updatedAt < currentSession.updatedAt
+
+  if (!force && (hasStaleScenarioRevision || hasStaleTimestamp)) {
     sendJson(response, 409, {
       error: 'stale_session',
       message: 'Backend already has a newer OCC session state.',
@@ -1034,158 +1063,6 @@ async function handleScreenJoin(request, response) {
   })
 }
 
-// This is the backend-owned validator for the first-round vetting scenario.
-// It intentionally covers the polished Train 317 golden path first.
-function applyScenarioAction(session, action) {
-  const source = action.source ?? 'Backend Scenario Engine'
-  const trainId = action.trainId ?? session.selectedTrainId ?? '317'
-
-  if (trainId !== '317') {
-    return {
-      accepted: false,
-      reason: 'Scenario target is Train 317. Select Train 317 for this assessment action.',
-      session: rejectScenarioAction(
-        session,
-        'Scenario target is Train 317. Select Train 317 for this assessment action.',
-        trainId,
-        source,
-      ),
-    }
-  }
-
-  if (action.type === 'SELECT_TRAIN') {
-    // Selecting Train 317 starts the scored operator sequence.
-    return {
-      accepted: true,
-      session: {
-        ...applyAcceptedTask(
-          session,
-          'selectTrain',
-          source,
-          action.detail ?? 'Train 317 selected. Acknowledge alarm before route.',
-        ),
-        selectedTrainId: trainId,
-      },
-    }
-  }
-
-  if (action.type === 'ACK_ALARM') {
-    // Alarm acknowledgement is only valid after the correct train is selected.
-    const blocker = getScenarioTaskBlocker(session.scenarioTasks, 'ackAlarm')
-
-    if (blocker) {
-      return {
-        accepted: false,
-        reason: blocker,
-        session: rejectScenarioAction(session, blocker, trainId, source),
-      }
-    }
-
-    return {
-      accepted: true,
-      session: {
-        ...applyAcceptedTask(
-          session,
-          'ackAlarm',
-          source,
-          action.detail ?? 'Alarm acknowledgement accepted.',
-        ),
-        alarmSummaryRows: (session.alarmSummaryRows ?? []).map((row) => ({
-          ...row,
-          ack: 'N',
-          tone: row.tone === 'red' ? 'red' : 'grey',
-          value: row.value === 'NO ACK' ? 'ACK' : row.value,
-        })),
-      },
-    }
-  }
-
-  if (action.type === 'SET_ROUTE' || action.type === 'DISPATCH_TRAIN') {
-    // Route and dispatch mutate both train state and timetable state so all
-    // three screens visibly react to the accepted backend action.
-    const taskId = action.type === 'DISPATCH_TRAIN' ? 'dispatchTrain' : 'setRoute'
-    const nextStatus = action.type === 'DISPATCH_TRAIN' ? 'RUN' : 'WAIT'
-    const timetableState = action.type === 'DISPATCH_TRAIN' ? '>' : 'R'
-    const message = action.type === 'DISPATCH_TRAIN'
-      ? `Train ${trainId}: Dispatch command executed`
-      : `Train ${trainId}: Route command selected`
-    const blocker = getScenarioTaskBlocker(session.scenarioTasks, taskId)
-
-    if (blocker) {
-      return {
-        accepted: false,
-        reason: blocker,
-        session: rejectScenarioAction(session, blocker, trainId, source),
-      }
-    }
-
-    const event = createMonitorEvent(trainId, message, nextStatus, 'yellow')
-    const acceptedSession = applyAcceptedTask(
-      session,
-      taskId,
-      source,
-      action.detail ?? `${message} accepted.`,
-    )
-
-    return {
-      accepted: true,
-      session: {
-        ...acceptedSession,
-        alarmSummaryRows: [createSummaryEvent(event), ...(session.alarmSummaryRows ?? [])].slice(0, 12),
-        eventRows: [event, ...(session.eventRows ?? [])].slice(0, 4),
-        selectedTrainId: trainId,
-        lineMap: updateLineMapRouteState(
-          session.lineMap,
-          trainId,
-          action.type === 'DISPATCH_TRAIN' ? 'DISPATCHED' : 'SET',
-        ),
-        timetableRows: (session.timetableRows ?? []).map((row) => (
-          row.train === trainId ? { ...row, state: timetableState } : row
-        )),
-        trains: (session.trains ?? []).map((train) => (
-          train.id === trainId ? { ...train, status: nextStatus } : train
-        )),
-      },
-    }
-  }
-
-  if (action.type === 'COMPLETE_SCENARIO') {
-    // Completion is trainer-controlled and locks the final assessment result.
-    const blocker = getScenarioTaskBlocker(session.scenarioTasks, 'completeScenario')
-
-    if (blocker) {
-      return {
-        accepted: false,
-        reason: blocker,
-        session: rejectScenarioAction(session, blocker, trainId, source),
-      }
-    }
-
-    const event = createMonitorEvent(trainId, 'Scenario complete: Trainer reviewed Train 317 response', 'COMPLETE', 'yellow')
-    const acceptedSession = applyAcceptedTask(
-      session,
-      'completeScenario',
-      source,
-      action.detail ?? 'Scenario review complete. Report is ready.',
-    )
-
-    return {
-      accepted: true,
-      session: {
-        ...acceptedSession,
-        alarmSummaryRows: [createSummaryEvent(event), ...(session.alarmSummaryRows ?? [])].slice(0, 12),
-        eventRows: [event, ...(session.eventRows ?? [])].slice(0, 4),
-      },
-    }
-  }
-
-  return {
-    accepted: false,
-    reason: `Unsupported backend action: ${action.type ?? 'UNKNOWN'}`,
-    session,
-  }
-}
-
 // Single action endpoint used by the UI. It validates sequence, updates score,
 // persists state, and broadcasts the resulting session to every monitor.
 async function handleScenarioAction(request, response) {
@@ -1207,7 +1084,11 @@ async function handleScenarioAction(request, response) {
   }
 
   const action = body.action ?? body
-  const normalizedSession = normalizeSession(incomingSession ?? currentSession, currentSession)
+  // The submitted snapshot is the state the operator acted on. Prefer it over
+  // an older in-memory snapshot, while normalizeSession keeps backend-owned
+  // metadata and assessment metrics intact.
+  const actionSession = getScenarioActionSession(currentSession, incomingSession)
+  const normalizedSession = normalizeSession(actionSession, currentSession)
   const result = applyScenarioAction(normalizedSession, action)
 
   currentSession = {

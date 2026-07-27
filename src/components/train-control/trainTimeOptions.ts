@@ -1,4 +1,4 @@
-import type { TrainState } from '../../types'
+import type { TrainDirection, TrainState } from '../../types'
 
 export const ARRIVAL_TIME_STATION_OPTIONS = [
   'HBF',
@@ -107,6 +107,10 @@ export type TrainTimeSelection = {
   station: string
 }
 
+function normalizeTrainTimeOption(value: string | undefined) {
+  return (value ?? '').trim().toUpperCase()
+}
+
 export function getPlatformSidingMenuOptions(station: string, direction: 'NB' | 'SB'): readonly string[] {
   if (!station) {
     return [] as const
@@ -142,12 +146,46 @@ export function getChangeEndsPlatformSidingMenuOptions(station: string, directio
 
 export function isRt2DepotArrivalDestination(selection: TrainTimeSelection | undefined) {
   return selection?.kind === 'arrival'
-    && selection.station === 'NED'
-    && selection.platformSiding === 'RT2D'
+    && normalizeTrainTimeOption(selection.station) === 'NED'
+    && normalizeTrainTimeOption(selection.platformSiding) === 'RT2D'
+}
+
+export function isSkgArrivalDestination(selection: TrainTimeSelection | undefined) {
+  const platformSiding = normalizeTrainTimeOption(selection?.platformSiding)
+
+  return selection?.kind === 'arrival'
+    && normalizeTrainTimeOption(selection.station) === 'SKG'
+    && (platformSiding === 'SKGS' || platformSiding === 'SKGN')
+}
+
+export function isManualMovementArrivalDestination(selection: TrainTimeSelection | undefined) {
+  return isRt2DepotArrivalDestination(selection) || isSkgArrivalDestination(selection)
 }
 
 export function hasTrainMovementDestination(selection: TrainTimeSelection | undefined) {
   return selection?.kind === 'arrival'
     && selection.station.trim().length > 0
     && selection.platformSiding.trim().length > 0
+}
+
+export function getTrainMarkerDirectionForTimeSelection(
+  selection: TrainTimeSelection | undefined,
+  fallbackDirection: TrainDirection,
+): TrainDirection {
+  const station = normalizeTrainTimeOption(selection?.station)
+  const platformSiding = normalizeTrainTimeOption(selection?.platformSiding)
+
+  if (station === 'NED' && platformSiding === 'RT2D') {
+    return 'left'
+  }
+
+  if (station === 'SKG' && platformSiding === 'SKGS') {
+    return 'left'
+  }
+
+  if (station === 'SKG' && platformSiding === 'SKGN') {
+    return 'right'
+  }
+
+  return fallbackDirection
 }

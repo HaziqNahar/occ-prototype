@@ -7,6 +7,8 @@ import {
 } from '../../src/screens/line-map/model'
 import type { LineMapSignalData } from '../../src/screens/line-map/model'
 import {
+  S702_R702_608_REAL_ROUTE_SEGMENT_IDS,
+  S702_R702_608_ROUTE_STATE_SEGMENT_ID,
   S704_REAL_ROUTE_SEGMENT_IDS,
   S704_ROUTE_STATE_SEGMENT_ID,
 } from '../../src/screens/line-map/routeDefinitions'
@@ -17,6 +19,7 @@ import {
   createSignalRouteSetOverrideSegments,
   createSignalRouteUnsetOverrideSegments,
   getSignalRouteTargetTrain,
+  getSignalRouteTargetTrainForSession,
   hasSignalRouteCommand,
 } from '../../src/screens/line-map/signalRouteCommands'
 
@@ -62,7 +65,30 @@ function routeState(
 }
 
 {
+  const session = {
+    ...createInitialSession(),
+    activeScenario: {
+      ...createInitialSession().activeScenario,
+      targetTrainId: '325',
+    },
+    scenarioMode: 'RUNNING' as const,
+    selectedTrainId: '314',
+    trains: [train('314'), train('325')],
+  }
+
+  assert.equal(getSignalRouteTargetTrainForSession(session)?.id, '325')
+
+  const setSession = applySignalRouteSetSession(session, signal('S702'), 'Route R702_608')
+
+  assert.equal(setSession.selectedTrainId, '325')
+  assert.equal(setSession.timetableRows.find((row) => row.train === '325')?.state, 'R')
+  assert.equal(setSession.eventRows[0].asset.includes('325'), true)
+  assert.equal(setSession.eventRows[0].message.includes('Route R702_608 set from S702'), true)
+}
+
+{
   assert.equal(hasSignalRouteCommand(signal('S700'), 'Route R700_608'), true)
+  assert.equal(hasSignalRouteCommand(signal('S702'), 'Route R702_608'), true)
   assert.equal(hasSignalRouteCommand(signal('S709'), 'Route R700_608'), false)
 }
 
@@ -88,6 +114,20 @@ function routeState(
   assert.equal(unsetSegments[S704_ROUTE_STATE_SEGMENT_ID], undefined)
   S704_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
     assert.equal(unsetSegments[segmentId].status, 'UNSET')
+  })
+}
+
+{
+  const setSegments = createSignalRouteSetOverrideSegments(
+    {},
+    signal('S702'),
+    'Route R702_608',
+    { id: '312' },
+  )
+
+  assert.equal(setSegments[S702_R702_608_ROUTE_STATE_SEGMENT_ID].status, 'SET')
+  S702_R702_608_REAL_ROUTE_SEGMENT_IDS.forEach((segmentId) => {
+    assert.equal(setSegments[segmentId].status, 'SET')
   })
 }
 

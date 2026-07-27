@@ -40,7 +40,7 @@ export type TrainDoorFailureState =
   | 'AUTHORIZED_TO_MOVE'
   | 'WITHDRAW_FROM_SERVICE'
 export type SessionLifecycle = 'CREATED' | 'RUNNING' | 'PAUSED' | 'COMPLETE'
-export type SessionScreenRole = 'ALARM' | 'LINE_MAP' | 'TIMETABLE' | 'IOS' | 'LOBBY' | 'REPORT'
+export type SessionScreenRole = 'ALARM' | 'LINE_MAP' | 'TIMETABLE' | 'IOS' | 'TRAINEE' | 'LOBBY' | 'REPORT'
 export type MonitorLaunchRoute = '/screen/alarms' | '/screen/timetable'
 export type MonitorLaunchTransport = 'backend' | 'broadcast-channel' | 'shared-worker'
 export type SessionTransportHealth = 'CONNECTED' | 'AVAILABLE' | 'UNAVAILABLE' | 'ERROR'
@@ -155,10 +155,11 @@ export type ActiveScenario = {
   id: string
   incident: string
   target: string
+  targetTrainId?: string
   title: string
 }
 
-export type TraineeRole = 'Traffic Controller' | 'Station Manager' | 'Engineer' | 'Observer'
+export type TraineeRole = 'Traffic Controller'
 
 export type TraineeParticipant = {
   email: string
@@ -291,6 +292,7 @@ export type OccSessionState = {
   scenarioMode: ScenarioMode
   sessionMeta: OccSessionMeta
   scenarioNotice: ScenarioNotice
+  scenarioRevision: number
   scenarioStep: number
   scenarioTasks: ScenarioTaskState
   selectedTrainId: string

@@ -139,7 +139,7 @@ export function validateLineMapRouteDefinitions(options: LineMapRouteValidationO
 
   validateRenderedRailInventory(knownRailIds, issues)
   validateSignalInventory(getLineMapSignalAccounts(routeDefinitions), knownRailIds, issues)
-  validateLineMapRoutePathDefinitions(routePathDefinitions, knownRailIds, issues)
+  validateLineMapRoutePathDefinitions(routePathDefinitions, routeDefinitions, knownRailIds, issues)
 
   return issues
 }
@@ -168,6 +168,7 @@ export function getLineMapSignalAccounts(
 
 function validateLineMapRoutePathDefinitions(
   routePathDefinitions: readonly LineMapRoutePathDefinition[],
+  routeDefinitions: readonly SignalRouteDefinition[],
   knownRailIds: ReadonlySet<string>,
   issues: string[],
 ) {
@@ -185,7 +186,7 @@ function validateLineMapRoutePathDefinitions(
       return
     }
 
-    validateTimetableRoutePathDefinition(routePath, knownRailIds, issues)
+    validateTimetableRoutePathDefinition(routePath, routeDefinitions, knownRailIds, issues)
   })
 
   routePathIds.forEach((count, routePathId) => {
@@ -237,21 +238,16 @@ function validateManualRoutePathBackedBySignalRoutes(
 
   const routeSegmentIdSet = new Set(routeSegmentIds)
   const stateStepSegmentIds = routePath.stateRouteSteps.map((step) => step.segmentId)
-  const stateStepSegmentIdSet = new Set(stateStepSegmentIds)
   const unexpectedStateStepIds = stateStepSegmentIds.filter((segmentId) => !routeSegmentIdSet.has(segmentId))
-  const missingStateStepIds = routeSegmentIds.filter((segmentId) => !stateStepSegmentIdSet.has(segmentId))
 
   if (unexpectedStateStepIds.length > 0) {
     issues.push(`${routePath.id} has state steps outside its signal route definitions: ${unexpectedStateStepIds.join(', ')}`)
-  }
-
-  if (missingStateStepIds.length > 0) {
-    issues.push(`${routePath.id} is missing signal route rails in state steps: ${missingStateStepIds.join(', ')}`)
   }
 }
 
 function validateTimetableRoutePathDefinition(
   routePath: TimetableLineMapRoutePathDefinition,
+  routeDefinitions: readonly SignalRouteDefinition[],
   knownRailIds: ReadonlySet<string>,
   issues: string[],
 ) {
@@ -272,6 +268,7 @@ function validateTimetableRoutePathDefinition(
   }
 
   validateRoutePathSteps(`${routePath.id} timetable`, routePath.steps, knownRailIds, issues)
+  validateTimetableRoutePathBackedBySignalRoutes(routePath, routeDefinitions, issues)
 
   if (routePath.disallowGuideRails) {
     const allowedLaunchGuideRailIds = routePath.signalRouteRefs?.includes('Route R655_617')
@@ -284,6 +281,72 @@ function validateTimetableRoutePathDefinition(
       }
     })
   }
+}
+
+function validateTimetableRoutePathBackedBySignalRoutes(
+  routePath: TimetableLineMapRoutePathDefinition,
+  routeDefinitions: readonly SignalRouteDefinition[],
+  issues: string[],
+) {
+  const routeLabels = routePath.signalRouteRefs ?? []
+
+  if (routeLabels.length === 0) {
+    return
+  }
+
+  const routeDefinitionByLabel = new Map(routeDefinitions.map((routeDefinition) => [
+    routeDefinition.routeLabel,
+    routeDefinition,
+  ]))
+  const backingRouteDefinitions = routeLabels
+    .map((routeLabel) => routeDefinitionByLabel.get(routeLabel))
+    .filter((routeDefinition): routeDefinition is SignalRouteDefinition => Boolean(routeDefinition))
+
+  if (backingRouteDefinitions.length !== routeLabels.length) {
+    return
+  }
+
+  const expectedSegmentIds = compactAdjacentIds(backingRouteDefinitions.flatMap((routeDefinition) => (
+    routeDefinition.realSegmentIds.filter((segmentId) => isTimetableRouteSegmentAllowed(routePath, segmentId))
+  )))
+  const actualSegmentIds = routePath.steps.map((step) => step.segmentId)
+
+  if (expectedSegmentIds.length === 0 || actualSegmentIds.length === 0) {
+    return
+  }
+
+  if (isContiguousSuffix(expectedSegmentIds, actualSegmentIds)) {
+    return
+  }
+
+  issues.push(
+    `${routePath.id} timetable steps are not a signal-route-backed suffix of ${routeLabels.join(', ')}`
+    + `: expected ${expectedSegmentIds.join(' -> ')} but got ${actualSegmentIds.join(' -> ')}`,
+  )
+}
+
+function isTimetableRouteSegmentAllowed(
+  routePath: TimetableLineMapRoutePathDefinition,
+  segmentId: string,
+) {
+  return routePath.disallowGuideRails !== true || !isTimetableIneligibleGuideRailId(segmentId)
+}
+
+function compactAdjacentIds(ids: readonly string[]) {
+  return ids.filter((id, index) => index === 0 || ids[index - 1] !== id)
+}
+
+function isContiguousSuffix(
+  expectedSegmentIds: readonly string[],
+  actualSegmentIds: readonly string[],
+) {
+  if (actualSegmentIds.length > expectedSegmentIds.length) {
+    return false
+  }
+
+  const suffixOffset = expectedSegmentIds.length - actualSegmentIds.length
+
+  return actualSegmentIds.every((segmentId, index) => expectedSegmentIds[index + suffixOffset] === segmentId)
 }
 
 function validateTimetableStationRouteDefinition(
@@ -486,7 +549,7 @@ function validateNoExclusiveRouteSegmentConflicts(
 ) {
   const routeRailIds = new Set(routeDefinition.realSegmentIds)
   const allowedExclusiveRailPairKeys = new Set(
-    (options.allowLogicalExclusiveRailPairs ? routeDefinition.allowedLogicalExclusiveRailPairs ?? [] : [])
+    ((options.allowLogicalExclusiveRailPairs ?? true) ? routeDefinition.allowedLogicalExclusiveRailPairs ?? [] : [])
       .map(([left, right]) => getExclusiveRailPairKey(left, right)),
   )
 

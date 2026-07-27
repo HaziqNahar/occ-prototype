@@ -1,3 +1,5 @@
+import type { TrainingScenarioKind } from './trainingScenarios'
+
 export type ScenarioTemplate = {
   affectedMonitors: string[]
   duration: string
@@ -9,6 +11,7 @@ export type ScenarioTemplate = {
   status: 'Active' | 'Prepared' | 'Future'
   target: string
   title: string
+  trainingScenarioKind?: TrainingScenarioKind
 }
 
 export type AssessmentCriterion = {
@@ -20,22 +23,65 @@ export type AssessmentCriterion = {
 
 export const scenarioTemplates: ScenarioTemplate[] = [
   {
-    affectedMonitors: ['Alarms', 'Line Map', 'Timetable', 'IOS'],
-    duration: '05:00',
+    affectedMonitors: ['Line Map', 'Timetable', 'IOS'],
+    duration: '06:00',
     expectedSteps: [
-      'Select Train 317',
-      'Acknowledge injected alarm',
-      'Apply route command',
-      'Dispatch train after route',
+      'Select an eligible SKG-origin timetable train',
+      'Set the launch route from RT depot to SKG',
+      'Apply departure and dispatch the launch train',
+      'Verify the train enters mainline timetable service',
       'Complete trainer review',
     ],
-    id: 'launch-withdrawal',
-    incidents: ['Door fault', 'Train hold', 'Timetable deviation'],
-    objective: 'Handle a controlled train launch / withdrawal drill across all three OCC monitors.',
-    passCondition: 'All required steps complete with no unresolved rejected action.',
+    id: 'train-launch',
+    incidents: ['Train launch'],
+    objective: 'Launch a train from the RT depot into live mainline service while timetable traffic continues.',
+    passCondition: 'The selected train reaches mainline service with all required launch tasks complete.',
     status: 'Active',
-    target: 'Train 317 at SKG/BGK section',
-    title: 'Train Launch / Withdrawal',
+    target: 'RT1 / RT2 launch to SKG timetable service',
+    title: 'Train Launch',
+    trainingScenarioKind: 'TRAIN_LAUNCH',
+  },
+  {
+    affectedMonitors: ['Line Map', 'Timetable', 'IOS'],
+    duration: '07:00',
+    expectedSteps: [
+      'Select a live timetable train to withdraw',
+      'Set the route to the last-station hold path',
+      'Declare SKG / SKGS in Arrival Time',
+      'Apply Departure Time to move to the S608 hold',
+      'Declare NED / RT2D in Arrival Time',
+      'Apply Departure Time to move into RT2 depot',
+      'Verify the train reaches the depot endpoint',
+      'Complete trainer review',
+    ],
+    id: 'train-withdrawal',
+    incidents: ['Train withdrawal'],
+    objective: 'Withdraw a live timetable train from mainline service to RT depot without stopping other services.',
+    passCondition: 'The selected train reaches the RT depot endpoint with all required withdrawal tasks complete.',
+    status: 'Active',
+    target: 'Mainline train to RT depot endpoint',
+    title: 'Train Withdrawal',
+    trainingScenarioKind: 'TRAIN_WITHDRAWAL',
+  },
+  {
+    affectedMonitors: ['Alarms', 'Line Map', 'IOS'],
+    duration: '05:00',
+    expectedSteps: [
+      'Select affected Train 317',
+      'Acknowledge the injected door fault alarm',
+      'Apply the door fault procedure in Train Control',
+      'Set the protected movement route after recovery',
+      'Authorise train movement after the door is confirmed closed and locked',
+      'Complete trainer review',
+    ],
+    id: 'door-fault',
+    incidents: ['Door fault'],
+    objective: 'Handle train door failure using alarm acknowledgement and controlled train commands.',
+    passCondition: 'The alarm is acknowledged, the door is secured, and recovery movement is authorised with no critical task open.',
+    status: 'Active',
+    target: 'Faulted Train 317 on mainline',
+    title: 'Train Door Fault',
+    trainingScenarioKind: 'DOOR_FAULT',
   },
   {
     affectedMonitors: ['Line Map', 'Timetable', 'IOS'],

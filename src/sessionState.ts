@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createNelTimetableRows, createNelTrainRosterItems } from './data/nelTimetable'
-import { scenarioTemplates } from './scenarioLibrary'
 import { createLineMapRuntimeState, LINE_MAP_LAYOUT_VERSION, clearStartupSignalRouteState, normalizeLineMapRuntimeState, resetLineMapRouteSegmentState } from './screens/line-map/lineMapRuntimeState'
 import { clearTimetableGuideRouteState } from './screens/line-map/timetableRouteStateCleanup'
 import { getTimetablePlaybackTrainIds } from './screens/line-map/timetablePlayback'
 import { clearLineMapPlatformDoorStatesForTrain } from './screens/line-map/platformDoorState'
 import { MONITOR_WIDTH, initialTrains } from './screens/line-map/model'
+import { RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS } from './screens/line-map/trainMovementRoutes'
 import { createOccSessionTransport, OCC_SESSION_KEY } from './sessionTransport'
 import {
   DEFAULT_TIMETABLE_VIEW_STATE,
@@ -123,14 +123,12 @@ export const initialScenarioNotice: ScenarioNotice = {
   tone: 'info',
 }
 
-const defaultScenarioTemplate = scenarioTemplates[0]
-
 export const initialActiveScenario = {
-  duration: defaultScenarioTemplate.duration,
-  id: defaultScenarioTemplate.id,
-  incident: defaultScenarioTemplate.incidents[0],
-  target: defaultScenarioTemplate.target,
-  title: defaultScenarioTemplate.title,
+  duration: '00:00',
+  id: 'idle',
+  incident: 'None',
+  target: 'No active scenario',
+  title: 'Idle',
 }
 
 export const initialTrainees: TraineeParticipant[] = [
@@ -142,14 +140,6 @@ export const initialTrainees: TraineeParticipant[] = [
     role: 'Traffic Controller',
     status: 'Joined',
   },
-  {
-    email: 'station.manager@sbs.local',
-    joinedAt: '--',
-    monitor: 'Monitor 01 - Alarms',
-    name: 'Station Manager',
-    role: 'Station Manager',
-    status: 'Waiting',
-  },
 ]
 
 export const alarmSummaryRows: AlarmSummaryRow[] = [
@@ -157,8 +147,8 @@ export const alarmSummaryRows: AlarmSummaryRow[] = [
     ack: 'Y',
     avl: '',
     mms: 'S',
-    timestamp: '05/11/25 10:42:19',
-    asset: 'SIG/BNK/B2/DMS0901',
+    timestamp: '21/06/26 06:55:01',
+    asset: 'SIG/VKN/B2/DMS0501',
     description: 'DMS: Timetable Loading Acknowledgement',
     value: 'NO ACK',
     tone: 'yellow',
@@ -167,7 +157,17 @@ export const alarmSummaryRows: AlarmSummaryRow[] = [
     ack: 'Y',
     avl: '',
     mms: 'S',
-    timestamp: '05/11/25 10:42:19',
+    timestamp: '21/06/26 06:55:01',
+    asset: 'SIG/SKG/B2/DMS1401',
+    description: 'DMS: Timetable Loading Acknowledgement',
+    value: 'NO ACK',
+    tone: 'yellow',
+  },
+  {
+    ack: 'Y',
+    avl: '',
+    mms: 'S',
+    timestamp: '21/06/26 06:55:01',
     asset: 'SIG/HGN/B2/DMS0401',
     description: 'DMS: Timetable Loading Acknowledgement',
     value: 'NO ACK',
@@ -177,8 +177,8 @@ export const alarmSummaryRows: AlarmSummaryRow[] = [
     ack: 'Y',
     avl: '',
     mms: 'S',
-    timestamp: '05/11/25 10:42:19',
-    asset: 'SIG/OTP/B4/DMS1501',
+    timestamp: '21/06/26 06:55:01',
+    asset: 'SIG/PGC/B2/DMS1700',
     description: 'DMS: Timetable Loading Acknowledgement',
     value: 'NO ACK',
     tone: 'yellow',
@@ -187,73 +187,25 @@ export const alarmSummaryRows: AlarmSummaryRow[] = [
     ack: 'Y',
     avl: '',
     mms: 'S',
-    timestamp: '05/11/25 10:55:50',
-    asset: 'EMU/042/TRN/XXXXXXX',
-    description: 'Train 042: Action Needed (from operator for recovery)',
-    value: 'YES',
-    tone: 'red',
-  },
-  {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:55:52',
-    asset: 'EMU/037/TRN/XXXXXXX',
-    description: 'Train 037: Status of Train Hold Request',
-    value: 'AUTOMATIC HOLD',
+    timestamp: '21/06/26 06:55:01',
+    asset: 'SIG/SER/B2/DMS0601',
+    description: 'DMS: Timetable Loading Acknowledgement',
+    value: 'NO ACK',
     tone: 'yellow',
   },
-  {
-    ack: 'N',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:56:50',
-    asset: 'SIG/NED/1133/DMS0003',
-    description: 'DMS:HMI Status',
-    value: 'OK',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:57:09',
-    asset: 'EMU/017/TRN/XXXXXXX',
-    description: 'Train 017: Train Hold',
-    value: 'NOT APPLIED',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: '',
-    timestamp: '05/11/25 10:57:48',
-    asset: 'EMU/032/TRN/XXXXXXX',
-    description: 'Train 032: Train Skip Stop Demand',
-    value: 'FAILED: RET. COND',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: '',
-    timestamp: '05/11/25 10:58:31',
-    asset: 'SKG_ROUT_S003',
-    description: 'Route abandoned: R613_617/Management of Route Control',
-    value: '',
-    tone: 'grey',
-  },
-  {
-    ack: 'N',
-    avl: '',
-    mms: 'S',
-    timestamp: '05/11/25 10:58:33',
-    asset: 'EMU/048/TRN/XXXXXXX',
-    description: 'Train 048: Emergency Brake',
-    value: 'NOT APPLIED',
-    tone: 'grey',
-  },
 ]
+
+// The reference OCC display reports the full alarm archive count while only
+// the current rows are rendered in the viewport. Keep that baseline visible
+// as new scenario rows are added to the local session.
+export const ALARM_SUMMARY_TOTAL = 63
+
+export function getAlarmSummaryCounts(rows: readonly AlarmSummaryRow[]) {
+  return {
+    notAcknowledged: rows.filter((row) => row.ack === 'N').length,
+    total: Math.max(ALARM_SUMMARY_TOTAL, rows.length),
+  }
+}
 
 export const timetableRows: TimetableRow[] = createNelTimetableRows()
 const trainRosterItems = createNelTrainRosterItems()
@@ -328,10 +280,17 @@ export function clearInactiveTimetablePlaybackTrains(
   activeTrainIds: ReadonlySet<string>,
 ): OccSessionState {
   const timetablePlaybackTrainIds = new Set(getTimetablePlaybackTrainIds(current.timetableRows))
+  const scenarioTargetTrainId = current.activeScenario.targetTrainId
+  // Scenario playback can briefly publish no active plans while it is being
+  // rebuilt. Keep trains that are already on the map visible through that
+  // hand-off instead of flashing the line map empty.
+  const preserveScenarioVisibleTrains = current.scenarioMode === 'RUNNING'
   const inactiveTrainIds = current.trains
     .filter((train) => (
       (train.timetablePlayback || timetablePlaybackTrainIds.has(train.id))
       && !activeTrainIds.has(train.id)
+      && train.id !== scenarioTargetTrainId
+      && !(preserveScenarioVisibleTrains && train.lineMapVisible)
     ))
     .map((train) => train.id)
 
@@ -380,6 +339,70 @@ function cleanSessionTimetableGuideRouteState(session: OccSessionState): OccSess
         ...session,
         lineMap: cleanedLineMap,
       }
+}
+
+function revealActiveScenarioTargetTrain(session: OccSessionState): OccSessionState {
+  const targetTrainId = session.activeScenario.targetTrainId
+
+  if (!targetTrainId || session.scenarioMode !== 'RUNNING') {
+    return session
+  }
+
+  const launchSignalStep = RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS[1]
+  const shouldStageLaunchTargetAtSignal = (
+    session.activeScenario.id === 'train-launch'
+    && !session.scenarioTasks.dispatchTrain
+    && Boolean(launchSignalStep)
+  )
+  let changed = false
+  const trains = session.trains.map((train) => {
+    if (train.id !== targetTrainId) {
+      return train
+    }
+
+    const nextTrain = shouldStageLaunchTargetAtSignal && launchSignalStep
+      ? {
+          ...train,
+          direction: 'right' as const,
+          isMoving: false,
+          lineMapVisible: true,
+          occupancySegmentId: launchSignalStep.segmentId,
+          service: 'NB' as const,
+          status: 'WAIT' as const,
+          timetablePlayback: false,
+          x: launchSignalStep.point.x,
+          y: launchSignalStep.point.y,
+        }
+      : {
+          ...train,
+          lineMapVisible: true,
+          timetablePlayback: false,
+        }
+
+    if (
+      nextTrain.direction === train.direction
+      && nextTrain.isMoving === train.isMoving
+      && nextTrain.lineMapVisible === train.lineMapVisible
+      && nextTrain.occupancySegmentId === train.occupancySegmentId
+      && nextTrain.service === train.service
+      && nextTrain.status === train.status
+      && nextTrain.timetablePlayback === train.timetablePlayback
+      && nextTrain.x === train.x
+      && nextTrain.y === train.y
+    ) {
+      return train
+    }
+
+    changed = true
+    return nextTrain
+  })
+
+  return changed
+    ? {
+        ...session,
+        trains,
+      }
+    : session
 }
 
 export function createSessionMeta(lifecycle: SessionLifecycle = 'CREATED'): OccSessionMeta {
@@ -439,11 +462,15 @@ export function updateSessionLifecycle(sessionMeta: OccSessionMeta | undefined, 
 
   return {
     ...currentMeta,
-    completedAt: lifecycle === 'COMPLETE' ? currentMeta.completedAt ?? now : currentMeta.completedAt,
+    completedAt: lifecycle === 'CREATED'
+      ? undefined
+      : lifecycle === 'COMPLETE' ? currentMeta.completedAt ?? now : currentMeta.completedAt,
     lifecycle,
-    startedAt: lifecycle === 'RUNNING' || lifecycle === 'COMPLETE'
-      ? currentMeta.startedAt ?? now
-      : currentMeta.startedAt,
+    startedAt: lifecycle === 'CREATED'
+      ? undefined
+      : lifecycle === 'RUNNING' || lifecycle === 'COMPLETE'
+        ? currentMeta.startedAt ?? now
+        : currentMeta.startedAt,
   }
 }
 
@@ -461,9 +488,13 @@ function createInitialTrainStates(): TrainState[] {
         y: 0,
       }),
       doorFailureState: undefined,
+      itamaAuthorisedPreparationConfirmed: false,
+      itamaGranted: true,
+      itamaNotAuthorisedPreparationConfirmed: false,
+      itamaStatus: 'GRANTED',
       isMoving: false,
       lineMapVisible: false,
-      readinessMode: placement?.readinessMode,
+      readinessMode: placement?.readinessMode ?? 'MAINLINE_SERVICE',
       scheduleNumber: item.firstScheduleNumber,
       service: placement?.service ?? item.service,
       trainNumber: item.trainNumber,
@@ -490,6 +521,7 @@ export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): O
     scenarioMode: 'IDLE',
     sessionMeta: createSessionMeta(),
     scenarioNotice: initialScenarioNotice,
+    scenarioRevision: 0,
     scenarioStep: 0,
     scenarioTasks: initialScenarioTasks,
     selectedTrainId: '317',
@@ -506,6 +538,7 @@ export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): O
 export function createResetSessionState(
   trainingMode: TrainingMode = 'PRACTICE',
   updatedAt = Date.now(),
+  scenarioRevision = 0,
 ): OccSessionState {
   const baseSession = createInitialSession(trainingMode)
   const baselineReady = isTrainBaselineSession(baseSession)
@@ -518,6 +551,7 @@ export function createResetSessionState(
         : 'Train reset requested. Review train baseline state.',
       tone: baselineReady ? 'success' : 'warning',
     },
+    scenarioRevision,
     updatedAt,
   })
 }
@@ -666,14 +700,14 @@ export function normalizeClientSession(session: OccSessionState): OccSessionStat
   const lineMap = normalizeLineMapRuntimeState(session.lineMap)
   const trains = mergeStoredTrains(session.trains, session.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION)
 
-  return cleanSessionTimetableGuideRouteState({
+  return revealActiveScenarioTargetTrain(cleanSessionTimetableGuideRouteState({
     ...session,
     lineMap,
     timetableClock: normalizeTimetableClockState(session.timetableClock),
     timetableRows: normalizeTimetableRows(session.timetableRows),
     timetableView: normalizeTimetableViewState(session.timetableView),
     trains: inferTrain317DoorFailureState(session, trains),
-  })
+  }))
 }
 
 export function clearStoredOccSessions(includeCurrent = false) {
@@ -721,6 +755,7 @@ function readStoredSession(): OccSessionState {
         screens: parsed.sessionMeta?.screens ?? {},
       },
       scenarioNotice: parsed.scenarioNotice ?? initialScenarioNotice,
+      scenarioRevision: parsed.scenarioRevision ?? 0,
       scenarioStep: parsed.scenarioStep ?? 0,
       scenarioTasks: { ...initialScenarioTasks, ...parsed.scenarioTasks },
       lineMap,
@@ -733,10 +768,10 @@ function readStoredSession(): OccSessionState {
       updatedAt: Date.now(),
     }
 
-    return {
+    return revealActiveScenarioTargetTrain({
       ...nextSession,
       trains: inferTrain317DoorFailureState(nextSession, nextSession.trains),
-    }
+    })
   } catch {
     return createInitialSession()
   }
@@ -787,7 +822,7 @@ export function useOccSession() {
         setSession((currentSession) => {
           const normalizedSession = normalizeClientSession(nextSession)
 
-          if (normalizedSession.updatedAt <= currentSession.updatedAt) {
+          if (!shouldAcceptRemoteSession(currentSession, normalizedSession)) {
             return currentSession
           }
 
@@ -820,10 +855,11 @@ export function useOccSession() {
 
   const updateSession = useCallback((updater: (current: OccSessionState) => OccSessionState) => {
     setSession((current) => {
-      const next = cleanSessionTimetableGuideRouteState({
-        ...updater(current),
-        updatedAt: Date.now(),
-      })
+      const next = applyOccSessionUpdate(current, updater)
+
+      if (next === current) {
+        return current
+      }
 
       transportRef.current?.publish(next)
 
@@ -833,12 +869,45 @@ export function useOccSession() {
 
   const resetSession = useCallback((trainingMode: TrainingMode = 'PRACTICE') => {
     clearStoredOccSessions(true)
-    const next = createResetSessionState(trainingMode)
+    const next = createResetSessionState(
+      trainingMode,
+      Date.now(),
+      (sessionRef.current.scenarioRevision ?? 0) + 1,
+    )
 
     sessionRef.current = next
-    transportRef.current?.publish(next)
+    transportRef.current?.reset(next)
     setSession(next)
   }, [])
 
   return { registerScreen, requestMonitorPeerLaunch, resetSession, session, subscribeMonitorLaunch, updateSession }
+}
+
+export function applyOccSessionUpdate(
+  current: OccSessionState,
+  updater: (current: OccSessionState) => OccSessionState,
+  updatedAt = Date.now(),
+) {
+  const updated = cleanSessionTimetableGuideRouteState(updater(current))
+
+  return updated === current
+    ? current
+    : {
+        ...updated,
+        updatedAt,
+      }
+}
+
+export function shouldAcceptRemoteSession(
+  current: OccSessionState,
+  incoming: OccSessionState,
+) {
+  const currentRevision = current.scenarioRevision ?? 0
+  const incomingRevision = incoming.scenarioRevision ?? 0
+
+  if (incomingRevision !== currentRevision) {
+    return incomingRevision > currentRevision
+  }
+
+  return incoming.updatedAt > current.updatedAt
 }

@@ -30,6 +30,7 @@ function routeState(
 }
 
 assert.deepEqual(getSignalRouteLabels('S700'), ['Route R700_608', 'Route R700_610'])
+assert.deepEqual(getSignalRouteLabels('S702'), ['Route R702_608'])
 assert.deepEqual(getSignalRouteLabels('S704'), ['Route R704_700'])
 assert.deepEqual(getSignalRouteLabels('S709'), [])
 assert.deepEqual(getSignalRouteLabels('S608'), ['Route R608_600', 'Route R608_602', 'Route R608_803'])
@@ -43,6 +44,10 @@ assert.deepEqual(
 assert.deepEqual(
   getSignalRouteCommandStateSegmentIds('S704', 'Route R704_700'),
   ['route-r704-700-command'],
+)
+assert.deepEqual(
+  getSignalRouteCommandStateSegmentIds('S702', 'Route R702_608'),
+  ['route-r702-608-command'],
 )
 assert.deepEqual(
   getSignalRouteCommandStateSegmentIds('S608', 'Route R608_803'),

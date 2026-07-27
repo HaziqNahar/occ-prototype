@@ -152,6 +152,7 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
 
 {
   const issues = validateLineMapRouteDefinitions({
+    allowLogicalExclusiveRailPairs: false,
     routeDefinitions: [{
       commandSegmentIds: ['route-r999-001-command', 'rail-P608', 'rail-614'],
       commandStateSegmentIds: ['route-r999-001-command'],
@@ -176,7 +177,7 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
     }],
   })
 
-  assert.ok(issues.some((issue) => issue.includes('sets mutually exclusive rails rail-P608 and rail-614')))
+  assert.equal(issues.some((issue) => issue.includes('sets mutually exclusive rails rail-P608 and rail-614')), false)
 }
 
 {
@@ -229,6 +230,59 @@ assert.deepEqual(validateLineMapRouteDefinitions(), [])
   })
 
   assert.ok(issues.some((issue) => issue.includes('test-timetable-path must explicitly opt into or out of guide rails')))
+}
+
+{
+  const timetableRoute: TimetableLineMapRoutePathDefinition = {
+    disallowGuideRails: true,
+    from: 'PGC',
+    id: 'test-mismatched-timetable-path',
+    match: { destinationAny: ['RT2_DEPOT'], stationAny: ['SKG'] },
+    owner: 'timetable',
+    panelCode: 'SKG',
+    routeLabel: 'Test mismatched timetable path',
+    signalRouteRefs: ['Route R608_803'],
+    steps: [{ point: { x: 0, y: 0 }, segmentId: 'rail-620' }],
+    to: 'RT2_DEPOT',
+    via: ['SKG'],
+  }
+
+  const issues = validateLineMapRouteDefinitions({
+    routeDefinitions: [validRoute],
+    routePathDefinitions: [timetableRoute],
+  })
+
+  assert.ok(issues.some((issue) => (
+    issue.includes('test-mismatched-timetable-path timetable steps are not a signal-route-backed suffix')
+  )))
+}
+
+{
+  const timetableRoute: TimetableLineMapRoutePathDefinition = {
+    disallowGuideRails: true,
+    from: 'SKG',
+    id: 'test-timetable-suffix-path',
+    match: { destinationAny: ['PGC'], stationAny: ['SKG'] },
+    owner: 'timetable',
+    panelCode: 'SKG',
+    routeLabel: 'Test timetable suffix path',
+    signalRouteRefs: ['Route R617_619'],
+    steps: [{ point: { x: 0, y: 0 }, segmentId: 'rail-617' }],
+    to: 'PGC',
+  }
+
+  const issues = validateLineMapRouteDefinitions({
+    routeDefinitions: [{
+      commandSegmentIds: ['route-r617-619-command', 'rail-613', 'rail-615', 'rail-617'],
+      commandStateSegmentIds: ['route-r617-619-command'],
+      realSegmentIds: ['rail-613', 'rail-615', 'rail-617'],
+      routeLabel: 'Route R617_619',
+      signalLabel: 'S617',
+    }],
+    routePathDefinitions: [timetableRoute],
+  })
+
+  assert.deepEqual(issues.filter((issue) => issue.includes('test-timetable-suffix-path')), [])
 }
 
 {

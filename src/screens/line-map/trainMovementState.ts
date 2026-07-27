@@ -1,5 +1,5 @@
 import type { TrainTimeSelection } from '../../components/train-control/trainTimeOptions'
-import type { LineMapRuntimeState, TrainState } from '../../types'
+import type { LineMapRuntimeState, RouteControlMode, TrainState } from '../../types'
 import type { TimetablePlaybackPlan } from './timetablePlayback'
 import { upsertTimetablePlaybackTrain } from './timetablePlayback'
 import { getSignalRouteSegmentIds } from './lineMapRoutePaths'
@@ -51,18 +51,21 @@ export function createManualTrainRoutePlan({
   arrivalDestinations,
   fallbackStepIndex,
   lineMap,
+  routeControlModes,
   trainId,
   trains,
 }: {
   arrivalDestinations: Record<string, TrainTimeSelection>
   fallbackStepIndex?: number | null
   lineMap: LineMapRuntimeState
+  routeControlModes: Record<string, RouteControlMode>
   trainId: string
   trains: readonly TrainState[]
 }): ManualTrainRoutePlan {
   const arrivalDestination = arrivalDestinations[trainId]
   const currentTrain = trains.find((train) => train.id === trainId)
-  const authority = resolveTrainMovementAuthority(currentTrain, arrivalDestination)
+  void routeControlModes
+  const authority = resolveTrainMovementAuthority(currentTrain, arrivalDestination, lineMap)
 
   if (!authority.allowed) {
     return authority
@@ -114,6 +117,20 @@ export function applyManualTrainRouteStepState<T extends TrainMovementSessionSta
   const lastStepIndex = authority.movementRouteSteps.length - 1
   const boundedStepIndex = Math.min(Math.max(0, stepIndex), lastStepIndex)
   const currentStep = authority.movementRouteSteps[boundedStepIndex]
+  const updateManualTrain = (train?: TrainState): TrainState => ({
+    ...train,
+    direction: authority.direction,
+    id: train?.id ?? trainId,
+    isMoving: boundedStepIndex < lastStepIndex,
+    lineMapVisible: true,
+    occupancySegmentId: currentStep.segmentId,
+    service: authority.service,
+    status: 'RUN',
+    timetablePlayback: false,
+    x: currentStep.point.x,
+    y: currentStep.point.y,
+  })
+  const hasTrain = current.trains.some((train) => train.id === trainId)
 
   return {
     ...current,
@@ -124,22 +141,9 @@ export function applyManualTrainRouteStepState<T extends TrainMovementSessionSta
       authority.getStateRouteStepIndex(boundedStepIndex),
     ),
     selectedTrainId: trainId,
-    trains: current.trains.map((train) => (
-      train.id === trainId
-        ? {
-            ...train,
-            direction: 'left',
-            isMoving: boundedStepIndex < lastStepIndex,
-            lineMapVisible: true,
-            occupancySegmentId: currentStep.segmentId,
-            service: 'SB',
-            status: 'RUN',
-            timetablePlayback: false,
-            x: currentStep.point.x,
-            y: currentStep.point.y,
-          }
-        : train
-    )),
+    trains: hasTrain
+      ? current.trains.map((train) => (train.id === trainId ? updateManualTrain(train) : train))
+      : [...current.trains, updateManualTrain()],
   }
 }
 

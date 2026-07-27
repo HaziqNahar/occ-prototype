@@ -5,6 +5,10 @@ import {
   createTimetablePlaybackPlans,
 } from './timetablePlayback'
 import type { TimetablePlaybackPlan } from './timetablePlayback'
+import {
+  getTrainReadinessMode,
+  isTrainItamaGranted,
+} from './model'
 export type TimetableMovementAuthority = {
   allowed: boolean
   blockedReason?: string
@@ -37,6 +41,7 @@ export function createTimetableMovementAuthorities(
   rows: readonly TimetableRow[] = session.timetableRows,
 ): TimetableMovementAuthority[] {
   return createTimetableMovementAuthoritiesForRows(rows, routeControlModes, now)
+    .map((authority) => applySessionTrainMovementBlock(session, authority))
 }
 
 export function createTimetableMovementAuthoritiesForRows(
@@ -110,6 +115,41 @@ function getTimetableMovementBlockedReason({
 }) {
   if (!routeModeAllowed) {
     return `${panelCode} route mode is OCCM/manual`
+  }
+
+  return undefined
+}
+
+function applySessionTrainMovementBlock(
+  session: OccSessionState,
+  authority: TimetableMovementAuthority,
+): TimetableMovementAuthority {
+  const train = session.trains.find((candidate) => candidate.id === authority.trainId)
+
+  if (!train) {
+    return authority
+  }
+
+  const blockedReason = getTimetableTrainBlockedReason(train)
+
+  if (!blockedReason) {
+    return authority
+  }
+
+  return {
+    ...authority,
+    allowed: false,
+    blockedReason,
+  }
+}
+
+function getTimetableTrainBlockedReason(train: OccSessionState['trains'][number]) {
+  if (getTrainReadinessMode(train) !== 'MAINLINE_SERVICE') {
+    return `Train ${train.id} readiness is not Mainline Service`
+  }
+
+  if (!isTrainItamaGranted(train)) {
+    return `Train ${train.id} ITAMA is not granted`
   }
 
   return undefined
