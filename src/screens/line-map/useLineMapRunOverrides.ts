@@ -80,10 +80,17 @@ export default function useLineMapRunOverrides(session: OccSessionState) {
     const activeScenarioDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
     const targetTrainId = session.activeScenario.targetTrainId
 
-    return activeScenarioDefinition.kind === 'TRAIN_LAUNCH' && targetTrainId && !session.scenarioTasks.dispatchTrain
-      ? new Set([targetTrainId])
-      : new Set<string>()
-  }, [session.activeScenario.id, session.activeScenario.targetTrainId, session.scenarioTasks.dispatchTrain])
+    if (activeScenarioDefinition.kind === 'TRAIN_LAUNCH' && targetTrainId && !session.scenarioTasks.dispatchTrain) {
+      return new Set([targetTrainId])
+    }
+
+    // The fault train is placed at the incident platform; timetable playback must not move it.
+    if (activeScenarioDefinition.fault && targetTrainId && session.scenarioMode !== 'IDLE') {
+      return new Set([targetTrainId])
+    }
+
+    return new Set<string>()
+  }, [session.activeScenario.id, session.activeScenario.targetTrainId, session.scenarioMode, session.scenarioTasks.dispatchTrain])
   const timetableBlockedTrainIds = useMemo(() => (
     new Set([
       ...manualMovementTrainIds,

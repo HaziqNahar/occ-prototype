@@ -240,6 +240,11 @@ function normalizeLineMapRuntimeState(lineMap) {
   }
 }
 
+// The door fault train is the scenario's target; older sessions used Train 317.
+function getDoorFaultTrainId(session) {
+  return session?.activeScenario?.targetTrainId ?? '317'
+}
+
 function hasActiveTrain317DoorFaultSimulation(session) {
   return session?.scenarioMode === 'RUNNING'
     && Number(session?.scenarioStep ?? 0) >= 2
@@ -259,7 +264,7 @@ function getTrain317DoorFailureStateFromRows(session) {
     const message = String(row?.message ?? '').toLowerCase()
     const value = String(row?.value ?? '').toUpperCase()
 
-    if (!message.includes('train 317')) {
+    if (!message.includes(`train ${getDoorFaultTrainId(session)}`)) {
       continue
     }
 
@@ -292,7 +297,7 @@ function normalizeTrainDoorFailureStates(session) {
   const derivedDoorFailureState = getTrain317DoorFailureStateFromRows(session)
 
   return trains.map((train) => {
-    if (train?.id !== '317') {
+    if (train?.id !== getDoorFaultTrainId(session)) {
       return train
     }
 

@@ -28,6 +28,18 @@ import {
   revealTrainingScenarioTargetTrain,
 } from './training-scenarios/runtimeState'
 import {
+  DEFAULT_FAULT_LOCATION,
+  placeFaultTrain,
+  resolveFaultText,
+} from './training-scenarios/faultLocation'
+import type { FaultLocation } from './training-scenarios/faultLocation'
+export {
+  DEFAULT_FAULT_LOCATION,
+  pickRandomFaultLocation,
+  resolveFaultText,
+} from './training-scenarios/faultLocation'
+export type { FaultLocation } from './training-scenarios/faultLocation'
+import {
   bindScenarioTargetForRuntimeEvent,
   getActiveTrainingScenarioTargetTrainId,
   isActiveTrainingScenarioTargetTrain,
@@ -90,22 +102,30 @@ export function createTrainingScenarioStartSession(
   current: OccSessionState,
   kind: TrainingScenarioKind,
   incident?: string,
+  options: { faultLocation?: FaultLocation } = {},
 ) {
   const definition = findTrainingScenarioDefinition(kind, incident)
-  const targetTrainId = getInitialTrainingScenarioTargetTrainId(current, definition)
+  // Fault scenarios happen at a location: a held train at a station platform.
+  const faultLocation = definition.fault ? options.faultLocation ?? DEFAULT_FAULT_LOCATION : undefined
+  const targetTrainId = faultLocation?.trainId ?? getInitialTrainingScenarioTargetTrainId(current, definition)
   const displayTargetTrainId = targetTrainId
     ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
       ? 'PENDING'
       : definition.defaultTargetTrainId)
-  const selectedTrainId = targetTrainId
-    ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
-      ? current.selectedTrainId
-      : definition.defaultTargetTrainId)
-  const trains = injectTrainingScenarioFault(
+  // A fault train is not pre-selected: finding it from the alarm is part of the exercise.
+  const selectedTrainId = faultLocation
+    ? current.selectedTrainId
+    : targetTrainId
+      ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
+        ? current.selectedTrainId
+        : definition.defaultTargetTrainId)
+  const injected = injectTrainingScenarioFault(
     revealTrainingScenarioTargetTrain(current.trains, targetTrainId),
     definition,
     targetTrainId,
   )
+  const trains = faultLocation ? placeFaultTrain(injected, faultLocation) : injected
+  const resolve = (text: string) => resolveFaultText(text, faultLocation)
   const armedEvent = createMonitorEvent(
     displayTargetTrainId,
     `IOS scenario armed: ${definition.title}`,
@@ -114,8 +134,8 @@ export function createTrainingScenarioStartSession(
   )
   const faultEvent = definition.fault
     ? {
-        ...createMonitorEvent(displayTargetTrainId, definition.fault.alarm.description, definition.fault.alarm.value, 'red'),
-        asset: definition.fault.alarm.asset,
+        ...createMonitorEvent(displayTargetTrainId, resolve(definition.fault.alarm.description), definition.fault.alarm.value, 'red'),
+        asset: resolve(definition.fault.alarm.asset),
       }
     : undefined
   const events = faultEvent ? [faultEvent, armedEvent] : [armedEvent]
@@ -127,9 +147,10 @@ export function createTrainingScenarioStartSession(
     ...current,
     activeScenario: {
       duration: definition.duration,
+      ...(faultLocation ? { faultLocation: { station: faultLocation.station, track: faultLocation.track } } : {}),
       id: definition.id,
       incident: definition.incident,
-      target: definition.target,
+      target: resolve(definition.target),
       ...(targetTrainId ? { targetTrainId } : {}),
       title: definition.title,
     },
@@ -141,12 +162,12 @@ export function createTrainingScenarioStartSession(
         'IOS Scenario Control',
         `${definition.title} armed`,
         'info',
-        definition.objective,
+        resolve(definition.objective),
       ),
     ),
     scenarioMode: 'RUNNING' as const,
     scenarioNotice: {
-      text: getTrainingScenarioArmNotice(definition),
+      text: getTrainingScenarioArmNotice(definition, faultLocation),
       tone: 'info' as const,
     },
     scenarioRevision: (current.scenarioRevision ?? 0) + 1,
@@ -185,7 +206,7 @@ function injectTrainingScenarioFault(
   ))
 }
 
-export function getTrainingScenarioArmNotice(definition: TrainingScenarioDefinition) {
+export function getTrainingScenarioArmNotice(definition: TrainingScenarioDefinition, faultLocation?: FaultLocation) {
   if (definition.kind === 'TRAIN_LAUNCH') {
     return `${definition.title} armed. Select an eligible SKG-origin timetable train to launch.`
   }
@@ -195,7 +216,7 @@ export function getTrainingScenarioArmNotice(definition: TrainingScenarioDefinit
   }
 
   if (definition.fault) {
-    return `${definition.title}: ${definition.fault.alarm.description}. Respond as per SOP.`
+    return `${definition.title}: ${resolveFaultText(definition.fault.alarm.description, faultLocation)}. Respond as per SOP.`
   }
 
   return `${definition.title} armed for Train ${definition.defaultTargetTrainId}.`

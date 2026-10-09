@@ -134,6 +134,7 @@ import {
   applyTrainingScenarioRuntimeEvent,
   applyTrainingScenarioTrainSelection,
   createTrainingScenarioStartSession,
+  pickRandomFaultLocation,
   getActiveTrainingScenarioTargetTrainId,
   getTrainingScenarioTrainActionDetail,
   getTrainingScenarioDefinition,
@@ -572,7 +573,9 @@ function IosCanvas({
     .slice(0, 8)
 
   const startTrainingScenario = (kind: TrainingScenarioKind) => {
-    updateSession((current) => createTrainingScenarioStartSession(current, kind))
+    updateSession((current) => createTrainingScenarioStartSession(current, kind, undefined, {
+      faultLocation: pickRandomFaultLocation(current),
+    }))
   }
 
   const selectTrainingMode = (nextMode: TrainingMode) => {
@@ -2993,7 +2996,8 @@ function MonitorCanvas({
         callLog={callLog}
         lineMap={renderedLineMap}
         psdFaultPlatform={session.scenarioMode === 'RUNNING'
-          ? getTrainingScenarioDefinition(session.activeScenario.id).fault?.platform
+          && getTrainingScenarioDefinition(session.activeScenario.id).fault?.psdIndicator
+          ? session.activeScenario.faultLocation
           : undefined}
         onCommand={requestTrainCommand}
         onInspectTrain={(trainId) => openTrainInspector(trainId, 'information')}

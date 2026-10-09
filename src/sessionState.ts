@@ -663,6 +663,12 @@ function getMergedStoredTrainDirection(train: TrainState, stored: TrainState): T
   return stored.direction ?? train.direction
 }
 
+// The door fault train is the scenario's target; sessions from before targets were
+// chosen per run used Train 317.
+function getDoorFaultTrainId(session: Partial<OccSessionState>) {
+  return session.activeScenario?.targetTrainId ?? '317'
+}
+
 function hasTrain317DoorFaultIncident(session: Partial<OccSessionState>) {
   return session.scenarioMode === 'RUNNING'
     && Number(session.scenarioStep ?? 0) >= 2
@@ -685,7 +691,7 @@ function getTrain317DoorFailureStateFromRows(session: Partial<OccSessionState>):
     const message = String(row.message ?? '').toLowerCase()
     const value = String(row.value ?? '').toUpperCase()
 
-    if (!message.includes('train 317')) {
+    if (!message.includes(`train ${getDoorFaultTrainId(session)}`)) {
       continue
     }
 
@@ -717,7 +723,7 @@ function inferTrain317DoorFailureState(session: Partial<OccSessionState>, trains
   const derivedDoorFailureState = getTrain317DoorFailureStateFromRows(session)
 
   return trains.map((train) => {
-    if (train.id !== '317') {
+    if (train.id !== getDoorFaultTrainId(session)) {
       return train
     }
 

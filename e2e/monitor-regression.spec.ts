@@ -199,7 +199,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await page.waitForTimeout(500)
     expect(await ackAlarmTask()).toBe(false)
 
-    await page.locator('.alarm-dom-row--data', { hasText: 'PSD: HGN NB Door 07 Obstructed' }).click()
+    await page.locator('.alarm-dom-row--data', { hasText: /PSD: [A-Z]{3} (NB|SB) Door 07 Obstructed/ }).click()
     await page.getByRole('button', { name: 'Ack. selection' }).click()
     await expect.poll(ackAlarmTask).toBe(true)
     expect(errors).toEqual([])

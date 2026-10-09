@@ -15,7 +15,7 @@ const armedNoticeIndex = rows.findIndex((row) => row.description.startsWith('IOS
 
 // Arming tags exactly one row: the incident alarm.
 assert.equal(rows.filter((row) => row.scenarioAlarm).length, 1)
-assert.equal(rows[faultIndex].description, 'PSD: HGN NB Door 04 Failed to Close')
+assert.equal(rows[faultIndex].description, 'PSD: BGK NB Door 04 Failed to Close')
 assert.equal(isScenarioAlarmPending(rows), true)
 
 // Acknowledging a different row earns no credit; the incident alarm does.

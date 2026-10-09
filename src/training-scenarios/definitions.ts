@@ -6,9 +6,9 @@ import type {
 } from './types'
 
 // Building blocks for the SOP-based fault scenarios (train door and PSD faults).
-// Every fault scenario targets the train held at the affected platform.
+// Fault text uses {train}, {station} and {bound}, filled in from the location
+// chosen when the scenario is armed (see faultLocation.ts).
 const FAULT_TRAIN_ID = '317'
-const PSD_STATION = 'HGN'
 
 function selectFaultTrainTask(id: string): TrainingScenarioTaskDefinition {
   return { id, label: 'Select affected train', mappedTaskId: 'selectTrain', monitor: 'Monitor 02 Line Map', weight: 5 }
@@ -183,8 +183,8 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '06:00',
     fault: {
       alarm: {
-        asset: `EMU/${FAULT_TRAIN_ID}/TRN/XXXXXX`,
-        description: `Train ${FAULT_TRAIN_ID} Car 3: Saloon Door Failure in Open/Close`,
+        asset: `EMU/{train}/TRN/XXXXXX`,
+        description: `Train {train} Car 3: Saloon Door Failure in Open/Close`,
         value: 'FAILURE',
       },
       trainDoorFault: true,
@@ -235,8 +235,8 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '05:00',
     fault: {
       alarm: {
-        asset: `EMU/${FAULT_TRAIN_ID}/TRN/XXXXXX`,
-        description: `Train ${FAULT_TRAIN_ID} Car 2: Emergency Handle Switch (EHS) Activation`,
+        asset: `EMU/{train}/TRN/XXXXXX`,
+        description: `Train {train} Car 2: Emergency Handle Switch (EHS) Activation`,
         value: 'ACTIVATED',
       },
     },
@@ -262,8 +262,8 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '05:00',
     fault: {
       alarm: {
-        asset: `EMU/${FAULT_TRAIN_ID}/TRN/XXXXXX`,
-        description: `Train ${FAULT_TRAIN_ID} Car 1: DT Detrainment Door Cover Status`,
+        asset: `EMU/{train}/TRN/XXXXXX`,
+        description: `Train {train} Car 1: DT Detrainment Door Cover Status`,
         value: 'OPENED (ACTIVE)',
       },
     },
@@ -289,17 +289,17 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '05:00',
     fault: {
       alarm: {
-        asset: `SIG/${PSD_STATION}/B2/PSD0507`,
-        description: `PSD: ${PSD_STATION} NB Door 07 Obstructed`,
+        asset: `SIG/{station}/B2/PSD0507`,
+        description: `PSD: {station} {bound} Door 07 Obstructed`,
         value: 'OBSTRUCTED',
       },
-      platform: { station: PSD_STATION, track: 'NB' },
+      psdIndicator: true,
     },
     id: 'psd-fault-obstructed',
     incident: 'PSD obstructed',
     kind: 'PSD_FAULT',
-    objective: `A platform screen door at ${PSD_STATION} NB reports obstructed. Hold the train, send station staff to clear it, report the fault and release the train.`,
-    target: `${PSD_STATION} NB platform, PSD 07`,
+    objective: `A platform screen door at {station} {bound} reports obstructed. Hold the train, send station staff to clear it, report the fault and release the train.`,
+    target: `{station} {bound} platform, PSD 07`,
     title: 'PSD Obstructed',
     tasks: [
       selectFaultTrainTask('select-psd-obstructed-train'),
@@ -317,17 +317,17 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '06:00',
     fault: {
       alarm: {
-        asset: `SIG/${PSD_STATION}/B2/PSD0504`,
-        description: `PSD: ${PSD_STATION} NB Door 04 Failed to Open`,
+        asset: `SIG/{station}/B2/PSD0504`,
+        description: `PSD: {station} {bound} Door 04 Failed to Open`,
         value: 'NOT OPEN',
       },
-      platform: { station: PSD_STATION, track: 'NB' },
+      psdIndicator: true,
     },
     id: 'psd-fault-fail-open',
     incident: 'Single PSD failed to open',
     kind: 'PSD_FAULT',
-    objective: `A single PSD at ${PSD_STATION} NB failed to open. Investigate with station staff and, if it repeats, isolate it in the closed position.`,
-    target: `${PSD_STATION} NB platform, PSD 04`,
+    objective: `A single PSD at {station} {bound} failed to open. Investigate with station staff and, if it repeats, isolate it in the closed position.`,
+    target: `{station} {bound} platform, PSD 04`,
     title: 'PSD Failed to Open',
     tasks: [
       selectFaultTrainTask('select-psd-fail-open-train'),
@@ -346,17 +346,17 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '06:00',
     fault: {
       alarm: {
-        asset: `SIG/${PSD_STATION}/B2/PSD0504`,
-        description: `PSD: ${PSD_STATION} NB Door 04 Failed to Close`,
+        asset: `SIG/{station}/B2/PSD0504`,
+        description: `PSD: {station} {bound} Door 04 Failed to Close`,
         value: 'NOT CLOSED',
       },
-      platform: { station: PSD_STATION, track: 'NB' },
+      psdIndicator: true,
     },
     id: 'psd-fault-fail-close',
     incident: 'Single PSD failed to close',
     kind: 'PSD_FAULT',
-    objective: `A single PSD at ${PSD_STATION} NB failed to close. Investigate, isolate it in the open position, then issue IDT once the summary light is on.`,
-    target: `${PSD_STATION} NB platform, PSD 04`,
+    objective: `A single PSD at {station} {bound} failed to close. Investigate, isolate it in the open position, then issue IDT once the summary light is on.`,
+    target: `{station} {bound} platform, PSD 04`,
     title: 'PSD Failed to Close',
     tasks: [
       selectFaultTrainTask('select-psd-fail-close-train'),
@@ -375,17 +375,17 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '05:00',
     fault: {
       alarm: {
-        asset: `SIG/${PSD_STATION}/B2/PSDSUM`,
-        description: `PSD: ${PSD_STATION} NB PSD Summary Light Not Available`,
+        asset: `SIG/{station}/B2/PSDSUM`,
+        description: `PSD: {station} {bound} PSD Summary Light Not Available`,
         value: 'NOT AVAILABLE',
       },
-      platform: { station: PSD_STATION, track: 'NB' },
+      psdIndicator: true,
     },
     id: 'psd-fault-override',
     incident: 'PSD summary light not available',
     kind: 'PSD_FAULT',
-    objective: `The train at ${PSD_STATION} NB cannot depart because the PSD summary light is not available after isolation. Use the PSD Override Switch, then issue IDT.`,
-    target: `${PSD_STATION} NB platform headwall/tailwall`,
+    objective: `The train at {station} {bound} cannot depart because the PSD summary light is not available after isolation. Use the PSD Override Switch, then issue IDT.`,
+    target: `{station} {bound} platform headwall/tailwall`,
     title: 'PSD Override Switch',
     tasks: [
       selectFaultTrainTask('select-psd-override-train'),
@@ -402,17 +402,17 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '07:00',
     fault: {
       alarm: {
-        asset: `EMU/${FAULT_TRAIN_ID}/TRN/XXXXXX`,
-        description: `Train ${FAULT_TRAIN_ID}: Restricted Manual, PSD auto open/close not available at ${PSD_STATION}`,
+        asset: `EMU/{train}/TRN/XXXXXX`,
+        description: `Train {train}: Restricted Manual, PSD auto open/close not available at {station}`,
         value: 'RM',
       },
-      platform: { station: PSD_STATION, track: 'NB' },
+      psdIndicator: true,
     },
     id: 'psd-fault-manual',
     incident: 'Manual PSD operation (RM train)',
     kind: 'PSD_FAULT',
-    objective: `Signalling cannot command the PSDs for an RM train at ${PSD_STATION}. Arrange manual operation of PSDs and train doors, and authorise RM driving.`,
-    target: `${PSD_STATION} NB platform, manual PSD operation`,
+    objective: `Signalling cannot command the PSDs for an RM train at {station}. Arrange manual operation of PSDs and train doors, and authorise RM driving.`,
+    target: `{station} {bound} platform, manual PSD operation`,
     title: 'Manual PSD Operation',
     tasks: [
       selectFaultTrainTask('select-psd-manual-train'),
@@ -432,17 +432,17 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     duration: '08:00',
     fault: {
       alarm: {
-        asset: `SIG/${PSD_STATION}/B2/DMS0401`,
-        description: `PSD: ${PSD_STATION} NB Multiple Doors Isolated (DCU communication fault)`,
+        asset: `SIG/{station}/B2/DMS0401`,
+        description: `PSD: {station} {bound} Multiple Doors Isolated (DCU communication fault)`,
         value: 'ISOLATED',
       },
-      platform: { station: PSD_STATION, track: 'NB' },
+      psdIndicator: true,
     },
     id: 'psd-fault-multiple',
     incident: 'Multiple PSD failed to open',
     kind: 'PSD_FAULT',
-    objective: `Several PSDs at ${PSD_STATION} NB failed to open. Isolate the first faulty PSD, then run doors manually in RMF with station staff until Signalling resets it.`,
-    target: `${PSD_STATION} NB platform, multiple PSDs`,
+    objective: `Several PSDs at {station} {bound} failed to open. Isolate the first faulty PSD, then run doors manually in RMF with station staff until Signalling resets it.`,
+    target: `{station} {bound} platform, multiple PSDs`,
     title: 'Multiple PSD Failure',
     tasks: [
       selectFaultTrainTask('select-psd-multiple-train'),

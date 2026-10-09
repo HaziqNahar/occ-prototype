@@ -9,7 +9,12 @@ import type { NelTimetableName } from '../data/nelTimetable'
 import { scenarioTemplates } from '../scenarioLibrary'
 import { appendScenarioEvidence, createEmptyScenarioTasks, createScenarioEvidence } from '../scenario'
 import { createResetSessionState } from '../sessionState'
-import { createTrainingScenarioStartSession, findTrainingScenarioDefinition } from '../trainingScenarios'
+import {
+  createTrainingScenarioStartSession,
+  findTrainingScenarioDefinition,
+  pickRandomFaultLocation,
+  resolveFaultText,
+} from '../trainingScenarios'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
 type ScenarioBuilderScreenProps = {
@@ -144,6 +149,7 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
           { ...current, trainingMode },
           selectedScenario.trainingScenarioKind,
           selectedIncident,
+          { faultLocation: pickRandomFaultLocation(current) },
         )
 
         return {
@@ -325,7 +331,7 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
             <dl className="scenario-setup-summary">
               <div><dt>Scenario</dt><dd>{selectedScenario.title}</dd></div>
               <div><dt>Mode / target time</dt><dd>{trainingModeOptions.find((mode) => mode.value === trainingMode)?.label} / {customDuration}</dd></div>
-              <div><dt>Location / train</dt><dd>{selectedDefinition?.target ?? selectedScenario.target}</dd></div>
+              <div><dt>Location / train</dt><dd>{selectedDefinition ? resolveFaultText(selectedDefinition.target) : selectedScenario.target}</dd></div>
               <div><dt>Monitors</dt><dd>{selectedScenario.affectedMonitors.join(', ')}</dd></div>
               <div><dt>Timetable</dt><dd>{selectedTimetable.label}</dd></div>
             </dl>

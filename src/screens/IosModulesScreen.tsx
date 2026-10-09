@@ -20,7 +20,9 @@ import {
   getEligibleLaunchScenarioTargetOptions,
   getTrainingScenarioCompletionBlockers,
   getTrainingScenarioDefinition,
+  pickRandomFaultLocation,
   resetTrainingScenarioRuntime,
+  resolveFaultText,
   scoreTrainingScenario,
 } from '../trainingScenarios'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
@@ -152,10 +154,12 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
         ? loaded
         : createResetSessionState(trainingMode, Date.now(), (loaded.scenarioRevision ?? 0) + 1, timetableName)
 
+      // Each run puts the fault on a different train, station and bound.
       return createTrainingScenarioStartSession(
         { ...base, trainingMode },
         selectedDefinition.kind,
         selectedDefinition.incident,
+        { faultLocation: pickRandomFaultLocation(base) },
       )
     })
   }
@@ -347,7 +351,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
               />
             </label>
           )}
-          <p className="trainer-console-objective">{selectedDefinition.objective}</p>
+          <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
           <div className="trainer-console-field-row">
             <label className="trainer-console-field">
               <span>Mode</span>

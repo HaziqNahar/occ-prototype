@@ -157,6 +157,8 @@ export type ScenarioEvidence = {
 
 export type ActiveScenario = {
   duration: string
+  // Where a fault scenario's incident is, chosen when it is armed.
+  faultLocation?: { station: string; track: 'NB' | 'SB' }
   id: string
   incident: string
   target: string

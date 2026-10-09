@@ -32,8 +32,8 @@ export type TrainingScenarioFault = {
     description: string
     value: string
   }
-  // Platform whose PSD indicator shows the fault on the line map.
-  platform?: { station: string; track: 'NB' | 'SB' }
+  // The PSD indicator at the fault location blinks on the line map.
+  psdIndicator?: boolean
   // Puts the target train's saloon doors into FAULT_ALARM for the door command flow.
   trainDoorFault?: boolean
 }

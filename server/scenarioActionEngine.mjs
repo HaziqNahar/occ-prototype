@@ -171,7 +171,8 @@ function getTargetTrainId(session, activeScenarioId) {
     return session?.activeScenario?.targetTrainId ?? ''
   }
 
-  return '317'
+  // Fault scenarios arm a randomly chosen train; older sessions default to 317.
+  return session?.activeScenario?.targetTrainId ?? '317'
 }
 
 function applyTrainSelection(session, action, {
