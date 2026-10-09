@@ -70,22 +70,15 @@ export function createScenarioActionEngine({
         }
       }
 
+      // The monitor marks which alarm rows were acknowledged; the engine only scores it.
       return {
         accepted: true,
-        session: {
-          ...applyAcceptedTask(
-            session,
-            'ackAlarm',
-            source,
-            action.detail ?? 'Alarm acknowledgement accepted.',
-          ),
-          alarmSummaryRows: (session.alarmSummaryRows ?? []).map((row) => ({
-            ...row,
-            ack: 'N',
-            tone: row.tone === 'red' ? 'red' : 'grey',
-            value: row.value === 'NO ACK' ? 'ACK' : row.value,
-          })),
-        },
+        session: applyAcceptedTask(
+          session,
+          'ackAlarm',
+          source,
+          action.detail ?? 'Alarm acknowledgement accepted.',
+        ),
       }
     }
 

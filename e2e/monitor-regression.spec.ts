@@ -181,4 +181,27 @@ test.describe.serial('OCC monitor regressions', () => {
     expect(sessionPayload.session.activeScenario.targetTrainId).toBe('301')
     expect(errors).toEqual([])
   })
+  test('fault scenarios only credit acknowledging the incident alarm', async ({ page }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+    await page.goto('/ios/modules')
+    await page.getByRole('radio', { name: /PSD Fault/ }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Scenario status' }).getByText('PSD Obstructed', { exact: true })).toBeVisible()
+
+    const ackAlarmTask = async () => (await (await page.request.get('/api/session')).json()).session.scenarioTasks.ackAlarm
+
+    await page.goto('/screen/alarms')
+    await page.locator('.alarm-dom-row--data', { hasText: 'IOS scenario armed' }).first().click()
+    await page.getByRole('button', { name: 'Ack. selection' }).click()
+    await expect(page.locator('.alarm-dom-status')).toContainText('Acknowledged selected alarm')
+    await page.waitForTimeout(500)
+    expect(await ackAlarmTask()).toBe(false)
+
+    await page.locator('.alarm-dom-row--data', { hasText: 'PSD: HGN NB Door 07 Obstructed' }).click()
+    await page.getByRole('button', { name: 'Ack. selection' }).click()
+    await expect.poll(ackAlarmTask).toBe(true)
+    expect(errors).toEqual([])
+  })
 })

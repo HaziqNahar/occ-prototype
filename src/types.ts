@@ -80,6 +80,7 @@ export type TrainState = {
 
 export type AlarmSummaryRow = {
   ack: 'Y' | 'N'
+  acknowledgedAt?: string
   avl: string
   mms: string
   timestamp: string
@@ -87,6 +88,8 @@ export type AlarmSummaryRow = {
   description: string
   value: string
   tone: 'yellow' | 'red' | 'grey'
+  // The incident alarm raised when a fault scenario is armed.
+  scenarioAlarm?: boolean
 }
 
 export type MonitorAlarmRow = {

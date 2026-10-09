@@ -8,7 +8,8 @@ import ScadaFooter from '../components/ScadaFooter'
 import { AlarmCallsHeaderDom, StationRibbon } from '../components/MonitorAlarmCalls'
 import { submitBackendScenarioAction } from '../scenarioWorkflow'
 import { getAlarmSummaryCounts } from '../sessionState'
-import { applyTrainingScenarioRuntimeEvent } from '../trainingScenarios'
+import { applyTrainingScenarioRuntimeEvent, getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
+import { acknowledgeAlarmRows, acknowledgesScenarioAlarm } from '../alarmAcknowledgement'
 import type { AlarmSummaryRow } from '../types'
 import type { MonitorScreenProps } from './monitorScreenTypes'
 export default function AlarmsMonitorContent({
@@ -54,21 +55,29 @@ export default function AlarmsMonitorContent({
     setStatusNote(`Live alarm row ${index + 1} selected: ${entry.row.asset}`)
   }
 
-  const acknowledgeSelected = () => {
-    if (!selectedRow || selectedEntry === undefined) {
-      setStatusNote('No live alarm selected for acknowledgement')
+  // Only acknowledging the scenario's incident alarm is a scored action; any other
+  // row is simply acknowledged on the GWS.
+  const acknowledgeRows = (indexes: ReadonlySet<number>, options: { keepRedTone?: boolean }, detail: string, doneNote: string) => {
+    if (!acknowledgesScenarioAlarm(session.alarmSummaryRows, indexes)) {
+      updateSession((current) => ({
+        ...current,
+        alarmSummaryRows: acknowledgeAlarmRows(current.alarmSummaryRows, indexes, options),
+      }))
+      setStatusNote(doneNote)
       return
     }
 
+    const trainId = getActiveTrainingScenarioTargetTrainId(session) || '317'
+
     submitBackendScenarioAction(session, updateSession, {
-      detail: `Alarm acknowledgement accepted for ${selectedRow.asset}.`,
+      detail,
       source: 'Monitor 01 Alarms',
-      trainId: '317',
+      trainId,
       type: 'ACK_ALARM',
     }, (current) => {
       const guard = applyTrainingScenarioRuntimeEvent(current, {
         source: 'Monitor 01 Alarms',
-        trainId: '317',
+        trainId,
         type: 'ALARM_ACKNOWLEDGED',
       })
 
@@ -78,13 +87,25 @@ export default function AlarmsMonitorContent({
 
       return {
         ...guard.next,
-        alarmSummaryRows: current.alarmSummaryRows.map((row, index) => (
-          index === selectedEntry.originalIndex ? { ...row, ack: 'Y', tone: 'grey', value: row.value === 'NO ACK' ? 'ACK' : row.value } : row
-        )),
+        alarmSummaryRows: acknowledgeAlarmRows(current.alarmSummaryRows, indexes, options),
       }
     }, (accepted, reason) => {
-      setStatusNote(accepted ? `Acknowledged selected alarm: ${selectedRow.asset}` : reason ?? 'Alarm acknowledgement rejected')
+      setStatusNote(accepted ? doneNote : reason ?? 'Alarm acknowledgement rejected')
     })
+  }
+
+  const acknowledgeSelected = () => {
+    if (!selectedRow || selectedEntry === undefined) {
+      setStatusNote('No live alarm selected for acknowledgement')
+      return
+    }
+
+    acknowledgeRows(
+      new Set([selectedEntry.originalIndex]),
+      {},
+      `Alarm acknowledgement accepted for ${selectedRow.asset}.`,
+      `Acknowledged selected alarm: ${selectedRow.asset}`,
+    )
   }
 
   const acknowledgeAll = () => {
@@ -93,38 +114,12 @@ export default function AlarmsMonitorContent({
       return
     }
 
-    submitBackendScenarioAction(session, updateSession, {
-      detail: 'All visible live alarms acknowledged.',
-      source: 'Monitor 01 Alarms',
-      trainId: '317',
-      type: 'ACK_ALARM',
-    }, (current) => {
-      const guard = applyTrainingScenarioRuntimeEvent(current, {
-        source: 'Monitor 01 Alarms',
-        trainId: '317',
-        type: 'ALARM_ACKNOWLEDGED',
-      })
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      return {
-        ...guard.next,
-        alarmSummaryRows: current.alarmSummaryRows.map((row, index) => (
-          liveRowIndexes.has(index)
-            ? {
-                ...row,
-                ack: 'Y',
-                tone: row.tone === 'red' ? 'red' : 'grey',
-                value: row.value === 'NO ACK' ? 'ACK' : row.value,
-              }
-            : row
-        )),
-      }
-    }, (accepted, reason) => {
-      setStatusNote(accepted ? 'Acknowledged all visible live alarms' : reason ?? 'Alarm acknowledgement rejected')
-    })
+    acknowledgeRows(
+      liveRowIndexes,
+      { keepRedTone: true },
+      'All visible live alarms acknowledged.',
+      'Acknowledged all visible live alarms',
+    )
   }
 
   const cycleAlarmFilter = () => {

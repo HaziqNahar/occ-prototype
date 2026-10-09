@@ -120,7 +120,7 @@ export function createTrainingScenarioStartSession(
     : undefined
   const events = faultEvent ? [faultEvent, armedEvent] : [armedEvent]
   const summaryRows = faultEvent
-    ? [createSummaryEvent(faultEvent, 'red'), createSummaryEvent(armedEvent)]
+    ? [{ ...createSummaryEvent(faultEvent, 'red'), scenarioAlarm: true }, createSummaryEvent(armedEvent)]
     : [createSummaryEvent(armedEvent)]
 
   return {
