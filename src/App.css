@@ -12657,3 +12657,533 @@
     background: #800000;
   }
 }
+
+/* Trainer Console (/ios/modules): one page to pick, run and watch a scenario. */
+.trainer-console {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+  color: var(--ink);
+  background:
+    linear-gradient(120deg, rgba(7, 17, 31, 0.96), rgba(9, 20, 34, 0.98)),
+    var(--occ-bg, none) center / cover no-repeat fixed,
+    var(--control-bg);
+  font-size: 14px;
+}
+
+.trainer-console button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.trainer-console button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.trainer-console-header,
+.trainer-console-status,
+.trainer-console-panel {
+  border: 1px solid var(--control-line);
+  border-radius: 12px;
+  background: rgba(13, 26, 44, 0.92);
+}
+
+.trainer-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+}
+
+.trainer-console-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.trainer-console-brand img {
+  height: 34px;
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: #ffffff;
+}
+
+.trainer-console-brand p {
+  margin: 0;
+  color: #9fb3ca;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.trainer-console-brand h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.trainer-console-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trainer-console-header nav button,
+.trainer-console-controls button,
+.trainer-console-launch button,
+.trainer-console-tasks button,
+.trainer-console-report {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--ink);
+  background: var(--control-button);
+  font-weight: 800;
+}
+
+.trainer-console-header nav button:hover:not(:disabled),
+.trainer-console-controls button:hover:not(:disabled),
+.trainer-console-launch button:hover:not(:disabled),
+.trainer-console-tasks button:hover,
+.trainer-console-report:hover:not(:disabled) {
+  background: var(--control-button-hover);
+}
+
+.trainer-console-header nav .is-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: #9fb3ca;
+}
+
+.trainer-console-status {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 16px;
+  border-left: 4px solid #64748b;
+}
+
+.trainer-console-status.is-running {
+  border-left-color: #4ade80;
+}
+
+.trainer-console-status.is-paused {
+  border-left-color: #facc15;
+}
+
+.trainer-console-status.is-complete {
+  border-left-color: var(--control-action-hover);
+}
+
+.trainer-console-status-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.trainer-console-status-title strong {
+  display: block;
+  font-size: 18px;
+}
+
+.trainer-console-status-title small {
+  color: #9fb3ca;
+  font-size: 12px;
+}
+
+.trainer-console-chip {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: #d8ecff;
+  background: rgba(148, 163, 184, 0.2);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.trainer-console-status.is-running .trainer-console-chip {
+  color: #052e16;
+  background: #4ade80;
+}
+
+.trainer-console-status.is-paused .trainer-console-chip {
+  color: #422006;
+  background: #facc15;
+}
+
+.trainer-console-figures {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+}
+
+.trainer-console-figures dt {
+  color: #9fb3ca;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trainer-console-figures dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.trainer-console-figures em {
+  color: #64748b;
+  font-size: 14px;
+  font-style: normal;
+}
+
+.trainer-console-figures .is-bad {
+  color: #f87171;
+}
+
+.trainer-console-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.trainer-console-controls .is-primary,
+.trainer-console-load {
+  border-color: rgba(99, 179, 237, 0.65);
+  background: var(--control-action);
+}
+
+.trainer-console-controls .is-primary:hover:not(:disabled),
+.trainer-console-load:hover {
+  background: var(--control-action-hover);
+}
+
+.trainer-console-notice {
+  margin: 0;
+  border-left: 3px solid var(--control-action-hover);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #d8ecff;
+  background: rgba(13, 26, 44, 0.85);
+}
+
+.trainer-console-notice.is-success {
+  border-left-color: #4ade80;
+}
+
+.trainer-console-notice.is-warning {
+  border-left-color: #facc15;
+  color: #fef3c7;
+}
+
+.trainer-console-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 360px;
+  gap: 12px;
+  min-height: 0;
+}
+
+.trainer-console-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.trainer-console-panel h2 {
+  margin: 0;
+  color: #9fb3ca;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.trainer-console-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trainer-console-panel-head span {
+  overflow: hidden;
+  color: #9fb3ca;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainer-console-scenario-list {
+  display: grid;
+  gap: 6px;
+}
+
+.trainer-console-scenario-list button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--control-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--ink);
+  text-align: left;
+  background: rgba(8, 18, 32, 0.6);
+}
+
+.trainer-console-scenario-list button.is-selected {
+  border-color: var(--control-button-active);
+  background: rgba(238, 91, 42, 0.12);
+  box-shadow: inset 3px 0 0 var(--control-button-active);
+}
+
+.trainer-console-scenario-list small {
+  color: #9fb3ca;
+  font-size: 11px;
+}
+
+.trainer-console-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trainer-console-field > span {
+  color: #9fb3ca;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trainer-console-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.trainer-console-objective {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.trainer-console-load {
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 10px;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.trainer-console-hint {
+  margin-top: -6px;
+  color: #facc15;
+  font-size: 12px;
+}
+
+.trainer-console-reset {
+  margin-top: auto;
+  border: 0;
+  padding: 6px;
+  color: #f87171;
+  background: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.trainer-console-reset:hover {
+  text-decoration: underline;
+}
+
+.trainer-console-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.trainer-console-progress span {
+  display: block;
+  height: 100%;
+  background: #4ade80;
+  transition: width 0.3s ease;
+}
+
+.trainer-console-launch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(250, 204, 21, 0.06);
+}
+
+.trainer-console-tasks {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+
+.trainer-console-tasks li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(8, 18, 32, 0.5);
+}
+
+.trainer-console-tasks li > i {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #475569;
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.trainer-console-tasks li.is-done > i {
+  border-color: #4ade80;
+  color: #052e16;
+  background: #4ade80;
+}
+
+.trainer-console-tasks li.is-next {
+  background: rgba(29, 79, 122, 0.45);
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+
+.trainer-console-tasks li.is-next > i {
+  border-color: #60a5fa;
+  color: #60a5fa;
+}
+
+.trainer-console-tasks li.is-done strong {
+  color: #94a3b8;
+}
+
+.trainer-console-tasks strong {
+  display: block;
+  font-size: 14px;
+}
+
+.trainer-console-tasks b {
+  color: #facc15;
+}
+
+.trainer-console-tasks small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.trainer-console-feed {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+
+.trainer-console-feed li {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 8px;
+  border-left: 2px solid transparent;
+  padding: 6px 8px;
+}
+
+.trainer-console-feed li.is-accepted {
+  border-left-color: #4ade80;
+}
+
+.trainer-console-feed li.is-rejected {
+  border-left-color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.trainer-console-feed time {
+  white-space: nowrap;
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trainer-console-feed strong {
+  display: block;
+  font-size: 13px;
+}
+
+.trainer-console-feed small {
+  display: block;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainer-console-empty {
+  display: grid;
+  gap: 4px;
+  place-content: center;
+  min-height: 160px;
+  color: #64748b;
+  text-align: center;
+}
+
+.trainer-console-empty strong {
+  color: #94a3b8;
+}
+
+.trainer-console-report {
+  margin-top: auto;
+}
+
+@media (max-width: 1100px) {
+  .trainer-console-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trainer-console-status {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .trainer-console {
+    padding: 12px;
+  }
+
+  .trainer-console-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .trainer-console-figures {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}

@@ -153,7 +153,12 @@ export function createTrainingScenarioStartSession(
     scenarioStep: 0,
     scenarioTasks: initialScenarioTasks,
     selectedTrainId,
-    sessionMeta: updateSessionLifecycle(current.sessionMeta, 'RUNNING'),
+    // Each armed scenario is timed from now, not from an earlier scenario.
+    sessionMeta: {
+      ...updateSessionLifecycle(current.sessionMeta, 'RUNNING'),
+      completedAt: undefined,
+      startedAt: new Date().toISOString(),
+    },
     trains,
   }
 }
