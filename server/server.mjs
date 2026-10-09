@@ -19,7 +19,9 @@ const DEFAULT_SESSION_CODE = 'OCC-TRAINING-001'
 const MONITOR_LAUNCH_ORIGIN = '/screen/line-map'
 const MONITOR_LAUNCH_TARGETS = new Set(['/screen/alarms', '/screen/timetable'])
 const MAX_TRANSPORT_EVENTS = 80
-const LINE_MAP_LAYOUT_VERSION = 10
+// Must match LINE_MAP_LAYOUT_VERSION in src/screens/line-map/lineMapRuntimeState.ts:
+// clients discard a line map with any other version.
+const LINE_MAP_LAYOUT_VERSION = 11
 // The core assessed workflow validates one operator path end to end.
 const REQUIRED_TASKS = ['selectTrain', 'ackAlarm', 'setRoute', 'dispatchTrain', 'completeScenario']
 const TASK_STEPS = {
@@ -231,7 +233,9 @@ function finalizeAssessmentMetrics(session, metrics) {
 
 function normalizeLineMapRuntimeState(lineMap) {
   return {
+    ...(lineMap ?? {}),
     layoutVersion: LINE_MAP_LAYOUT_VERSION,
+    platformDoorStates: lineMap?.platformDoorStates ?? {},
     routeSegments: lineMap?.routeSegments ?? {},
   }
 }
