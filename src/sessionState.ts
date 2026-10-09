@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createNelTimetableRows, createNelTrainRosterItems } from './data/nelTimetable'
+import {
+  DEFAULT_NEL_TIMETABLE_NAME,
+  createNelTimetableRows,
+  createNelTrainRosterItems,
+  normalizeNelTimetableName,
+} from './data/nelTimetable'
+import type { NelTimetableName, NelTrainRosterItem } from './data/nelTimetable'
 import { createLineMapRuntimeState, LINE_MAP_LAYOUT_VERSION, clearStartupSignalRouteState, normalizeLineMapRuntimeState, resetLineMapRouteSegmentState } from './screens/line-map/lineMapRuntimeState'
 import { clearTimetableGuideRouteState } from './screens/line-map/timetableRouteStateCleanup'
 import { getTimetablePlaybackTrainIds } from './screens/line-map/timetablePlayback'
@@ -207,8 +213,31 @@ export function getAlarmSummaryCounts(rows: readonly AlarmSummaryRow[]) {
   }
 }
 
-export const timetableRows: TimetableRow[] = createNelTimetableRows()
-const trainRosterItems = createNelTrainRosterItems()
+const timetableRowsByName = new Map<NelTimetableName, TimetableRow[]>()
+const trainRosterItemsByName = new Map<NelTimetableName, NelTrainRosterItem[]>()
+
+export function getTimetableRows(timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME): TimetableRow[] {
+  let rows = timetableRowsByName.get(timetableName)
+
+  if (!rows) {
+    rows = createNelTimetableRows({ timetable: timetableName })
+    timetableRowsByName.set(timetableName, rows)
+  }
+
+  return rows
+}
+
+function getTrainRosterItems(timetableName: NelTimetableName): NelTrainRosterItem[] {
+  let items = trainRosterItemsByName.get(timetableName)
+
+  if (!items) {
+    items = createNelTrainRosterItems({ timetable: timetableName })
+    trainRosterItemsByName.set(timetableName, items)
+  }
+
+  return items
+}
+
 const lineMapTrainPlacementById = new Map(initialTrains.map((train) => [train.id, train]))
 
 function getTimetableRowKey(row: TimetableRow) {
@@ -225,7 +254,12 @@ function getTimetableRowKey(row: TimetableRow) {
   ].join('|')
 }
 
-function normalizeTimetableRows(rows: TimetableRow[] | undefined): TimetableRow[] {
+function normalizeTimetableRows(
+  rows: TimetableRow[] | undefined,
+  timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME,
+): TimetableRow[] {
+  const timetableRows = getTimetableRows(timetableName)
+
   if (!rows?.length) {
     return timetableRows
   }
@@ -474,8 +508,8 @@ export function updateSessionLifecycle(sessionMeta: OccSessionMeta | undefined, 
   }
 }
 
-function createInitialTrainStates(): TrainState[] {
-  return trainRosterItems.map((item) => {
+function createInitialTrainStates(timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME): TrainState[] {
+  return getTrainRosterItems(timetableName).map((item) => {
     const placement = lineMapTrainPlacementById.get(item.trainNumber)
 
     return {
@@ -502,7 +536,10 @@ function createInitialTrainStates(): TrainState[] {
   })
 }
 
-export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): OccSessionState {
+export function createInitialSession(
+  trainingMode: TrainingMode = 'PRACTICE',
+  timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME,
+): OccSessionState {
   return {
     activeScenario: initialActiveScenario,
     alarmSummaryRows,
@@ -526,11 +563,12 @@ export function createInitialSession(trainingMode: TrainingMode = 'PRACTICE'): O
     scenarioTasks: initialScenarioTasks,
     selectedTrainId: '317',
     timetableClock: DEFAULT_TIMETABLE_CLOCK_STATE,
-    timetableRows,
+    timetableName,
+    timetableRows: getTimetableRows(timetableName),
     timetableView: DEFAULT_TIMETABLE_VIEW_STATE,
     trainingMode,
     trainees: initialTrainees,
-    trains: createInitialTrainStates(),
+    trains: createInitialTrainStates(timetableName),
     updatedAt: Date.now(),
   }
 }
@@ -539,8 +577,9 @@ export function createResetSessionState(
   trainingMode: TrainingMode = 'PRACTICE',
   updatedAt = Date.now(),
   scenarioRevision = 0,
+  timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME,
 ): OccSessionState {
-  const baseSession = createInitialSession(trainingMode)
+  const baseSession = createInitialSession(trainingMode, timetableName)
   const baselineReady = isTrainBaselineSession(baseSession)
 
   return cleanSessionTimetableGuideRouteState({
@@ -557,7 +596,7 @@ export function createResetSessionState(
 }
 
 function isTrainBaselineSession(session: OccSessionState) {
-  const baselineTrains = createInitialTrainStates()
+  const baselineTrains = createInitialTrainStates(session.timetableName)
 
   return baselineTrains.every((baselineTrain) => {
     const train = session.trains.find((item) => item.id === baselineTrain.id)
@@ -572,14 +611,18 @@ function isTrainBaselineSession(session: OccSessionState) {
   })
 }
 
-function mergeStoredTrains(storedTrains: TrainState[] | undefined, preserveGeometry = true): TrainState[] {
+function mergeStoredTrains(
+  storedTrains: TrainState[] | undefined,
+  preserveGeometry = true,
+  timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME,
+): TrainState[] {
   if (!storedTrains) {
-    return createInitialTrainStates()
+    return createInitialTrainStates(timetableName)
   }
 
   const storedById = new Map(storedTrains.map((train) => [train.id, train]))
 
-  return createInitialTrainStates().map((train) => {
+  return createInitialTrainStates(timetableName).map((train) => {
     const stored = storedById.get(train.id)
 
     if (!stored) {
@@ -698,13 +741,15 @@ function inferTrain317DoorFailureState(session: Partial<OccSessionState>, trains
 
 export function normalizeClientSession(session: OccSessionState): OccSessionState {
   const lineMap = normalizeLineMapRuntimeState(session.lineMap)
-  const trains = mergeStoredTrains(session.trains, session.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION)
+  const timetableName = normalizeNelTimetableName(session.timetableName)
+  const trains = mergeStoredTrains(session.trains, session.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION, timetableName)
 
   return revealActiveScenarioTargetTrain(cleanSessionTimetableGuideRouteState({
     ...session,
     lineMap,
     timetableClock: normalizeTimetableClockState(session.timetableClock),
-    timetableRows: normalizeTimetableRows(session.timetableRows),
+    timetableName,
+    timetableRows: normalizeTimetableRows(session.timetableRows, timetableName),
     timetableView: normalizeTimetableViewState(session.timetableView),
     trains: inferTrain317DoorFailureState(session, trains),
   }))
@@ -734,14 +779,15 @@ function readStoredSession(): OccSessionState {
 
     const parsed = JSON.parse(stored) as Partial<OccSessionState>
 
-    const storedTrains = mergeStoredTrains(parsed.trains, parsed.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION)
+    const timetableName = normalizeNelTimetableName(parsed.timetableName)
+    const storedTrains = mergeStoredTrains(parsed.trains, parsed.lineMap?.layoutVersion === LINE_MAP_LAYOUT_VERSION, timetableName)
     const lineMap = clearTimetableGuideRouteState(
       clearStartupSignalRouteState(normalizeLineMapRuntimeState(parsed.lineMap)),
       getTimetablePlaybackTrainIdSet(storedTrains),
     )
 
     const nextSession: OccSessionState = {
-      ...createInitialSession(),
+      ...createInitialSession('PRACTICE', timetableName),
       ...parsed,
       activeScenario: parsed.activeScenario ?? initialActiveScenario,
       alarmSummaryRows: parsed.alarmSummaryRows ?? alarmSummaryRows,
@@ -760,7 +806,8 @@ function readStoredSession(): OccSessionState {
       scenarioTasks: { ...initialScenarioTasks, ...parsed.scenarioTasks },
       lineMap,
       timetableClock: normalizeTimetableClockState(parsed.timetableClock),
-      timetableRows: normalizeTimetableRows(parsed.timetableRows),
+      timetableName,
+      timetableRows: normalizeTimetableRows(parsed.timetableRows, timetableName),
       timetableView: normalizeTimetableViewState(parsed.timetableView),
       trainingMode: parsed.trainingMode ?? 'PRACTICE',
       trainees: parsed.trainees ?? initialTrainees,
@@ -785,7 +832,7 @@ export function useOccSession() {
 
   useEffect(() => {
     setSession((current) => {
-      const normalizedRows = normalizeTimetableRows(current.timetableRows)
+      const normalizedRows = normalizeTimetableRows(current.timetableRows, current.timetableName)
 
       if (normalizedRows.length === current.timetableRows.length) {
         return current
@@ -867,12 +914,16 @@ export function useOccSession() {
     })
   }, [])
 
-  const resetSession = useCallback((trainingMode: TrainingMode = 'PRACTICE') => {
+  const resetSession = useCallback((
+    trainingMode: TrainingMode = 'PRACTICE',
+    timetableName: NelTimetableName = sessionRef.current.timetableName,
+  ) => {
     clearStoredOccSessions(true)
     const next = createResetSessionState(
       trainingMode,
       Date.now(),
       (sessionRef.current.scenarioRevision ?? 0) + 1,
+      timetableName,
     )
 
     sessionRef.current = next

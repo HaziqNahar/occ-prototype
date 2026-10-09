@@ -8,8 +8,7 @@ import {
   getScenarioTaskStageLabel,
   withScenarioTaskStages,
 } from '../iosScenarioTaskStages'
-import { getScenarioAssessmentSummary } from '../iosScenarioAssessment'
-import { categoriseScenarioEvidence, groupScenarioEvidenceByCategory } from '../iosEvidenceTrail'
+import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
 import SessionRunway from '../components/SessionRunway'
 import { getScenarioTaskOwner } from '../iosScenarioRoles'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
@@ -26,7 +25,6 @@ import {
   scoreTrainingScenario,
   trainingScenarioDefinitions,
 } from '../trainingScenarios'
-import type { TrainingScenarioKind } from '../trainingScenarios'
 import { updateSessionLifecycle } from '../sessionState'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
@@ -55,7 +53,7 @@ const moduleTabs: Array<{ id: TrainerModule; label: string }> = [
 ]
 
 const disabledModuleTabs = new Set<TrainerModule>(['users', 'sessions', 'player'])
-const defaultSelectedScenarioKind: TrainingScenarioKind = 'TRAIN_LAUNCH'
+const defaultSelectedScenarioId = 'train-launch'
 
 const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
   { label: 'Practice', value: 'PRACTICE' },
@@ -109,17 +107,17 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   const [roster, setRoster] = useState<Trainee[]>([
     { email: 'traffic.controller@sbs.local', role: 'Traffic Controller', status: 'Enrolled' },
   ])
-  const [selectedScenarioKind, setSelectedScenarioKind] = useState<TrainingScenarioKind>(() => {
+  // Fault scenarios have several variants per kind, so the library selects by definition id.
+  const [selectedScenarioId, setSelectedScenarioId] = useState(() => {
     const currentDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
 
-    return currentDefinition.id === 'idle' ? defaultSelectedScenarioKind : currentDefinition.kind
+    return currentDefinition.id === 'idle' ? defaultSelectedScenarioId : currentDefinition.id
   })
   const [selectedLaunchTrainChoice, setSelectedLaunchTrainChoice] = useState('')
-  const selectedScenarioDefinition = trainingScenarioDefinitions.find((scenario) => scenario.kind === selectedScenarioKind)
+  const selectedScenarioDefinition = trainingScenarioDefinitions.find((scenario) => scenario.id === selectedScenarioId)
     ?? trainingScenarioDefinitions[0]
   const trainingScenarioScore = scoreTrainingScenario(session)
   const stagedTaskResults = withScenarioTaskStages(trainingScenarioScore.taskResults, session.scenarioMode)
-  const assessmentSummary = getScenarioAssessmentSummary(session)
   const activeScenarioDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
   const activeScenarioIsIdle = activeScenarioDefinition.id === 'idle'
   const activeScenarioTargetTrainId = getActiveTrainingScenarioTargetTrainId(session)
@@ -146,14 +144,11 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
       : launchTargetOptions[0].value
   }, [launchTargetOptions, selectedLaunchTrainChoice])
   const nextScenarioTask = trainingScenarioScore.taskResults.find((task) => !task.complete)
-  const nextScenarioTaskOwner = nextScenarioTask ? getScenarioTaskOwner(nextScenarioTask.monitor) : 'Instructor'
-  const criticalOpenTasks = trainingScenarioScore.taskResults.filter((task) => task.critical && !task.complete).length
   const completionBlockerLabels = getTrainingScenarioCompletionBlockers(session)
     .map((task) => task.label)
   const rejectedScenarioEvidence = session.evidenceLog.filter((event) => event.result === 'rejected').length
   const rejectedEvidenceRows = session.evidenceLog.filter((event) => event.result === 'rejected')
   const liveActivityTrail = categoriseScenarioEvidence(session.evidenceLog).slice(0, 8)
-  const liveActivityGroups = groupScenarioEvidenceByCategory(session.evidenceLog)
   const traineeSupervisionRows = session.trainees.map((trainee) => {
     const assignedTask = stagedTaskResults.find((task) => !task.complete && getScenarioTaskOwner(task.monitor) === trainee.role)
     const traineeEvidence = session.evidenceLog.find((event) => (
@@ -188,7 +183,11 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   }
 
   const armSelectedScenario = () => {
-    updateSession((current) => createTrainingScenarioStartSession(current, selectedScenarioKind))
+    updateSession((current) => createTrainingScenarioStartSession(
+      current,
+      selectedScenarioDefinition.kind,
+      selectedScenarioDefinition.incident,
+    ))
   }
 
   const assignLaunchTrain = () => {
@@ -287,7 +286,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
 
   const resetScenarioRuntime = () => {
     updateSession((current) => resetTrainingScenarioRuntime(current))
-    setSelectedScenarioKind(defaultSelectedScenarioKind)
+    setSelectedScenarioId(defaultSelectedScenarioId)
     setSelectedLaunchTrainChoice('')
   }
 
@@ -426,8 +425,8 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                 {trainingScenarioDefinitions.map((scenario) => (
                   <button
                     type="button"
-                    className={scenario.kind === selectedScenarioKind ? 'is-selected' : ''}
-                    onClick={() => setSelectedScenarioKind(scenario.kind)}
+                    className={scenario.id === selectedScenarioId ? 'is-selected' : ''}
+                    onClick={() => setSelectedScenarioId(scenario.id)}
                     key={scenario.id}
                   >
                     <strong>{scenario.title}</strong>
@@ -456,7 +455,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <ModuleSection
               eyebrow="4. Scenario Runtime"
               title="Live IOS Scenario Control"
-              copy="Arm, supervise, score, reset, and report the active training scenario while timetable traffic continues in the shared OCC session."
+              copy="Control the live scenario and follow the trainee's progress."
             >
               <div className="module-runtime-hero">
                 <div>
@@ -491,32 +490,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                   Reset Full Session
                 </button>
               </div>
-              <div className="module-info-card">
-                <strong>{session.activeScenario.title} | {activeScenarioTargetLabel}</strong>
-                <span>{session.scenarioNotice.text}</span>
-              </div>
-              <div className="module-runtime-outcome">
-                <div>
-                  <span>Scenario result</span>
-                  <strong>{trainingScenarioScore.result}</strong>
-                </div>
-                <div>
-                  <span>Scenario score</span>
-                  <strong>{trainingScenarioScore.score}%</strong>
-                </div>
-                <div>
-                  <span>Tasks complete</span>
-                  <strong>{trainingScenarioScore.completedTasks}/{trainingScenarioScore.totalTasks}</strong>
-                </div>
-                <div>
-                  <span>Mode</span>
-                  <strong>{session.scenarioMode}</strong>
-                </div>
-                <div>
-                  <span>Critical open</span>
-                  <strong>{criticalOpenTasks}</strong>
-                </div>
-              </div>
+              <p className={`module-runtime-notice is-${session.scenarioNotice.tone}`} role="status">{session.scenarioNotice.text}</p>
               {activeScenarioDefinition.kind === 'TRAIN_LAUNCH' && !session.activeScenario.targetTrainId && (
                 <div className="module-session-grid">
                   <label>
@@ -535,25 +509,6 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                   >
                     Assign launch train
                   </button>
-                </div>
-              )}
-              {!activeScenarioIsIdle && (
-                <div className="module-role-flow-grid" aria-label="Instructor and trainee role flow">
-                  <div>
-                    <span>Instructor role</span>
-                    <strong>Supervise and assess</strong>
-                    <em>Arm, pause, reset, complete, review evidence, and close the report.</em>
-                  </div>
-                  <div>
-                    <span>Trainee operator</span>
-                    <strong>{nextScenarioTaskOwner}</strong>
-                    <em>{nextScenarioTask ? `Perform "${nextScenarioTask.label}" from ${nextScenarioTask.monitor}.` : 'No trainee action is currently open.'}</em>
-                  </div>
-                  <div>
-                    <span>Completion source</span>
-                    <strong>{nextScenarioTask?.runtimeOnly ? 'Live OCC action' : 'Instructor review'}</strong>
-                    <em>{nextScenarioTask?.runtimeOnly ? 'The checklist advances only when the trainee performs the monitor action.' : 'Instructor can confirm review-only steps.'}</em>
-                  </div>
                 </div>
               )}
               {!activeScenarioIsIdle && (
@@ -589,9 +544,9 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                   </div>
                 </section>
               )}
-              {!activeScenarioIsIdle && (
-                <div className={`module-runtime-final-summary ${session.scenarioMode === 'COMPLETE' ? 'is-complete' : ''}`}>
-                  <strong>{session.scenarioMode === 'COMPLETE' ? 'Final outcome' : 'Current outcome'}: {trainingScenarioScore.result}</strong>
+              {session.scenarioMode === 'COMPLETE' && (
+                <div className="module-runtime-final-summary is-complete">
+                  <strong>Final outcome: {trainingScenarioScore.result}</strong>
                   <span>
                     Score {trainingScenarioScore.score}% | Critical {trainingScenarioScore.completedCriticalTasks}/{trainingScenarioScore.criticalTasks} | Rejected {rejectedScenarioEvidence}
                   </span>
@@ -601,30 +556,6 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                 </div>
               )}
               {!activeScenarioIsIdle && (
-                <section className="module-assessment-breakdown" aria-label="Live scenario scoring breakdown">
-                  <div className="module-live-activity-header">
-                    <div>
-                      <span>Live scoring breakdown</span>
-                      <strong>Same rubric used by live OCC actions and final report</strong>
-                    </div>
-                    <em>
-                      Live {assessmentSummary.liveMonitorComplete}/{assessmentSummary.liveMonitorTotal}
-                      {' | '}
-                      Review {assessmentSummary.instructorReviewComplete}/{assessmentSummary.instructorReviewTotal}
-                    </em>
-                  </div>
-                  <div className="module-assessment-breakdown-grid">
-                    {assessmentSummary.rows.map((task) => (
-                      <article className={task.complete ? 'is-complete' : 'is-open'} key={task.id}>
-                        <span>{task.owner}</span>
-                        <strong>{task.label}</strong>
-                        <em>{task.completionSource} | {task.statusLabel} | {task.scoreContribution}/{task.weight}%</em>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              )}
-              {!activeScenarioIsIdle && (
                 <section className="module-live-activity" aria-label="Live trainee activity">
                   <div className="module-live-activity-header">
                     <div>
@@ -632,24 +563,6 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                       <strong>Monitor actions and scenario evidence</strong>
                     </div>
                     <em>{liveActivityTrail.length} recent records</em>
-                  </div>
-                  <div className="module-evidence-category-grid">
-                    <div>
-                      <strong>{liveActivityGroups.trainee.length}</strong>
-                      <span>Trainee actions</span>
-                    </div>
-                    <div>
-                      <strong>{liveActivityGroups.trainer.length}</strong>
-                      <span>Trainer actions</span>
-                    </div>
-                    <div>
-                      <strong>{liveActivityGroups.system.length}</strong>
-                      <span>System validations</span>
-                    </div>
-                    <div>
-                      <strong>{liveActivityGroups.milestone.length}</strong>
-                      <span>Milestones</span>
-                    </div>
                   </div>
                   {liveActivityTrail.length > 0 ? (
                     <div className="module-live-activity-list">
@@ -668,7 +581,6 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
                   ) : (
                     <div className="module-runtime-empty">
                       <strong>No trainee actions captured yet</strong>
-                      <span>Live selections, route commands, arrival/departure confirmations, and rejected actions will appear here.</span>
                     </div>
                   )}
                 </section>

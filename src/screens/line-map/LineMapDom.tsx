@@ -1,3 +1,4 @@
+import type { CommsChannel, CommsLogEntry } from '../../comms/commsCatalog'
 import { useEffect, useRef, useState } from 'react'
 import type {
   CSSProperties,
@@ -88,11 +89,14 @@ const TRACK_Y_BY_SECTION = [
 type LineMapMonitorDomProps = {
   alarmNotAcknowledged: number
   alarmTotal: number
+  callLog?: readonly CommsLogEntry[]
   children?: ReactNode
+  psdFaultPlatform?: { station: string; track: 'NB' | 'SB' }
   lineMap: LineMapRuntimeState
   onCommand: (command: TrainCommand) => void
   onInspectTrain: (trainId: string) => void
   onNavigate: (route: AppRoute) => void
+  onOpenComms?: (channel: CommsChannel) => void
   onOpenTrainMenu: (trainId: string, x: number, y: number) => void
   onOpenSignalMenu: (signal: LineMapSignalData, x: number, y: number) => void
   onPanBy: (distance: number) => void
@@ -377,11 +381,14 @@ function getAnnotationTop(annotation: SchematicAnnotation) {
 export default function LineMapMonitorDom({
   alarmNotAcknowledged,
   alarmTotal,
+  callLog,
   children,
+  psdFaultPlatform,
   lineMap,
   onCommand,
   onInspectTrain,
   onNavigate,
+  onOpenComms,
   onOpenSignalMenu,
   onOpenTrainMenu,
   onPanBy,
@@ -489,13 +496,16 @@ export default function LineMapMonitorDom({
         <LineMapHeaderDom
           alarmNotAcknowledged={alarmNotAcknowledged}
           alarmTotal={alarmTotal}
+          callLog={callLog}
           onNavigate={onNavigate}
+          onOpenComms={onOpenComms}
         />
 
         <div className="line-map-body-viewport">
           <div className="line-map-body-world">
             <LineMapSchematicBase
               lineMap={lineMap}
+              psdFaultPlatform={psdFaultPlatform}
               onCommand={onCommand}
               onOpenSignalMenu={openSignalMenuAtPointer}
               panX={panX}
@@ -541,18 +551,24 @@ export default function LineMapMonitorDom({
 function LineMapHeaderDom({
   alarmNotAcknowledged,
   alarmTotal,
+  callLog,
   onNavigate,
+  onOpenComms,
 }: {
   alarmNotAcknowledged: number
   alarmTotal: number
+  callLog?: readonly CommsLogEntry[]
   onNavigate: (route: AppRoute) => void
+  onOpenComms?: (channel: CommsChannel) => void
 }) {
   return (
     <header className="line-map-header-dom">
       <AlarmCallsHeaderDom
         alarmNotAcknowledged={alarmNotAcknowledged}
         alarmTotal={alarmTotal}
+        callLog={callLog}
         onNavigate={onNavigate}
+        onOpenComms={onOpenComms}
       />
       <StationRibbon top={109} />
     </header>
@@ -561,6 +577,7 @@ function LineMapHeaderDom({
 
 function LineMapSchematicBase({
   lineMap,
+  psdFaultPlatform,
   onCommand,
   onOpenSignalMenu,
   panX,
@@ -570,6 +587,7 @@ function LineMapSchematicBase({
   trains,
 }: {
   lineMap: LineMapRuntimeState
+  psdFaultPlatform?: { station: string; track: 'NB' | 'SB' }
   onCommand: (command: TrainCommand) => void
   onOpenSignalMenu: (event: ReactMouseEvent<HTMLElement>, signal: LineMapSignalData) => void
   panX: number
@@ -689,7 +707,14 @@ function LineMapSchematicBase({
       {cycleData.map((cycle) => (
         <CycleControl key={`${cycle.x}-${cycle.y}`} x={cycle.x} y={cycle.y} />
       ))}
-      {platformData.map((platform) => <PlatformPanel key={platform.code} lineMap={lineMap} platform={platform} />)}
+      {platformData.map((platform) => (
+        <PlatformPanel
+          faultTrack={psdFaultPlatform?.station === platform.code ? psdFaultPlatform.track : undefined}
+          key={platform.code}
+          lineMap={lineMap}
+          platform={platform}
+        />
+      ))}
       {commandData.map((command) => (
         <CommandPanel
           key={`command-${command.code}`}
@@ -1899,9 +1924,11 @@ function getPlatformGreenClassName(status?: LineMapRuntimeState['platformDoorSta
 }
 
 function PlatformPanel({
+  faultTrack,
   lineMap,
   platform,
 }: {
+  faultTrack?: 'NB' | 'SB'
   lineMap: LineMapRuntimeState
   platform: (typeof platformData)[number]
 }) {
@@ -1913,7 +1940,7 @@ function PlatformPanel({
     <div className="line-map-platform-panel" style={{ left: platform.x - 36, top: platform.y }}>
       <div className={getPlatformGreenClassName(northDoorStatus)} />
       <div className="line-map-platform-grid line-map-platform-grid--north">
-        <span>PSD</span>
+        <span className={faultTrack === 'NB' ? 'is-psd-fault' : undefined}>PSD</span>
         <span>PH</span>
         <span>SPKS</span>
         <span>{showCdLabel ? 'CD' : ''}</span>
@@ -1926,7 +1953,7 @@ function PlatformPanel({
         <span>ESP</span>
         <span>SPKS</span>
         <span>{showCdLabel ? 'CD' : ''}</span>
-        <span>PSD</span>
+        <span className={faultTrack === 'SB' ? 'is-psd-fault' : undefined}>PSD</span>
         <span>PH</span>
       </div>
       <div className={getPlatformGreenClassName(southDoorStatus)} />

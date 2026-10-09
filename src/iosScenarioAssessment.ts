@@ -1,3 +1,4 @@
+import { getCommsMessage, getCommsMessageId } from './comms/commsCatalog'
 import { getScenarioTaskOwner, type ScenarioTaskOwner } from './iosScenarioRoles'
 import {
   getScenarioTaskStageLabel,
@@ -28,6 +29,12 @@ function evidenceMatchesTask(task: TrainingScenarioTaskDefinition, evidence: Sce
   if (evidence.result !== 'accepted') {
     return false
   }
+
+  const commsMessageId = getCommsMessageId(evidence)
+
+  if (commsMessageId) {
+    return Boolean(task.commsMessageIds?.includes(commsMessageId))
+  }
   const haystack = `${evidence.source} ${evidence.action} ${evidence.detail}`.toLowerCase()
   const taskWords = task.label.toLowerCase().split(/\s+/).filter((word) => word.length > 3)
 
@@ -46,6 +53,10 @@ function getScenarioTaskValidationMode(task: TrainingScenarioTaskDefinition): Sc
 function getScenarioTaskCompletionRule(task: TrainingScenarioTaskDefinition) {
   if (task.mappedTaskId === 'completeScenario') {
     return 'Trainer confirms final scenario review.'
+  }
+
+  if (task.commsMessageIds?.length) {
+    return `Calls panel must log: ${task.commsMessageIds.map((id) => getCommsMessage(id)?.label ?? id).join('; ')}.`
   }
 
   if (task.runtimeOnly) {

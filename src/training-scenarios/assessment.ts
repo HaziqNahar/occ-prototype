@@ -1,3 +1,4 @@
+import { hasCommsEvidence } from '../comms/commsCatalog'
 import { getTrainingScenarioDefinition } from './definitions'
 import type {
   TrainingScenarioScore,
@@ -50,6 +51,10 @@ export function isTrainingScenarioTaskComplete(
   task: TrainingScenarioTaskDefinition,
 ) {
   const definition = getTrainingScenarioDefinition(session.activeScenario.id)
+
+  if (task.commsMessageIds?.length) {
+    return task.commsMessageIds.every((messageId) => hasCommsEvidence(session.evidenceLog, messageId))
+  }
 
   if (definition.kind === 'TRAIN_LAUNCH') {
     return Boolean(task.mappedTaskId && session.scenarioTasks[task.mappedTaskId])

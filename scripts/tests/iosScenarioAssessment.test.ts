@@ -24,9 +24,11 @@ import { createTrainingScenarioStartSession } from '../../src/trainingScenarios'
   assert.deepEqual(rows.map((row) => row.complete), rows.map(() => false))
   assert.equal(rows.some((row) => row.owner === 'Station Manager'), false)
   assert.equal(rows.some((row) => row.owner === 'Engineer'), false)
-  assert.equal(rows.filter((row) => row.owner === 'Traffic Controller').length, 3)
+  // Includes the two SOP coordination calls (DTC despatch, driver radio contact).
+  assert.equal(rows.filter((row) => row.owner === 'Traffic Controller').length, 5)
   assert.equal(rows.filter((row) => row.owner === 'Instructor').length, 1)
-  assert.equal(rows.filter((row) => row.completionSource === 'Live monitor').length, 3)
+  assert.equal(rows.filter((row) => row.completionSource === 'Live monitor').length, 5)
+  assert.match(rows.find((row) => row.id === 'coordinate-launch-with-dtc')?.completionRule ?? '', /Calls panel must log: Coordinate train despatch from depot/)
   assert.equal(rows.filter((row) => row.completionSource === 'Instructor review').length, 1)
   assert.equal(rows.find((row) => row.id === 'review-launch-outcome')?.validationMode, 'instructor-review')
   assert.match(rows.find((row) => row.id === 'set-launch-route')?.completionRule ?? '', /setRoute/)

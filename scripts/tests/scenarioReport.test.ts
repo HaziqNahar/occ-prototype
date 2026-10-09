@@ -12,11 +12,11 @@ import {
 
   assert.equal(report.scenarioKind, 'TRAIN_LAUNCH')
   assert.equal(report.completedTasks.length, 0)
-  assert.equal(report.missedTasks.length, 4)
-  assert.equal(report.archiveSummary.totalTasks, 4)
-  assert.equal(report.archiveSummary.taskMetrics.length, 4)
+  assert.equal(report.missedTasks.length, 6)
+  assert.equal(report.archiveSummary.totalTasks, 6)
+  assert.equal(report.archiveSummary.taskMetrics.length, 6)
   assert.equal(report.archiveSummary.taskMetrics.some((task) => task.owner === 'Engineer'), false)
-  assert.equal(report.archiveSummary.taskMetrics.filter((task) => task.completionSource === 'Live monitor').length, 3)
+  assert.equal(report.archiveSummary.taskMetrics.filter((task) => task.completionSource === 'Live monitor').length, 5)
   assert.equal(report.archiveSummary.taskMetrics.filter((task) => task.completionSource === 'Instructor review').length, 1)
 }
 
@@ -28,8 +28,8 @@ import {
   const report = buildScenarioReport(session)
 
   assert.equal(report.completedTasks.length, 1)
-  assert.equal(report.missedTasks.length, 3)
+  assert.equal(report.missedTasks.length, 5)
   assert.equal(report.archiveSummary.completedTasks, 1)
-  assert.equal(report.archiveSummary.missedTasks, 3)
+  assert.equal(report.archiveSummary.missedTasks, 5)
   assert.equal(report.archiveSummary.taskMetrics.find((task) => task.id === 'select-launch-train')?.complete, true)
 }

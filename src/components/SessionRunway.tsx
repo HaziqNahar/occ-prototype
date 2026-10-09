@@ -1,5 +1,5 @@
 import { scoreTrainingScenario } from '../trainingScenarios'
-import type { OccSessionState, SessionTransportSnapshot } from '../types'
+import type { OccSessionState } from '../types'
 
 type SessionRunwayProps = {
   session: OccSessionState
@@ -8,19 +8,10 @@ type SessionRunwayProps = {
 
 function SessionRunway({ session, variant = 'trainer' }: SessionRunwayProps) {
   const scenarioScore = scoreTrainingScenario(session)
-  const progress = scenarioScore.score
-  const evidenceLog = session.evidenceLog ?? []
-  const joinedScreens = Object.values(session.sessionMeta?.screens ?? {})
-  const joinedMonitorCount = Math.min(joinedScreens.length, 3)
-  const transportSnapshots = joinedScreens
-    .map((screen) => screen.transport)
-    .filter((transport): transport is SessionTransportSnapshot => Boolean(transport))
-  const latestEvidence = evidenceLog.slice(0, 3)
+  const joinedMonitorCount = Math.min(Object.keys(session.sessionMeta?.screens ?? {}).length, 3)
   const nextTask = scenarioScore.taskResults.find((task) => !task.complete)
-  const connectedSseScreens = transportSnapshots.filter((transport) => transport.backendSse === 'CONNECTED').length
-  const connectedWorkerScreens = transportSnapshots.filter((transport) => transport.sharedWorker === 'CONNECTED').length
-  const connectedChannelScreens = transportSnapshots.filter((transport) => transport.broadcastChannel === 'CONNECTED').length
-  const lastLaunch = session.sessionMeta?.lastMonitorLaunch
+  const completedTasks = scenarioScore.taskResults.filter((task) => task.complete).length
+  const isIdle = session.scenarioMode === 'IDLE' && scenarioScore.taskResults.length === 0
 
   if (variant === 'trainee') {
     return (
@@ -46,78 +37,31 @@ function SessionRunway({ session, variant = 'trainer' }: SessionRunwayProps) {
   }
 
   return (
-    <section className="session-runway" aria-label="Connected session flow">
-      <div className="session-runway-heading">
-        <div>
-          <p className="module-eyebrow">Connected Session Flow</p>
-          <h2>{session.activeScenario.title}</h2>
-        </div>
-        <span>{session.sessionMeta?.code ?? 'OCC-TRAINING-001'} | {session.scenarioMode} | {session.trainingMode}</span>
+    <section className="session-runway is-compact" aria-label="Session status">
+      <div className="session-runway-title">
+        <span className={`session-runway-chip is-${session.scenarioMode.toLowerCase()}`}>{session.scenarioMode}</span>
+        <strong>{isIdle ? 'No scenario loaded' : session.activeScenario.title}</strong>
       </div>
-
-      <div className="session-runway-summary">
+      <dl className="session-runway-facts">
         <div>
-          <span>Current incident</span>
-          <strong>{session.activeScenario.incident}</strong>
-        </div>
-        <div>
-          <span>Backend session</span>
-          <strong>{session.sessionMeta?.lifecycle ?? 'CREATED'}</strong>
+          <dt>Monitors</dt>
+          <dd className={joinedMonitorCount === 3 ? 'is-ok' : 'is-warn'}>{joinedMonitorCount}/3</dd>
         </div>
         <div>
-          <span>Joined screens</span>
-          <strong>{joinedMonitorCount}/3 connected</strong>
+          <dt>Tasks</dt>
+          <dd>{completedTasks}/{scenarioScore.taskResults.length}</dd>
         </div>
         <div>
-          <span>Transport bus</span>
-          <strong>{connectedSseScreens} SSE / {connectedWorkerScreens} SW / {connectedChannelScreens} BC</strong>
+          <dt>Score</dt>
+          <dd>{scenarioScore.score}%</dd>
         </div>
-        <div>
-          <span>Last launch</span>
-          <strong>{lastLaunch ? `${lastLaunch.targets.length} monitors` : 'None'}</strong>
+        <div className="session-runway-next">
+          <dt>Next</dt>
+          <dd>{isIdle ? 'Load a scenario' : nextTask?.label ?? 'All tasks complete'}</dd>
         </div>
-        <div>
-          <span>Scenario score</span>
-          <strong>{scenarioScore.score}% / {scenarioScore.result}</strong>
-        </div>
-      </div>
-
-      <div className="session-runway-progress" aria-label={`Scenario progress ${progress}%`}>
-        <span style={{ width: `${progress}%` }} />
-      </div>
-
-      <div className="session-runway-steps">
-        {scenarioScore.taskResults.map((task, index) => {
-          const isComplete = task.complete
-          const isNext = task.id === nextTask?.id
-
-          return (
-            <div className={`${isComplete ? 'is-complete' : ''} ${isNext ? 'is-next' : ''}`} key={task.id}>
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <strong>{task.label}</strong>
-              <em>{isComplete ? 'Done' : isNext ? 'Next' : 'Pending'}</em>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="session-runway-evidence" aria-label="Latest evidence captured">
-        <div className="session-runway-evidence-title">
-          <span>Evidence captured</span>
-          <strong>{evidenceLog.length} records</strong>
-        </div>
-        {latestEvidence.length ? (
-          latestEvidence.map((evidence) => (
-            <div className={`session-runway-evidence-item is-${evidence.result}`} key={evidence.id}>
-              <span>{evidence.time}</span>
-              <strong>{evidence.source}</strong>
-              <p>{evidence.action}</p>
-              <em>{evidence.result}</em>
-            </div>
-          ))
-        ) : (
-          <p className="session-runway-empty">No evidence captured yet.</p>
-        )}
+      </dl>
+      <div className="session-runway-progress" aria-label={`Scenario progress ${scenarioScore.score}%`}>
+        <span style={{ width: `${scenarioScore.score}%` }} />
       </div>
     </section>
   )

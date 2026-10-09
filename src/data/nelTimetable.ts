@@ -2,8 +2,29 @@ import type { TimetableRow } from '../types'
 import { nelOtesWeekday03CorrectedPage7Services } from './nelOtesWeekday03Page7Patch'
 import { nelOtesWeekday03Services as extractedNelOtesWeekday03Services } from './nelOtesWeekday03Services'
 import type { NelTimetableService } from './nelOtesWeekday03Services'
+import { nelOtesWeekday04Services } from './nelOtesWeekday04Services'
 
-export const NEL_TIMETABLE_NAME = 'NEL_OTES_Weekday_03'
+export const NEL_TIMETABLE_NAMES = ['NEL_OTES_Weekday_03', 'NEL_OTES_Weekday_04'] as const
+
+export type NelTimetableName = typeof NEL_TIMETABLE_NAMES[number]
+
+export const DEFAULT_NEL_TIMETABLE_NAME: NelTimetableName = 'NEL_OTES_Weekday_03'
+
+// Kept for callers that only need the default timetable label.
+export const NEL_TIMETABLE_NAME = DEFAULT_NEL_TIMETABLE_NAME
+
+export const nelTimetableOptions: ReadonlyArray<{ effectiveFrom: string; label: string; value: NelTimetableName }> = [
+  { effectiveFrom: '14 Jul 2025', label: 'Weekday 03', value: 'NEL_OTES_Weekday_03' },
+  { effectiveFrom: '05 Jan 2026', label: 'Weekday 04', value: 'NEL_OTES_Weekday_04' },
+]
+
+export function isNelTimetableName(value: unknown): value is NelTimetableName {
+  return NEL_TIMETABLE_NAMES.includes(value as NelTimetableName)
+}
+
+export function normalizeNelTimetableName(value: unknown): NelTimetableName {
+  return isNelTimetableName(value) ? value : DEFAULT_NEL_TIMETABLE_NAME
+}
 
 export type NelTimetableFocus = 'all' | 'first-service-pair'
 
@@ -15,6 +36,7 @@ export type NelTrainRosterItem = {
 
 type NelTimetableRowsOptions = {
   focus?: NelTimetableFocus
+  timetable?: NelTimetableName
 }
 
 const FIRST_SERVICE_PAIR_SCHEDULES = {
@@ -76,12 +98,19 @@ const nelOtesWeekday03Services = replaceCroppedTimetablePageServices(
   extractedNelOtesWeekday03Services,
 )
 
+const nelTimetableServices: Record<NelTimetableName, readonly NelTimetableService[]> = {
+  NEL_OTES_Weekday_03: nelOtesWeekday03Services,
+  NEL_OTES_Weekday_04: nelOtesWeekday04Services,
+}
+
 function getFocusedNelTimetableServices(options: NelTimetableRowsOptions = {}) {
+  const services = nelTimetableServices[options.timetable ?? DEFAULT_NEL_TIMETABLE_NAME]
+
   if (options.focus !== 'first-service-pair') {
-    return nelOtesWeekday03Services
+    return services
   }
 
-  return nelOtesWeekday03Services.filter((service) => (
+  return services.filter((service) => (
     Number(service.scheduleNo) >= FIRST_SERVICE_PAIR_SCHEDULES[service.direction].first
     && Number(service.scheduleNo) <= FIRST_SERVICE_PAIR_SCHEDULES[service.direction].last
   ))

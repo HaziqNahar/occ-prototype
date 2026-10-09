@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { applyCommsRequest, getCommsLog } from '../comms/commsCatalog'
+import type { CommsChannel } from '../comms/commsCatalog'
+import CommsDialog from '../components/CommsDialog'
 import { ScadaDomButton } from '../components/LegacyScadaFooter'
 import ScadaDomSurface from '../components/ScadaDomSurface'
 import ScadaFooter from '../components/ScadaFooter'
@@ -17,6 +20,8 @@ export default function AlarmsMonitorContent({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<'Archives' | 'Events' | 'Alarms'>('Alarms')
   const [statusNote, setStatusNote] = useState('Live alarm summary ready')
+  const [commsChannel, setCommsChannel] = useState<CommsChannel | null>(null)
+  const callLog = useMemo(() => getCommsLog(session.evidenceLog), [session.evidenceLog])
   const liveRows = rows.map((row, originalIndex) => ({ originalIndex, row }))
   const visibleRows = liveRows.slice(0, 20)
   const selectedEntry = selectedIndex >= 0 ? liveRows[selectedIndex] : undefined
@@ -143,8 +148,10 @@ export default function AlarmsMonitorContent({
       <AlarmCallsHeaderDom
         alarmNotAcknowledged={notAcknowledged}
         alarmTotal={alarmTotal}
+        callLog={callLog}
         initialTab="alarms"
         onNavigate={onNavigate}
+        onOpenComms={setCommsChannel}
       />
       <StationRibbon top={109} />
       <section className="alarm-dom-panel">
@@ -225,6 +232,15 @@ export default function AlarmsMonitorContent({
         ) : null}
         <div className="alarm-dom-status">{statusNote}</div>
       </section>
+      {commsChannel && (
+        <CommsDialog
+          channel={commsChannel}
+          onClose={() => setCommsChannel(null)}
+          onSend={(request) => updateSession((current) => applyCommsRequest(current, request))}
+          selectedTrainId={session.selectedTrainId}
+          trainIds={session.trains.map((train) => train.id)}
+        />
+      )}
       <ScadaFooter active="TRAFFIC" leftMode="Train" status="MNADZRULS" />
     </ScadaDomSurface>
   )

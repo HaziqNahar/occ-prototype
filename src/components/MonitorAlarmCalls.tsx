@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import alarmAckIcon from '../assets/alarm-icons/alarm_ack.png'
 import alarmDisplayIcon from '../assets/alarm-icons/alarm_display.png'
+import type { CommsChannel, CommsLogEntry } from '../comms/commsCatalog'
 import { stationRibbonItems } from '../screens/line-map/model'
 import type { AppRoute } from '../types'
 
 type AlarmCallsHeaderDomProps = {
   alarmNotAcknowledged?: number
   alarmTotal?: number
+  callLog?: readonly CommsLogEntry[]
+  onOpenComms?: (channel: CommsChannel) => void
   initialTab?: 'alarms' | 'calls'
   onNavigate: (route: AppRoute) => void
 }
@@ -21,10 +24,14 @@ const ALARM_PREVIEW_ROWS = [
 export function AlarmCallsHeaderDom({
   alarmNotAcknowledged = 0,
   alarmTotal = 0,
+  callLog = [],
   initialTab = 'calls',
   onNavigate,
+  onOpenComms,
 }: AlarmCallsHeaderDomProps) {
   const [activeSideTab, setActiveSideTab] = useState<'alarms' | 'calls'>(initialTab)
+  const radioCount = callLog.filter((call) => call.channel === 'RADIO').length
+  const telephoneCount = callLog.filter((call) => call.channel === 'TELEPHONE').length
 
   return (
     <section
@@ -67,14 +74,37 @@ export function AlarmCallsHeaderDom({
           <div className="line-map-call-controls" aria-label="Call controls">
             <span className="line-map-call-control line-map-call-control--active line-map-call-control--spaced">PECO</span>
             <button className="line-map-call-control line-map-call-control--inactive" type="button">RATS 0</button>
-            <button className="line-map-call-control line-map-call-control--inactive" type="button">Teleph. 0</button>
-            <span className="line-map-call-control line-map-call-control--active">Radio 0</span>
+            <button
+              className={`line-map-call-control ${onOpenComms ? 'line-map-call-control--button' : 'line-map-call-control--inactive'}`}
+              disabled={!onOpenComms}
+              onClick={() => onOpenComms?.('TELEPHONE')}
+              type="button"
+            >
+              Teleph. {telephoneCount}
+            </button>
+            <button
+              className={`line-map-call-control ${onOpenComms ? 'line-map-call-control--button line-map-call-control--active' : 'line-map-call-control--active'}`}
+              disabled={!onOpenComms}
+              onClick={() => onOpenComms?.('RADIO')}
+              type="button"
+            >
+              Radio {radioCount}
+            </button>
             <span className="line-map-call-control line-map-call-control--active">Author. 0</span>
             <span className="line-map-call-control line-map-call-control--active line-map-call-control--spaced">PCPO</span>
           </div>
           <span className="line-map-call-indicator" aria-hidden="true" />
           <div className="line-map-call-list-shell">
-            <div className="line-map-call-list" aria-label="Call list" />
+            <div className="line-map-call-list" aria-label="Call list">
+              {callLog.slice(0, 5).map((call) => (
+                <div className="line-map-call-row" key={call.id}>
+                  <span>{call.time}</span>
+                  <span>{call.channel === 'RADIO' ? 'RADIO' : 'TELEPH'}</span>
+                  <span>{call.recipient}</span>
+                  <span>{call.detail ? `${call.label} (${call.detail})` : call.label}</span>
+                </div>
+              ))}
+            </div>
             <div className="line-map-call-scrollbar" aria-hidden="true">
               <span className="line-map-alarm-scrollbar-button line-map-alarm-scrollbar-button--up" />
               <span className="line-map-alarm-scrollbar-track" />

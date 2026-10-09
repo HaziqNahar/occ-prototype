@@ -27,45 +27,21 @@ const screenRoles: ScreenRole[] = [
   },
 ]
 
-const sessionStats = [
-  {
-    label: 'Alarm',
-    value: 'Door fault pending',
-    tone: 'alert',
-  },
-  {
-    label: 'Line',
-    value: '5 trains active',
-    tone: 'map',
-  },
-  {
-    label: 'Timer',
-    value: '05:00 target',
-    tone: 'time',
-  },
-]
-
-const launchSteps = [
-  'Trainer creates session',
-  'Open three monitor views',
-  'Start synchronized scenario',
-]
-
 const trainingModes: Array<{ mode: TrainingMode; label: string; description: string }> = [
   {
     mode: 'PRACTICE',
     label: 'Practice',
-    description: 'Guided hints, trainer override, and step-by-step learning.',
+    description: 'Guided hints and step-by-step learning.',
   },
   {
     mode: 'ASSESSMENT',
     label: 'Assessment',
-    description: 'Reduced guidance with scoring and rejected-action review.',
+    description: 'Scored, with reduced guidance.',
   },
   {
     mode: 'PLAYER',
     label: 'Player',
-    description: 'Auto-run playback for structured review and trainer-led walkthroughs.',
+    description: 'Auto-run playback for review.',
   },
 ]
 
@@ -139,17 +115,9 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
         <div className="brand-panel">
           <div className="brand-panel-top">
             <div className="mode-badge">OCC simulator</div>
-            <div className="line-badge">NEL / DTL ready</div>
+            <div className="line-badge">North East Line</div>
           </div>
 
-          <div className="scenario-card" aria-label="Scenario brief">
-            <p>Scenario Brief</p>
-            <strong>Train Launch and Withdrawal</strong>
-            <div className="scenario-meta">
-              <span>Practice Mode</span>
-              <span>Target: 5 min</span>
-            </div>
-          </div>
 
           <div className="system-chip">
             <span className="status-dot" />
@@ -157,8 +125,7 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
           </div>
           <h1 id="page-title">OCC Training Simulator</h1>
           <p className="brand-copy">
-            Launch a synchronized three-monitor training session for alarms,
-            line map controls, and timetable coordination.
+            Three synchronised monitors: alarms, line map and timetable.
           </p>
         </div>
 
@@ -194,6 +161,21 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
               <span>Remember workstation</span>
             </label>
           </div>
+          <div className="mode-picker is-compact" role="radiogroup" aria-label="Training mode">
+            {trainingModes.map((item) => (
+              <button
+                type="button"
+                role="radio"
+                aria-checked={item.mode === selectedTrainingMode}
+                className={item.mode === selectedTrainingMode ? 'is-selected' : ''}
+                onClick={() => setSelectedTrainingMode(item.mode)}
+                key={item.mode}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className="mode-picker-hint">{trainingModes.find((item) => item.mode === selectedTrainingMode)?.description}</p>
           {sessionHint && <p className="session-hint">{sessionHint}</p>}
 
           <button
@@ -221,43 +203,6 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
             Open three-monitor session
           </button>
 
-          <button
-            type="button"
-            className="tertiary-action"
-            onClick={() => onNavigate('/ios/modules')}
-          >
-            Open IOS trainer modules
-          </button>
-
-          <button
-            type="button"
-            className="tertiary-action secondary-link"
-            onClick={() => onNavigate('/session/join')}
-          >
-            Open trainee lobby
-          </button>
-
-          <button
-            type="button"
-            className="tertiary-action secondary-link"
-            onClick={() => onNavigate('/ios/scenarios')}
-          >
-            Open scenario builder
-          </button>
-
-          <div className="mode-picker" aria-label="Training mode selection">
-            {trainingModes.map((item) => (
-              <button
-                type="button"
-                className={item.mode === selectedTrainingMode ? 'is-selected' : ''}
-                onClick={() => setSelectedTrainingMode(item.mode)}
-                key={item.mode}
-              >
-                <strong>{item.label}</strong>
-                <span>{item.description}</span>
-              </button>
-            ))}
-          </div>
 
           <div className="monitor-launcher" aria-label="Screen roles">
             {screenRoles.map((role) => (
@@ -276,39 +221,14 @@ function LoginPage({ onNavigate, resetSession }: LoginPageProps) {
               </button>
             ))}
           </div>
+          <nav className="trainer-links" aria-label="Trainer tools">
+            <button type="button" onClick={() => onNavigate('/ios/modules')}>Trainer modules</button>
+            <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario setup</button>
+            <button type="button" onClick={() => onNavigate('/session/join')}>Trainee lobby</button>
+          </nav>
         </form>
       </section>
 
-      <aside className="session-preview" aria-label="Session preview">
-        <div className="preview-header">
-          <div>
-            <p className="eyebrow">Ready scenario</p>
-            <h2>Train launch and withdrawal</h2>
-          </div>
-          <span className="live-badge">IOS linked</span>
-        </div>
-
-        <div className="preview-grid">
-          {sessionStats.map((stat) => (
-            <div className={`preview-card ${stat.tone}`} key={stat.label}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-            </div>
-          ))}
-        </div>
-
-        <div className="timeline">
-          {launchSteps.map((step, index) => (
-            <div
-              className={`timeline-step ${index === 0 ? 'is-active' : ''}`}
-              key={step}
-            >
-              <span />
-              <p>{step}</p>
-            </div>
-          ))}
-        </div>
-      </aside>
     </main>
   )
 }

@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { archiveOccReport } from '../backendClient'
-import SessionRunway from '../components/SessionRunway'
 import { buildScenarioReport } from '../scenarioReport'
+import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
 import type { AppRoute, OccSessionState } from '../types'
 
 type ReportScreenProps = {
@@ -24,32 +24,34 @@ function compactReportText(value: string, limit = 110) {
 }
 
 function ReportScreen({ onNavigate, session }: ReportScreenProps) {
-  const [archiveNote, setArchiveNote] = useState('Backend report not archived yet.')
-  const [trainerNotes, setTrainerNotes] = useState(
-    'Trainee to explain alarm acknowledgement, route authority, timetable impact, and final service state before session closure.',
-  )
+  const [archiveNote, setArchiveNote] = useState('Not saved yet')
+  const [trainerNotes, setTrainerNotes] = useState('')
   const scenarioReport = buildScenarioReport(session)
   const scenarioScore = scenarioReport.scenarioScore
   const evidenceLog = session.evidenceLog ?? []
   const evidenceGroups = scenarioReport.evidenceGroups
   const traineeActivity = evidenceGroups.trainee
   const assessmentRows = scenarioReport.assessmentRows
-  const assessmentSummary = scenarioReport.assessmentSummary
   const assessmentMetrics = session.assessmentMetrics
   const rejectedActionCount = scenarioReport.rejectedActionCount
-  const selectedTrain = scenarioReport.selectedTrain
-  const targetTrain = scenarioReport.targetTrain
-  const targetTimetable = scenarioReport.targetTimetable
-  const resultLabel = scenarioScore.result
-  const resultTone = resultLabel === 'PASS' ? 'pass' : resultLabel === 'NEEDS REVIEW' ? 'review' : 'incomplete'
+  const hasScenario = scenarioScore.totalTasks > 0
+  const targetTrainId = getActiveTrainingScenarioTargetTrainId(session)
+  const resultLabel = hasScenario ? scenarioScore.result : 'NO SCENARIO'
+  const resultTone = !hasScenario
+    ? 'idle'
+    : resultLabel === 'PASS'
+      ? 'pass'
+      : resultLabel === 'NEEDS REVIEW'
+        ? 'review'
+        : session.scenarioMode === 'COMPLETE' ? 'incomplete' : 'running'
   const generatedAt = new Date(session.updatedAt).toLocaleString()
   const scenarioReportSummary = scenarioReport.archiveSummary
   const archiveReport = () => {
-    setArchiveNote('Archiving report to backend...')
+    setArchiveNote('Saving...')
     // The backend stores the scored assessment summary, not just a printable UI.
     void archiveOccReport(session, trainerNotes, scenarioReportSummary)
       .then((payload) => {
-        setArchiveNote(`Archived ${payload.report.id} | ${payload.report.summary.result} ${payload.report.summary.score}%`)
+        setArchiveNote(`Saved as ${payload.report.id}`)
       })
       .catch((error: Error) => {
         setArchiveNote(error.message)
@@ -72,95 +74,51 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
         </div>
         <div className="report-actions">
           <button type="button" onClick={() => onNavigate('/ios')}>Back to IOS</button>
-          <button type="button" onClick={archiveReport}>Archive Backend Report</button>
-          <button type="button" onClick={() => window.print()}>Print / Export</button>
+          <button type="button" disabled={!hasScenario} onClick={archiveReport}>Save Report</button>
+          <button type="button" onClick={() => window.print()}>Print</button>
         </div>
       </header>
-
-      <SessionRunway session={session} />
 
       <section className="report-card report-hero" aria-labelledby="report-title">
         <div>
           <p className="report-eyebrow">Scenario outcome</p>
-          <h2 id="report-title">{session.activeScenario.title}</h2>
+          <h2 id="report-title">{hasScenario ? session.activeScenario.title : 'No scenario run yet'}</h2>
           <p className="report-copy">
-            Shared OCC evidence and scored actions. Incident: {session.activeScenario.incident}.
+            {hasScenario
+              ? `${trainingModeSummary[session.trainingMode]} · Incident: ${session.activeScenario.incident} · Target ${session.activeScenario.duration}`
+              : 'Load and run a scenario from Scenario setup. The score and evidence appear here.'}
           </p>
+          {!hasScenario && (
+            <button type="button" className="report-hero-action" onClick={() => onNavigate('/ios/scenarios')}>Open Scenario Setup</button>
+          )}
         </div>
         <div className={`report-result ${resultTone}`}>
           <span>{resultLabel}</span>
-          <strong>{scenarioScore.score}%</strong>
-          <small>{scenarioScore.completedTasks} of {scenarioScore.totalTasks} tasks complete</small>
+          <strong>{hasScenario ? `${scenarioScore.score}%` : '—'}</strong>
+          {hasScenario && <small>{scenarioScore.completedTasks} of {scenarioScore.totalTasks} tasks complete</small>}
         </div>
       </section>
 
-      <section className="report-kpis" aria-label="Session summary">
-        <div className="report-kpi">
-          <span>Participants</span>
-          <strong>{session.trainees.filter((trainee) => trainee.status === 'Joined').length}</strong>
-          <small>{session.trainees.map((trainee) => trainee.role).join(' / ')}</small>
-        </div>
-        <div className="report-kpi">
-          <span>Training mode</span>
-          <strong>{session.trainingMode}</strong>
-          <small>{trainingModeSummary[session.trainingMode]}</small>
-        </div>
-        <div className="report-kpi">
-          <span>Scenario target</span>
-          <strong>{session.activeScenario.duration}</strong>
-          <small>{session.activeScenario.target}</small>
-        </div>
-        <div className="report-kpi">
-          <span>Target train</span>
-          <strong>TRN {targetTrain.id}</strong>
-          <small>{targetTrain.status}</small>
-        </div>
-        <div className="report-kpi">
-          <span>Current train</span>
-          <strong>TRN {selectedTrain.id}</strong>
-          <small>{selectedTrain.service}</small>
-        </div>
-        <div className="report-kpi">
-          <span>Timetable state</span>
-          <strong>{targetTimetable?.state ?? 'N/A'}</strong>
-          <small>{targetTimetable?.stationPoint ?? 'SKGN'} target station</small>
-        </div>
-        <div className="report-kpi">
-          <span>Rejected actions</span>
-          <strong>{rejectedActionCount}</strong>
-          <small>Penalties</small>
-        </div>
-        <div className="report-kpi">
-          <span>Missed tasks</span>
-          <strong>{scenarioReport.missedTasks.length}</strong>
-          <small>{scenarioReport.completedTasks.length} complete</small>
-        </div>
-        <div className="report-kpi">
-          <span>Live checks</span>
-          <strong>{assessmentSummary.liveMonitorComplete}/{assessmentSummary.liveMonitorTotal}</strong>
-          <small>Trainee checks</small>
-        </div>
-        <div className="report-kpi">
-          <span>Instructor review</span>
-          <strong>{assessmentSummary.instructorReviewComplete}/{assessmentSummary.instructorReviewTotal}</strong>
-          <small>Trainer checks</small>
-        </div>
-        <div className="report-kpi">
-          <span>Trainee actions</span>
-          <strong>{evidenceGroups.trainee.length}</strong>
-          <small>Captured actions</small>
-        </div>
-        <div className="report-kpi">
-          <span>System validations</span>
-          <strong>{evidenceGroups.system.length}</strong>
-          <small>Guardrail events</small>
-        </div>
-        <div className="report-kpi">
-          <span>Scenario milestones</span>
-          <strong>{evidenceGroups.milestone.length}</strong>
-          <small>Route, destination, movement</small>
-        </div>
-      </section>
+      {hasScenario && (
+        <section className="report-kpis" aria-label="Session summary">
+          <div className="report-kpi">
+            <span>Target train</span>
+            <strong>{targetTrainId ? `TRN ${targetTrainId}` : 'Not selected'}</strong>
+          </div>
+          <div className="report-kpi">
+            <span>Rejected actions</span>
+            <strong>{rejectedActionCount}</strong>
+          </div>
+          <div className="report-kpi">
+            <span>{session.scenarioMode === 'COMPLETE' ? 'Missed tasks' : 'Open tasks'}</span>
+            <strong>{scenarioReport.missedTasks.length}</strong>
+          </div>
+          <div className="report-kpi">
+            <span>Trainee actions</span>
+            <strong>{evidenceGroups.trainee.length}</strong>
+          </div>
+        </section>
+      )}
 
       <section className="report-grid">
         <article className="report-section">
@@ -204,6 +162,8 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
           ))}
         </article>
 
+        <details className="report-section report-evidence-details">
+          <summary>Full evidence log ({evidenceLog.length} records)</summary>
         <article className="report-section report-trainee-activity">
           <div className="report-section-title">
             <p>Trainee activity</p>
@@ -237,7 +197,7 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
             ))
           ) : (
             <div className="report-evidence-empty">
-              No trainee monitor actions captured yet. Use the live OCC screens to perform assigned tasks.
+              No trainee actions yet.
             </div>
           )}
         </article>
@@ -276,10 +236,11 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
             ))
           ) : (
             <div className="report-evidence-empty">
-              No captured operator evidence yet. Run the scenario from IOS, alarms, line map, or timetable to populate this log.
+              No evidence captured yet.
             </div>
           )}
         </article>
+        </details>
 
         <article className="report-section report-notes">
           <div className="report-section-title">
@@ -288,6 +249,7 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
           </div>
           <textarea
             aria-label="Trainer notes"
+            placeholder="Notes for the trainee: alarm handling, route authority, timetable impact, final service state."
             value={trainerNotes}
             onChange={(event) => setTrainerNotes(event.target.value)}
           />

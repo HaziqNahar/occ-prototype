@@ -1,9 +1,5 @@
 import type { OccSessionState, RouteControlMode, TimetableRow } from '../../types'
-import {
-  createMonitorEvent,
-  createSummaryEvent,
-  upsertTimetableRow,
-} from '../../scenarioWorkflow'
+import { upsertTimetableRow } from '../../scenarioWorkflow'
 import { clearInactiveTimetablePlaybackTrains } from '../../sessionState'
 import {
   applyTrainingScenarioTimetableCompletion,
@@ -212,30 +208,13 @@ export function applyTimetablePlaybackStepSession(
 
   const platformStop = getTimetablePlatformStopForStep(plan, stepIndex)
   const lastStepIndex = plan.steps.length - 1
-  const eventRow = stepIndex === plan.firstStepIndex
-    ? createMonitorEvent(
-        plan.trainId,
-        `Train ${plan.trainId}: Timetable ${plan.scheduleNumber} auto route ${plan.routeLabel}`,
-        'RUN',
-        'yellow',
-      )
-    : null
-
   const next = applyTimetablePlaybackStepState(current, plan, step, stepIndex, lastStepIndex, Boolean(platformStop))
   const scenarioNext = applyTrainingScenarioTimetableStep(next, plan, stepIndex)
 
+  // Routine timetable running is not an alarm on the OCC GWS, so it stays out of
+  // the alarm list, the event strip and the IOS notice.
   return {
     ...scenarioNext,
-    ...(eventRow
-      ? {
-          alarmSummaryRows: [createSummaryEvent(eventRow), ...scenarioNext.alarmSummaryRows].slice(0, 12),
-          eventRows: [eventRow, ...scenarioNext.eventRows].slice(0, 4),
-          scenarioNotice: {
-            text: `Timetable playback started for Train ${plan.trainId}, schedule ${plan.scheduleNumber}.`,
-            tone: 'info',
-          },
-        }
-      : {}),
     timetableRows: upsertTimetableRow(scenarioNext.timetableRows, plan.trainId, '>'),
   }
 }

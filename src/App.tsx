@@ -3,9 +3,12 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import './App.css'
 import controlTabIcon from './assets/control-tab-icon.png'
 import type { OccSessionAction } from './backendClient'
+import { applyCommsRequest, getCommsLog } from './comms/commsCatalog'
+import type { CommsChannel } from './comms/commsCatalog'
 import { CommonFooterSvg } from './components/LegacyScadaFooter'
 import MonitorWorkspace from './components/MonitorWorkspace'
 import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
+import CommsDialog from './components/CommsDialog'
 import ChangeEndsDialog from './components/train-control/ChangeEndsDialog'
 import { SignalContextMenu, TrainAuxiliaryPanel, TrainContextMenu } from './components/train-control/LineMapContextMenus'
 import PtiInitialisationDialog from './components/train-control/PtiInitialisationDialog'
@@ -541,22 +544,25 @@ function IosCanvas({
   const trainingScenarioScore = scoreTrainingScenario(session)
   const scenarioScore = trainingScenarioScore.score
   const nextScenarioTask = trainingScenarioScore.taskResults.find((task) => !task.complete)
+  const scenarioIsIdle = activeScenarioDefinition.tasks.length === 0
   const cuePrimary = nextScenarioTask
     ? `Next: ${nextScenarioTask.label}`
-    : activeScenarioDefinition.tasks.length > 0
-      ? 'All scenario tasks complete.'
-      : activeScenarioDefinition.objective
+    : scenarioIsIdle
+      ? 'No scenario armed.'
+      : 'All scenario tasks complete.'
   const cueSecondary = nextScenarioTask
     ? `${nextScenarioTask.monitor} | ${nextScenarioTask.weight}%`
-    : activeScenarioDefinition.target
+    : scenarioIsIdle
+      ? 'Choose a scenario below or in Scenario setup.'
+      : 'Press Complete, then open the Report.'
   const noticeFill = session.scenarioNotice.tone === 'warning'
     ? '#ff0000'
     : session.scenarioNotice.tone === 'success'
       ? '#008000'
       : '#000080'
-  const noticeText = session.scenarioNotice.text.length > 68
-    ? `${session.scenarioNotice.text.slice(0, 65)}...`
-    : session.scenarioNotice.text
+  const noticeLines = wrapIosText(session.scenarioNotice.text, 76, 2)
+  const checklistSpacing = Math.min(42, 196 / Math.max(1, trainingScenarioScore.taskResults.length))
+  const checklistRowHeight = checklistSpacing - 6
   const iosTrainListRows = [...session.trains]
     .sort((left, right) => {
       const visibleRank = Number(right.lineMapVisible !== false) - Number(left.lineMapVisible !== false)
@@ -694,7 +700,7 @@ function IosCanvas({
         <text className="svg-ios-label" x="34" y="112">Active scenario</text>
         <rect x="34" y="126" width="336" height="32" fill="#ffffff" stroke="#404040" />
         <text className="svg-ios-value" x="44" y="148">{session.scenarioMode} - {session.activeScenario.title}</text>
-        <text className="svg-ios-label" x="34" y="174">{activeScenarioDefinition.objective.slice(0, 54)}</text>
+        {!scenarioIsIdle && <text className="svg-ios-label" x="34" y="174">Target: {activeScenarioDefinition.target}</text>}
         <rect x="34" y="184" width="336" height="46" fill="#ffffcc" stroke="#808000" />
         <text className="svg-ios-cue" x="44" y="203">{cuePrimary}</text>
         <text className="svg-ios-cue" x="44" y="219">{cueSecondary}</text>
@@ -702,6 +708,7 @@ function IosCanvas({
         <IosButton x={148} y={242} w={105} label="Withdraw" onClick={() => startTrainingScenario('TRAIN_WITHDRAWAL')} />
         <IosButton x={262} y={242} w={100} label="Door Fault" onClick={() => startTrainingScenario('DOOR_FAULT')} />
         <IosButton x={34} y={282} w={105} label="Reset" onClick={() => resetSession(session.trainingMode)} />
+        <IosButton x={148} y={282} w={105} label="PSD Fault" onClick={() => startTrainingScenario('PSD_FAULT')} />
       </IosPanel>
 
       <IosPanel x={430} y={60} w={396} h={250} title="TRAIN CONTROL">
@@ -730,30 +737,32 @@ function IosCanvas({
       </IosPanel>
 
       <IosPanel x={14} y={330} w={580} h={330} title="OPERATOR CHECKLIST">
-        <rect x="34" y="348" width="526" height="24" fill={session.scenarioNotice.tone === 'warning' ? '#fff0f0' : '#f8f8f8'} stroke={noticeFill} />
-        <text className="svg-ios-notice" x="44" y="365" fill={noticeFill}>NOTICE: {noticeText}</text>
-        <text className="svg-ios-label" x="34" y="394">Scenario progress</text>
-        <rect x="164" y="380" width="290" height="20" fill="#ffffff" stroke="#000000" />
-        <rect x="166" y="382" width={Math.max(0, Math.min(286, scenarioScore * 2.86))} height="16" fill={scenarioScore === 100 ? '#00c800' : '#ffff00'} />
-        <text className="svg-ios-value" x="470" y="395">{scenarioScore}%</text>
+        <rect x="34" y="348" width="526" height="40" fill={session.scenarioNotice.tone === 'warning' ? '#fff0f0' : '#f8f8f8'} stroke={noticeFill} />
+        {noticeLines.map((line, index) => (
+          <text className="svg-ios-notice" x="44" y={364 + index * 16} fill={noticeFill} key={line}>{line}</text>
+        ))}
+        <text className="svg-ios-label" x="34" y="414">Scenario progress</text>
+        <rect x="164" y="400" width="290" height="20" fill="#ffffff" stroke="#000000" />
+        <rect x="166" y="402" width={Math.max(0, Math.min(286, scenarioScore * 2.86))} height="16" fill={scenarioScore === 100 ? '#00c800' : '#ffff00'} />
+        <text className="svg-ios-value" x="470" y="415">{scenarioScore}%</text>
         {trainingScenarioScore.taskResults.map((task, index) => {
           const complete = task.complete
-          const y = 438 + index * 42
+          const top = 432 + index * checklistSpacing
+          const textY = top + (checklistRowHeight / 2) + 5
 
           return (
             <g key={task.id}>
-              <rect x="34" y={y - 24} width="526" height="34" fill={complete ? '#d8ffd8' : '#ffffff'} stroke="#808080" />
-              <rect x="48" y={y - 16} width="16" height="16" fill={complete ? '#00c800' : '#c0c0c0'} stroke="#000" />
-              {complete && <text className="svg-ios-value" x="50" y={y - 3}>OK</text>}
-              <text className="svg-ios-value" x="78" y={y - 4}>{task.label}</text>
-              <text className="svg-ios-label" x="380" y={y - 4}>{task.monitor}</text>
+              <rect x="34" y={top} width="526" height={checklistRowHeight} fill={complete ? '#d8ffd8' : '#ffffff'} stroke="#808080" />
+              <rect x="48" y={textY - 13} width="16" height="16" fill={complete ? '#00c800' : '#c0c0c0'} stroke="#000" />
+              {complete && <text className="svg-ios-value" x="50" y={textY}>OK</text>}
+              <text className="svg-ios-value" x="78" y={textY}>{task.label}</text>
+              <text className="svg-ios-label" x="380" y={textY}>{task.monitor}</text>
             </g>
           )
         })}
       </IosPanel>
 
-      <IosPanel x={614} y={330} w={646} h={330} title="TRAIN LIST">
-        <text className="svg-ios-label" x="638" y="362">{session.trains.length} trains loaded from NEL_OTES_Weekday_03</text>
+      <IosPanel x={614} y={330} w={646} h={330} title={`TRAIN LIST - ${session.trains.length} trains - ${session.timetableName}`}>
         {iosTrainListRows.map((train, index) => (
           <g
             className="svg-clickable"
@@ -786,7 +795,7 @@ function IosCanvas({
             <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="14" y="19">TRN {train.id}</text>
             <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="120" y="19">{train.service}</text>
             <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="220" y="19">{train.status}</text>
-            <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="330" y="19">X {Math.round(train.x)}</text>
+            <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="330" y="19">{train.scheduleNumber ? `Sched ${train.scheduleNumber}` : ''}</text>
           </g>
         ))}
       </IosPanel>
@@ -811,7 +820,7 @@ function IosCanvas({
             active={session.scenarioMode !== 'IDLE'}
             current={session.scenarioMode === 'IDLE'}
             label="00"
-            text="Arm Launch, Withdraw, or Door Fault to start IOS scoring"
+            text="No scenario armed"
           />
         )}
       </IosPanel>
@@ -831,6 +840,33 @@ function IosCanvas({
       <CommonFooterSvg active="ADMIN" leftMode="Train" status={`${trainingMode.label} | IOS TRN ${selectedTrain.id} ${selectedTrain.status}`} />
     </svg>
   )
+}
+
+// SVG text does not wrap, so split IOS notices on word boundaries.
+function wrapIosText(text: string, maxChars: number, maxLines: number) {
+  const lines: string[] = []
+  let current = ''
+
+  text.split(/\s+/).filter(Boolean).forEach((word) => {
+    if (current && `${current} ${word}`.length > maxChars) {
+      lines.push(current)
+      current = word
+    } else {
+      current = current ? `${current} ${word}` : word
+    }
+  })
+
+  if (current) {
+    lines.push(current)
+  }
+
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines)
+    kept[maxLines - 1] = `${kept[maxLines - 1].slice(0, maxChars - 3)}...`
+    return kept
+  }
+
+  return lines
 }
 
 function IosPanel({
@@ -1015,6 +1051,7 @@ function TrainInspectorPanel({
   onConfirmArrivalTime,
   onConfirmDepartureTime,
   onConfirmDoorCommand,
+  onConfirmTrainHold,
   onConfirmReadiness,
   onOpenDetails,
   onPageChange,
@@ -1030,6 +1067,7 @@ function TrainInspectorPanel({
   onConfirmArrivalTime: (selection: TrainTimeSelection) => void
   onConfirmDepartureTime: (selection: TrainTimeSelection) => TrainDepartureCommandResult
   onConfirmDoorCommand: (command: TrainDoorCommand) => void
+  onConfirmTrainHold: (detail: string) => void
   onConfirmReadiness: (command: string) => void
   onOpenDetails: () => void
   onPageChange: (page: InspectorPage) => void
@@ -1762,7 +1800,13 @@ function TrainInspectorPanel({
         <TrainHoldDialog
           currentDirection={currentDirection}
           key={`${train.id}-${currentDirection}-train-hold`}
-          onApply={(message) => setStatusMessage(message)}
+          onApply={(message) => {
+            setStatusMessage(message)
+
+            if (message.startsWith('Train hold request')) {
+              onConfirmTrainHold(message.split('\n')[0])
+            }
+          }}
           onClose={closeTrainControlDialog}
           train={train}
         />
@@ -1799,6 +1843,8 @@ function MonitorCanvas({
   const [defineRouteSignal, setDefineRouteSignal] = useState<LineMapSignalData | null>(null)
   const [signalMenu, setSignalMenu] = useState<SignalMenuState | null>(null)
   const [trainMenu, setTrainMenu] = useState<{ trainId: string; x: number; y: number } | null>(null)
+  const [commsChannel, setCommsChannel] = useState<CommsChannel | null>(null)
+  const callLog = useMemo(() => getCommsLog(session.evidenceLog), [session.evidenceLog])
   const {
     lineMapRouteSegmentOverrides,
     routeControlModes,
@@ -2425,6 +2471,29 @@ function MonitorCanvas({
     })
   }
 
+  const confirmInspectorTrainHold = (trainId: string, detail: string) => {
+    const eventRow = createMonitorEvent(trainId, `Train ${trainId}: Train Hold`, 'APPLIED', 'yellow')
+
+    updateSession((current) => applyTrainingScenarioRuntimeEvent({
+      ...current,
+      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
+      evidenceLog: appendScenarioEvidence(
+        current.evidenceLog,
+        createScenarioEvidence('Monitor 02 Line Map', 'Train Hold', 'accepted', detail),
+      ),
+      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
+      selectedTrainId: trainId,
+      timetableRows: upsertTimetableRow(current.timetableRows, trainId, 'H>'),
+      trains: current.trains.map((train) => (
+        train.id === trainId ? { ...train, isMoving: false, status: 'HOLD' as const } : train
+      )),
+    }, {
+      source: 'Monitor 02 Line Map',
+      trainId,
+      type: 'TRAIN_HOLD_APPLIED',
+    }).next)
+  }
+
   const animateTrainDepartureRoute = useCallback((
     trainId: string,
     arrivalDestinationsOverride?: Record<string, TrainTimeSelection>,
@@ -2784,8 +2853,16 @@ function MonitorCanvas({
         return guard.next
       }
 
+      const scenarioNext = command === 'HOLD'
+        ? applyTrainingScenarioRuntimeEvent(guard.next, {
+            source: 'Monitor 02 Line Map',
+            trainId: targetTrain.id,
+            type: 'TRAIN_HOLD_APPLIED',
+          }).next
+        : guard.next
+
       return {
-        ...guard.next,
+        ...scenarioNext,
         alarmSummaryRows: [summaryRow, ...current.alarmSummaryRows].slice(0, 12),
         eventRows: [eventRow, ...current.eventRows].slice(0, 4),
         lineMap: updateLineMapRouteState(
@@ -2913,10 +2990,15 @@ function MonitorCanvas({
       <LineMapMonitorDom
         alarmNotAcknowledged={alarmNotAcknowledged}
         alarmTotal={alarmTotal}
+        callLog={callLog}
         lineMap={renderedLineMap}
+        psdFaultPlatform={session.scenarioMode === 'RUNNING'
+          ? getTrainingScenarioDefinition(session.activeScenario.id).fault?.platform
+          : undefined}
         onCommand={requestTrainCommand}
         onInspectTrain={(trainId) => openTrainInspector(trainId, 'information')}
         onNavigate={onNavigate}
+        onOpenComms={setCommsChannel}
         onOpenSignalMenu={openSignalContextMenu}
         onOpenTrainMenu={openTrainContextMenu}
         onPanBy={panBy}
@@ -2942,6 +3024,15 @@ function MonitorCanvas({
         trainOccupancyRouteSegments={trainOccupancyRouteSegments}
         trains={renderedTrains}
       >
+        {commsChannel && (
+          <CommsDialog
+            channel={commsChannel}
+            onClose={() => setCommsChannel(null)}
+            onSend={(request) => updateSession((current) => applyCommsRequest(current, request))}
+            selectedTrainId={session.selectedTrainId}
+            trainIds={session.trains.map((train) => train.id)}
+          />
+        )}
         {trainMenu && menuTrain && (
           <TrainContextMenu
             onClose={() => setTrainMenu(null)}
@@ -3217,6 +3308,7 @@ function MonitorCanvas({
             return animateTrainDepartureRoute(inspectorTrain.id, arrivalDestinationsForDeparture)
           }}
           onConfirmDoorCommand={(command) => confirmInspectorDoorCommand(inspectorTrain.id, command)}
+          onConfirmTrainHold={(detail) => confirmInspectorTrainHold(inspectorTrain.id, detail)}
           onConfirmReadiness={(command) => confirmInspectorReadiness(inspectorTrain.id, command)}
           onOpenDetails={() => showItamaForTrain(inspectorTrain.id)}
           onPageChange={(page) => setInspectorPanel({ ...inspectorPanel, page })}

@@ -409,7 +409,8 @@ function createScenarioEvidence(source, action, result, detail) {
 }
 
 function appendScenarioEvidence(current, evidence) {
-  return [evidence, ...(current ?? [])].slice(0, 24)
+  // Large enough to keep every scored action from a full incident, including calls.
+  return [evidence, ...(current ?? [])].slice(0, 120)
 }
 
 function createEmptyScenarioTasks() {
@@ -464,7 +465,10 @@ function getScenarioTaskBlocker(tasks, taskId, activeScenarioId, targetTrainId) 
       return 'Acknowledge the door fault before dispatch.'
     }
 
-    if (!currentTasks.setRoute) {
+    // SOP fault variants release the held train with IDT, without a new route.
+    const releasesWithoutRoute = /^(door-fault-|psd-fault-)/.test(activeScenarioId ?? '')
+
+    if (!currentTasks.setRoute && !releasesWithoutRoute) {
       // Dispatch before route is the main wrong-sequence behavior to prevent.
       return 'Apply route command before dispatch.'
     }

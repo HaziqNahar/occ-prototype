@@ -13,7 +13,8 @@ const server = await createServer({
 try {
   const { createTimetableRouteAuditReport } = await server.ssrLoadModule('/scripts/audit-timetable-routes.ts')
 
-  console.log(createTimetableRouteAuditReport())
+  // Optional argument selects the timetable, e.g. NEL_OTES_Weekday_04.
+  console.log(createTimetableRouteAuditReport(process.argv[2]))
 } finally {
   await server.close()
 }

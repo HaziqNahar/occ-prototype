@@ -4,9 +4,12 @@ import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SelectField from '../components/SelectField'
 import SessionRunway from '../components/SessionRunway'
+import { nelTimetableOptions } from '../data/nelTimetable'
+import type { NelTimetableName } from '../data/nelTimetable'
 import { scenarioTemplates } from '../scenarioLibrary'
 import { appendScenarioEvidence, createEmptyScenarioTasks, createScenarioEvidence } from '../scenario'
-import { createTrainingScenarioStartSession } from '../trainingScenarios'
+import { createResetSessionState } from '../sessionState'
+import { createTrainingScenarioStartSession, findTrainingScenarioDefinition } from '../trainingScenarios'
 import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
 
 type ScenarioBuilderScreenProps = {
@@ -25,11 +28,36 @@ const visibleScenarioTemplateIds = new Set([
   'train-launch',
   'train-withdrawal',
   'door-fault',
+  'psd-fault',
 ])
 
 const visibleScenarioTemplates = scenarioTemplates.filter((scenario) => (
   visibleScenarioTemplateIds.has(scenario.id)
 ))
+
+const draftStorageKey = 'occ.scenario-setup.draft.v1'
+
+type ScenarioDraft = {
+  selectedScenarioId: string
+  trainingMode: TrainingMode
+  customDuration: string
+  selectedIncident: string
+}
+
+function readDraft(): ScenarioDraft | null {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(draftStorageKey) ?? 'null')
+    if (!raw || typeof raw !== 'object') return null
+    const draft = raw as Partial<ScenarioDraft>
+    const template = visibleScenarioTemplates.find((item) => item.id === draft.selectedScenarioId)
+    if (!template || !trainingModeOptions.some((mode) => mode.value === draft.trainingMode)
+      || typeof draft.customDuration !== 'string' || !/^\d{2}:[0-5]\d$/.test(draft.customDuration)
+      || draft.customDuration === '00:00' || typeof draft.selectedIncident !== 'string' || !template.incidents.includes(draft.selectedIncident)) return null
+    return draft as ScenarioDraft
+  } catch {
+    return null
+  }
+}
 
 function formatScenarioTime() {
   const now = new Date()
@@ -65,12 +93,32 @@ function createSummaryEvent(event: MonitorAlarmRow, tone: AlarmSummaryRow['tone'
 }
 
 function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioBuilderScreenProps) {
-  const [selectedScenarioId, setSelectedScenarioId] = useState(scenarioTemplates[0].id)
-  const [trainingMode, setTrainingMode] = useState<TrainingMode>(session.trainingMode)
-  const [customDuration, setCustomDuration] = useState(scenarioTemplates[0].duration)
-  const [selectedIncident, setSelectedIncident] = useState(scenarioTemplates[0].incidents[0])
-  const [builderNote, setBuilderNote] = useState('Scenario builder ready. Select a template and load it into IOS.')
+  const [draft] = useState(readDraft)
+  const [selectedScenarioId, setSelectedScenarioId] = useState(draft?.selectedScenarioId ?? visibleScenarioTemplates[0].id)
+  const [trainingMode, setTrainingMode] = useState<TrainingMode>(draft?.trainingMode ?? session.trainingMode)
+  const [customDuration, setCustomDuration] = useState(draft?.customDuration ?? visibleScenarioTemplates[0].duration)
+  const [selectedIncident, setSelectedIncident] = useState(draft?.selectedIncident ?? visibleScenarioTemplates[0].incidents[0])
+  const [timetableName, setTimetableName] = useState<NelTimetableName>(session.timetableName)
+  const timetableChanges = timetableName !== session.timetableName
+  const selectedTimetable = nelTimetableOptions.find((option) => option.value === timetableName) ?? nelTimetableOptions[0]
+  const [builderNote, setBuilderNote] = useState(draft ? 'Saved draft restored.' : '')
   const selectedScenario = scenarioTemplates.find((scenario) => scenario.id === selectedScenarioId) ?? scenarioTemplates[0]
+  // Fault scenarios have one SOP variant per incident, so show that variant's own steps.
+  const selectedDefinition = selectedScenario.trainingScenarioKind
+    ? findTrainingScenarioDefinition(selectedScenario.trainingScenarioKind, selectedIncident)
+    : undefined
+  const operatorSteps = selectedDefinition?.tasks.map((task) => task.label) ?? selectedScenario.expectedSteps
+
+  const durationIsValid = /^\d{2}:[0-5]\d$/.test(customDuration) && customDuration !== '00:00'
+  const saveDraft = () => {
+    if (!durationIsValid) return
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify({ selectedScenarioId, trainingMode, customDuration, selectedIncident }))
+      setBuilderNote('Draft saved in this browser.')
+    } catch {
+      setBuilderNote('Could not save the draft. Browser storage is unavailable.')
+    }
+  }
 
   const selectScenario = (scenarioId: string) => {
     const nextScenario = scenarioTemplates.find((scenario) => scenario.id === scenarioId) ?? scenarioTemplates[0]
@@ -78,17 +126,24 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
     setSelectedScenarioId(nextScenario.id)
     setCustomDuration(nextScenario.duration)
     setSelectedIncident(nextScenario.incidents[0])
-    setBuilderNote(`${nextScenario.title} selected for configuration.`)
+    setBuilderNote('')
   }
 
   const loadScenarioToIos = () => {
+    if (!durationIsValid) return
     const event = createBuilderEvent(`Scenario loaded: ${selectedScenario.title}`, trainingMode, 'yellow')
 
-    updateSession((current) => {
+    updateSession((loaded) => {
+      // A different timetable changes the train roster, so start from a clean session.
+      const current = loaded.timetableName === timetableName
+        ? loaded
+        : createResetSessionState(trainingMode, Date.now(), (loaded.scenarioRevision ?? 0) + 1, timetableName)
+
       if (selectedScenario.trainingScenarioKind) {
         const armed = createTrainingScenarioStartSession(
           { ...current, trainingMode },
           selectedScenario.trainingScenarioKind,
+          selectedIncident,
         )
 
         return {
@@ -190,128 +245,119 @@ function ScenarioBuilderScreen({ onNavigate, session, updateSession }: ScenarioB
 
   return (
     <main
-      className="module-tool-shell"
+      className="module-tool-shell scenario-setup-shell"
       style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
     >
       <header className="module-tool-header">
         <div className="module-tool-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
-            <p>IOS Scenario Management</p>
-            <h1>Scenario Builder</h1>
-            <span>{selectedScenario.status} | {trainingMode}</span>
+            <p>Instructor station</p>
+            <h1>Scenario setup</h1>
           </div>
         </div>
         <div className="module-tool-actions">
           <button type="button" onClick={() => onNavigate('/ios/modules')}>IOS Modules</button>
-          <button type="button" onClick={() => onNavigate('/ios/assessment')}>Assessment Rubric</button>
           <button type="button" onClick={() => onNavigate('/ios')}>Open IOS</button>
         </div>
       </header>
 
-      <SessionRunway session={session} />
-
       <section className="scenario-builder-layout">
-        <aside className="scenario-library-panel">
-          <p className="module-eyebrow">Scenario Library</p>
-          <h2>Available Templates</h2>
+        <aside className="scenario-library-panel" aria-labelledby="scenario-choice-heading">
+          <p className="module-eyebrow">Step 1</p>
+          <h2 id="scenario-choice-heading">Choose scenario</h2>
           <div className="scenario-template-list">
             {visibleScenarioTemplates.map((scenario) => (
               <button
                 type="button"
+                aria-pressed={scenario.id === selectedScenario.id}
                 className={scenario.id === selectedScenario.id ? 'is-selected' : ''}
                 onClick={() => selectScenario(scenario.id)}
                 key={scenario.id}
               >
                 <strong>{scenario.title}</strong>
-                <span>{scenario.status}</span>
-                <em>{scenario.duration} target</em>
+                <span>{scenario.objective}</span>
               </button>
             ))}
           </div>
         </aside>
 
-        <section className="scenario-config-panel">
-          <div className="scenario-config-hero">
-            <div>
-              <p className="module-eyebrow">Selected Scenario</p>
-              <h2>{selectedScenario.title}</h2>
-              <p>{selectedScenario.objective}</p>
-            </div>
-            <div className="scenario-target-card">
-              <span>Target</span>
-              <strong>{selectedScenario.target}</strong>
-              <small>{selectedScenario.passCondition}</small>
-            </div>
-          </div>
-
+        <section className="scenario-config-panel" aria-labelledby="scenario-settings-heading">
+          <p className="module-eyebrow">Step 2</p>
+          <h2 id="scenario-settings-heading">Set conditions</h2>
           <div className="scenario-config-grid">
             <label>
               <span>Training mode</span>
-              <SelectField
-                ariaLabel="Training mode"
-                value={trainingMode}
-                options={trainingModeOptions}
-                onChange={setTrainingMode}
-              />
+              <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={(value) => { setTrainingMode(value); setBuilderNote('') }} />
             </label>
             <label>
-              <span>Rectification target</span>
-              <input value={customDuration} onChange={(event) => setCustomDuration(event.target.value)} />
-            </label>
-            <label>
-              <span>Incident preview</span>
-              <SelectField
-                ariaLabel="Incident preview"
-                value={selectedIncident}
-                options={selectedScenario.incidents.map((incident) => ({ label: incident, value: incident }))}
-                onChange={setSelectedIncident}
+              <span>Time target (mm:ss)</span>
+              <input
+                value={customDuration}
+                aria-invalid={!durationIsValid}
+                aria-describedby={!durationIsValid ? 'scenario-duration-error' : undefined}
+                onChange={(event) => { setCustomDuration(event.target.value); setBuilderNote('') }}
               />
             </label>
           </div>
-
-          <div className="scenario-detail-grid">
-            <article>
-              <h3>Affected monitors</h3>
-              <div className="scenario-pill-row">
-                {selectedScenario.affectedMonitors.map((monitor) => (
-                  <span key={monitor}>{monitor}</span>
-                ))}
-              </div>
-            </article>
-            <article>
-              <h3>Incident list</h3>
-              <div className="scenario-pill-row">
-                {selectedScenario.incidents.map((incident) => (
-                  <span key={incident}>{incident}</span>
-                ))}
-              </div>
-            </article>
+          {!durationIsValid && <p id="scenario-duration-error" role="alert">Enter a target from 00:01 to 99:59.</p>}
+          <div className="scenario-config-grid">
+            <label>
+              <span>Timetable</span>
+              <SelectField
+                ariaLabel="Timetable"
+                value={timetableName}
+                options={nelTimetableOptions.map((option) => ({ label: `${option.label} (from ${option.effectiveFrom})`, value: option.value }))}
+                onChange={(value) => { setTimetableName(value); setBuilderNote('') }}
+              />
+            </label>
+            {selectedScenario.incidents.length > 1 && (
+              <label>
+                <span>Incident</span>
+                <SelectField ariaLabel="Incident" value={selectedIncident} options={selectedScenario.incidents.map((incident) => ({ label: incident, value: incident }))} onChange={(value) => { setSelectedIncident(value); setBuilderNote('') }} />
+              </label>
+            )}
           </div>
 
-          <article className="scenario-steps-panel">
-            <h3>Expected operator steps</h3>
-            {selectedScenario.expectedSteps.map((step, index) => (
-              <div className="scenario-step-row" key={step}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <p>{step}</p>
-              </div>
-            ))}
-          </article>
+          <section className="scenario-setup-review" aria-labelledby="scenario-review-heading">
+            <p className="module-eyebrow">Step 3</p>
+            <h2 id="scenario-review-heading">Review and load</h2>
+            <dl className="scenario-setup-summary">
+              <div><dt>Scenario</dt><dd>{selectedScenario.title}</dd></div>
+              <div><dt>Mode / target time</dt><dd>{trainingModeOptions.find((mode) => mode.value === trainingMode)?.label} / {customDuration}</dd></div>
+              <div><dt>Location / train</dt><dd>{selectedDefinition?.target ?? selectedScenario.target}</dd></div>
+              <div><dt>Monitors</dt><dd>{selectedScenario.affectedMonitors.join(', ')}</dd></div>
+              <div><dt>Timetable</dt><dd>{selectedTimetable.label}</dd></div>
+            </dl>
+            <p className="scenario-setup-hint">
+              {timetableChanges
+                ? `Loading switches the session to ${selectedTimetable.label} and resets all trains.`
+                : 'Loading starts the scenario in the current session.'}
+            </p>
+            <div className="scenario-builder-actions">
+              <button type="button" disabled={!durationIsValid} onClick={loadScenarioToIos}>Load Scenario to IOS</button>
+              <button type="button" disabled={!durationIsValid} className="scenario-save-draft" onClick={saveDraft}>Save Draft</button>
+            </div>
+            <p className="scenario-setup-status" role="status">{builderNote}</p>
+          </section>
 
-          <div className="scenario-builder-actions">
-            <button type="button" onClick={loadScenarioToIos}>Load Scenario to IOS</button>
-            <button type="button" onClick={pushIncidentPreview}>Push Incident Preview</button>
-            <button type="button" onClick={() => setBuilderNote('Template duplicated.')}>Duplicate Template</button>
-            <button type="button" onClick={() => setBuilderNote('Scenario draft saved locally.')}>Save Draft</button>
-          </div>
-
-          <div className="scenario-builder-note">
-            <strong>Builder note</strong>
-            <span>{builderNote}</span>
-          </div>
+          <details className="scenario-setup-details" key={selectedScenario.id}>
+            <summary>Operator steps and assessment</summary>
+            <p>{selectedScenario.passCondition}</p>
+            <ol>{operatorSteps.map((step) => <li key={step}>{step}</li>)}</ol>
+            <button type="button" onClick={() => onNavigate('/ios/assessment')}>View assessment rubric</button>
+          </details>
+          <details className="scenario-setup-details">
+            <summary>Incident preview</summary>
+            <p>Add “{selectedIncident}” to the live event feed.</p>
+            <button type="button" disabled={!durationIsValid} onClick={pushIncidentPreview}>Push Incident Preview</button>
+          </details>
         </section>
       </section>
+      <details className="scenario-setup-details scenario-session-details">
+        <summary>Current session: {session.activeScenario.title} · {session.scenarioMode}</summary>
+        <SessionRunway session={session} />
+      </details>
     </main>
   )
 }

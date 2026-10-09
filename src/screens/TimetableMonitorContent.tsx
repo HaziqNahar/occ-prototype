@@ -3,12 +3,12 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { ScadaDomButton } from '../components/LegacyScadaFooter'
 import ScadaDomSurface from '../components/ScadaDomSurface'
 import ScadaFooter from '../components/ScadaFooter'
-import { NEL_TIMETABLE_NAME } from '../data/nelTimetable'
+import TimetableRegulationGraph from '../components/TimetableRegulationGraph'
 import { getLineMapRouteStatus, updateLineMapRouteState } from './line-map/lineMapRouteState'
 import { completeScenarioTask, createMonitorEvent, createSummaryEvent, submitBackendScenarioAction } from '../scenarioWorkflow'
 import { applyTrainingScenarioTrainSelection, getTrainingScenarioTrainActionDetail } from '../trainingScenarios'
-import { formatTimetableClockTime } from '../timetableClockState'
-import { getActiveTimetableView, getTimetableRowsForStation, getTimetableStationOptions, getTimetableViewRows } from '../timetableViewState'
+import { formatTimetableClockTime, getTimetableClockNow } from '../timetableClockState'
+import { getActiveTimetableView, getTimetableStationOptions, getTimetableViewRows } from '../timetableViewState'
 import type { MonitorAlarmRow, ScenarioTaskId, TrainStatus } from '../types'
 import type { MonitorScreenProps } from './monitorScreenTypes'
 export default function TimetableMonitorContent({
@@ -25,16 +25,12 @@ export default function TimetableMonitorContent({
   )
   const activeStation = timetableView.station
   const direction = timetableView.direction
-  const rowsForStation = useMemo(
-    () => getTimetableRowsForStation(session.timetableRows, activeStation),
-    [activeStation, session.timetableRows],
-  )
   const rows = useMemo(
     () => getTimetableViewRows(session.timetableRows, timetableView),
     [session.timetableRows, timetableView],
   )
   const [scrollState, setScrollState] = useState({ clientHeight: 0, max: 0, scrollHeight: 0, top: 0 })
-  const loadedTimeTableName = NEL_TIMETABLE_NAME
+  const loadedTimeTableName = session.timetableName
   const [actionNote, setActionNote] = useState('')
   const selectedRowIndex = rows.length > 0 ? Math.min(selectedIndex, rows.length - 1) : -1
   const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : undefined
@@ -249,6 +245,7 @@ export default function TimetableMonitorContent({
       className="scada-dom-root--timetable"
       title={`${actionNote || `Loaded time table ${loadedTimeTableName}`} | ${selectedRow ? `TRN ${selectedRow.train} ${direction}` : 'TRN --'}`}
     >
+      <TimetableRegulationGraph now={getTimetableClockNow(session.timetableClock)} rows={session.timetableRows} />
       <div className="timetable-dom-title-strip">Traffic current time table</div>
       <section className="timetable-dom-panel">
         <div className="timetable-dom-filters">
@@ -273,9 +270,6 @@ export default function TimetableMonitorContent({
             <label><input checked={direction === 'NB'} onChange={() => setDirectionFilter('NB')} type="radio" /> NB</label>
             <label><input checked={direction === 'SB'} onChange={() => setDirectionFilter('SB')} type="radio" /> SB</label>
           </fieldset>
-          <output className="timetable-dom-filter-summary">
-            {rows.length} {direction} rows shown / {rowsForStation.length} {activeStation} rows loaded
-          </output>
           <output className="timetable-dom-clock-summary">
             {timetableClockModeLabel} {timetableClockTime}
           </output>

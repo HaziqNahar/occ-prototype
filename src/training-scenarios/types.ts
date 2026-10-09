@@ -5,10 +5,17 @@ import type {
   ScenarioTaskId,
 } from '../types'
 
-export type TrainingScenarioKind = 'TRAIN_LAUNCH' | 'TRAIN_WITHDRAWAL' | 'DOOR_FAULT'
+export type TrainingScenarioKind = 'TRAIN_LAUNCH' | 'TRAIN_WITHDRAWAL' | 'DOOR_FAULT' | 'PSD_FAULT'
 
 export type TrainingScenarioTaskDefinition = {
+  // Comms catalog message ids that must all be logged from the Calls panel.
+  commsMessageIds?: readonly string[]
+  // Completed when the target train is held (line-map HII command or Train Hold dialog).
+  completesOnHold?: boolean
   critical?: boolean
+  // Completed by a confirmed train door command with one of these labels or summary statuses.
+  doorCommandLabels?: readonly string[]
+  doorSummaryStatuses?: readonly string[]
   evidenceKeywords?: readonly string[]
   id: string
   label: string
@@ -18,9 +25,23 @@ export type TrainingScenarioTaskDefinition = {
   weight: number
 }
 
+// The incident raised on the GWS when a fault scenario is armed.
+export type TrainingScenarioFault = {
+  alarm: {
+    asset: string
+    description: string
+    value: string
+  }
+  // Platform whose PSD indicator shows the fault on the line map.
+  platform?: { station: string; track: 'NB' | 'SB' }
+  // Puts the target train's saloon doors into FAULT_ALARM for the door command flow.
+  trainDoorFault?: boolean
+}
+
 export type TrainingScenarioDefinition = {
   defaultTargetTrainId: string
   duration: string
+  fault?: TrainingScenarioFault
   id: string
   incident: string
   kind: TrainingScenarioKind
@@ -67,6 +88,7 @@ export type TrainingScenarioRuntimeEvent =
   | { routeLabel?: string; source: string; trainId: string; type: 'DEPARTURE_TIME_CONFIRMED' }
   | { routeLabel: string; source: string; trainId: string; type: 'DEPOT_ENDPOINT_REACHED' }
   | { source: string; trainId: string; type: 'ALARM_ACKNOWLEDGED' }
+  | { source: string; trainId: string; type: 'TRAIN_HOLD_APPLIED' }
   | { commandLabel: string; source: string; summaryStatus: string; trainId: string; type: 'DOOR_COMMAND_CONFIRMED' }
   | { source: string; type: 'SCENARIO_REVIEWED' }
 

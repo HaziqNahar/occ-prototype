@@ -235,7 +235,10 @@ export function getScenarioTaskBlocker(
       return 'Acknowledge the door fault before dispatch.'
     }
 
-    if (!currentTasks.setRoute) {
+    // SOP fault variants release the held train with IDT, without a new route.
+    const releasesWithoutRoute = /^(door-fault-|psd-fault-)/.test(activeScenarioId ?? '')
+
+    if (!currentTasks.setRoute && !releasesWithoutRoute) {
       return 'Apply route command before dispatch.'
     }
   }

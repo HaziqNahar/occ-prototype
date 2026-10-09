@@ -75,11 +75,23 @@ export type {
   TrainingScenarioWorkflowAction,
 } from './training-scenarios/types'
 
+// Fault scenarios have one definition per incident (e.g. EHS activation, PSD obstructed).
+export function findTrainingScenarioDefinition(kind: TrainingScenarioKind, incident?: string) {
+  const normalizedIncident = incident?.trim().toLowerCase()
+
+  return (normalizedIncident
+    ? trainingScenarioDefinitions.find((item) => item.kind === kind && item.incident.toLowerCase() === normalizedIncident)
+    : undefined)
+    ?? trainingScenarioDefinitions.find((item) => item.kind === kind)
+    ?? trainingScenarioDefinitions[1]
+}
+
 export function createTrainingScenarioStartSession(
   current: OccSessionState,
   kind: TrainingScenarioKind,
+  incident?: string,
 ) {
-  const definition = trainingScenarioDefinitions.find((item) => item.kind === kind) ?? trainingScenarioDefinitions[1]
+  const definition = findTrainingScenarioDefinition(kind, incident)
   const targetTrainId = getInitialTrainingScenarioTargetTrainId(current, definition)
   const displayTargetTrainId = targetTrainId
     ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
@@ -89,13 +101,27 @@ export function createTrainingScenarioStartSession(
     ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
       ? current.selectedTrainId
       : definition.defaultTargetTrainId)
-  const trains = revealTrainingScenarioTargetTrain(current.trains, targetTrainId)
-  const event = createMonitorEvent(
+  const trains = injectTrainingScenarioFault(
+    revealTrainingScenarioTargetTrain(current.trains, targetTrainId),
+    definition,
+    targetTrainId,
+  )
+  const armedEvent = createMonitorEvent(
     displayTargetTrainId,
     `IOS scenario armed: ${definition.title}`,
     'ARMED',
     'yellow',
   )
+  const faultEvent = definition.fault
+    ? {
+        ...createMonitorEvent(displayTargetTrainId, definition.fault.alarm.description, definition.fault.alarm.value, 'red'),
+        asset: definition.fault.alarm.asset,
+      }
+    : undefined
+  const events = faultEvent ? [faultEvent, armedEvent] : [armedEvent]
+  const summaryRows = faultEvent
+    ? [createSummaryEvent(faultEvent, 'red'), createSummaryEvent(armedEvent)]
+    : [createSummaryEvent(armedEvent)]
 
   return {
     ...current,
@@ -107,8 +133,8 @@ export function createTrainingScenarioStartSession(
       ...(targetTrainId ? { targetTrainId } : {}),
       title: definition.title,
     },
-    alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
-    eventRows: [event, ...current.eventRows].slice(0, 4),
+    alarmSummaryRows: [...summaryRows, ...current.alarmSummaryRows].slice(0, 12),
+    eventRows: [...events, ...current.eventRows].slice(0, 4),
     evidenceLog: appendScenarioEvidence(
       [],
       createScenarioEvidence(
@@ -132,6 +158,28 @@ export function createTrainingScenarioStartSession(
   }
 }
 
+// The fault train stops where it is; door faults also put its saloon doors into alarm.
+function injectTrainingScenarioFault(
+  trains: TrainState[],
+  definition: TrainingScenarioDefinition,
+  targetTrainId: string | undefined,
+): TrainState[] {
+  if (!definition.fault || !targetTrainId) {
+    return trains
+  }
+
+  return trains.map((train) => (
+    train.id === targetTrainId
+      ? {
+          ...train,
+          ...(definition.fault?.trainDoorFault ? { doorFailureState: 'FAULT_ALARM' as const } : {}),
+          isMoving: false,
+          status: 'HOLD' as const,
+        }
+      : train
+  ))
+}
+
 export function getTrainingScenarioArmNotice(definition: TrainingScenarioDefinition) {
   if (definition.kind === 'TRAIN_LAUNCH') {
     return `${definition.title} armed. Select an eligible SKG-origin timetable train to launch.`
@@ -139,6 +187,10 @@ export function getTrainingScenarioArmNotice(definition: TrainingScenarioDefinit
 
   if (definition.kind === 'TRAIN_WITHDRAWAL') {
     return `${definition.title} armed. Select a live timetable train to withdraw.`
+  }
+
+  if (definition.fault) {
+    return `${definition.title}: ${definition.fault.alarm.description}. Respond as per SOP.`
   }
 
   return `${definition.title} armed for Train ${definition.defaultTargetTrainId}.`
@@ -417,29 +469,37 @@ function getRuntimeEventTrainingTaskIds(
     }
   }
 
-  switch (event.type) {
-    case 'TRAIN_SELECTED':
-      return ['select-door-fault-train']
-    case 'ALARM_ACKNOWLEDGED':
-      return ['acknowledge-door-fault']
-    case 'DOOR_COMMAND_CONFIRMED':
-      return event.commandLabel === 'Confirm Closed/Locked' || event.summaryStatus === 'CLOSED/LOCKED'
-        ? ['apply-door-procedure']
-        : []
-    case 'ROUTE_SET':
-      return ['route-after-door-fault']
-    case 'SCENARIO_REVIEWED':
-      return ['review-door-fault-outcome']
-    default:
-      return []
-  }
+  // Fault scenarios: each task declares which live event completes it.
+  return getTrainingScenarioDefinition(session.activeScenario.id).tasks
+    .filter((task) => {
+      switch (event.type) {
+        case 'TRAIN_SELECTED':
+          return task.mappedTaskId === 'selectTrain'
+        case 'ALARM_ACKNOWLEDGED':
+          return task.mappedTaskId === 'ackAlarm'
+        case 'ROUTE_SET':
+          return task.mappedTaskId === 'setRoute'
+        case 'SCENARIO_REVIEWED':
+          return task.mappedTaskId === 'completeScenario'
+        case 'TRAIN_HOLD_APPLIED':
+          return task.completesOnHold === true
+        case 'DOOR_COMMAND_CONFIRMED':
+          return Boolean(
+            task.doorCommandLabels?.includes(event.commandLabel)
+            || task.doorSummaryStatuses?.includes(event.summaryStatus),
+          )
+        default:
+          return false
+      }
+    })
+    .map((task) => task.id)
 }
 
 function getRuntimeEventScenarioTaskIds(
   kind: TrainingScenarioKind,
   event: TrainingScenarioRuntimeEvent,
 ): readonly ScenarioTaskId[] {
-  if (kind === 'DOOR_FAULT' && event.type === 'DOOR_COMMAND_CONFIRMED' && event.commandLabel === 'Authorize Movement') {
+  if ((kind === 'DOOR_FAULT' || kind === 'PSD_FAULT') && event.type === 'DOOR_COMMAND_CONFIRMED' && event.commandLabel === 'Authorize Movement') {
     return ['dispatchTrain']
   }
 

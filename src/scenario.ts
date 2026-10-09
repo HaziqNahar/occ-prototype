@@ -34,7 +34,8 @@ export function appendScenarioEvidence(
   current: ScenarioEvidence[] | undefined,
   evidence: ScenarioEvidence,
 ) {
-  return [evidence, ...(current ?? [])].slice(0, 24)
+  // Large enough to keep every scored action from a full incident, including calls.
+  return [evidence, ...(current ?? [])].slice(0, 120)
 }
 
 export const scenarioTaskList: Array<{ id: ScenarioTaskId; label: string; monitor: string }> = [

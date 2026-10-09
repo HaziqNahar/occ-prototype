@@ -162,7 +162,8 @@ export function applyTimetablePlaybackStepState<T extends TrainMovementSessionSt
     lineMap: routePlaybackComplete
       ? completeTrainRoutePlaybackState(current.lineMap, plan.trainId, plan.routeSteps)
       : updateTrainRouteStepState(current.lineMap, plan.trainId, plan.routeSteps, stepIndex),
-    selectedTrainId: !routePlaybackComplete ? plan.trainId : current.selectedTrainId,
+    // Background timetable traffic must not take over the trainee's train selection.
+    selectedTrainId: current.selectedTrainId,
     trains: upsertTimetablePlaybackTrain(current.trains, plan, step, stepIndex, lastStepIndex, isStationStopped),
   }
 }

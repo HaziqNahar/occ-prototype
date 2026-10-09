@@ -1,3 +1,4 @@
+import { formatEvidenceDetail } from './comms/commsCatalog'
 import type { ScenarioEvidence } from './types'
 
 export type IosEvidenceCategory = 'trainee' | 'trainer' | 'system' | 'milestone'
@@ -95,6 +96,7 @@ export function categoriseScenarioEvidence(evidenceLog: ScenarioEvidence[]): Cat
       ...evidence,
       category,
       categoryLabel: getEvidenceCategoryLabel(category),
+      detail: formatEvidenceDetail(evidence.detail),
     }
   })
 }

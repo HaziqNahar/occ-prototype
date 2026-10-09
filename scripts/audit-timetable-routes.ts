@@ -1,4 +1,5 @@
-import { NEL_TIMETABLE_NAME, createNelTimetableRows } from '../src/data/nelTimetable'
+import { DEFAULT_NEL_TIMETABLE_NAME, createNelTimetableRows } from '../src/data/nelTimetable'
+import type { NelTimetableName } from '../src/data/nelTimetable'
 import {
   TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS,
 } from '../src/screens/line-map/lineMapRoutePaths'
@@ -22,8 +23,8 @@ export type TimetableRouteAudit = {
   unusedRoutePaths: readonly (typeof TIMETABLE_LINE_MAP_ROUTE_PATH_DEFINITIONS)[number][]
 }
 
-export function createTimetableRouteAudit(): TimetableRouteAudit {
-  const rows = createNelTimetableRows()
+export function createTimetableRouteAudit(timetable: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME): TimetableRouteAudit {
+  const rows = createNelTimetableRows({ timetable })
   const resolvedRows: Array<{ path: TimetableRailPathResolution; row: TimetableRow }> = []
   const unresolvedRows: TimetableRow[] = []
 
@@ -52,18 +53,18 @@ export function createTimetableRouteAudit(): TimetableRouteAudit {
   }
 }
 
-export function createTimetableRouteAuditReport() {
+export function createTimetableRouteAuditReport(timetable: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME) {
   const {
     coverages,
     resolvedRows,
     rows,
     unresolvedRows,
     unusedRoutePaths,
-  } = createTimetableRouteAudit()
+  } = createTimetableRouteAudit(timetable)
 
   return [
     'Traffic Timetable Route Audit',
-    `Timetable: ${NEL_TIMETABLE_NAME}`,
+    `Timetable: ${timetable}`,
     `Rows: ${rows.length}`,
     `Rows with station route: ${resolvedRows.length}`,
     `Rows without station route: ${unresolvedRows.length}`,

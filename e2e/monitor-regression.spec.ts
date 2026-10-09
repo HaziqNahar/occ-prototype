@@ -146,7 +146,9 @@ test.describe.serial('OCC monitor regressions', () => {
     const armButton = page.getByRole('button', { name: 'Arm Selected Scenario', exact: true })
     await expect(armButton).toHaveCount(1)
     await armButton.click()
-    await expect(page.getByText('Train Launch | Select train to launch', { exact: true })).toBeVisible()
+    const sessionStatus = page.getByRole('region', { name: 'Session status' })
+    await expect(sessionStatus.getByText('Train Launch', { exact: true })).toBeVisible()
+    await expect(sessionStatus.getByText('RUNNING', { exact: true })).toBeVisible()
 
     await page.goto('/screen/timetable')
     const launchRow = page.getByTestId('timetable-row-301-1000')

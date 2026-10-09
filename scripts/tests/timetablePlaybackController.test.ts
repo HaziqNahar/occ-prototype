@@ -144,8 +144,9 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   const updated = applyTimetablePlaybackStepSession(session, plan, plan.firstStepIndex)
 
   assert.equal(updated.timetableRows.find((row) => row.train === '312')?.state, '>')
-  assert.equal(updated.eventRows[0].message.includes('Timetable 001 auto route'), true)
-  assert.equal(updated.scenarioNotice.text, 'Timetable playback started for Train 312, schedule 001.')
+  assert.deepEqual(updated.eventRows, session.eventRows)
+  assert.deepEqual(updated.alarmSummaryRows, session.alarmSummaryRows)
+  assert.deepEqual(updated.scenarioNotice, session.scenarioNotice)
   assert.equal(updated.trains.find((train) => train.id === '312')?.timetablePlayback, true)
 }
 
@@ -281,7 +282,7 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   scheduledCallbacks[0].callback()
 
   assert.equal(session.timetableRows.find((row) => row.train === '312')?.state, '>')
-  assert.equal(session.eventRows[0].message.includes('Train 312'), true)
+  assert.equal(session.trains.find((train) => train.id === '312')?.timetablePlayback, true)
 }
 
 {

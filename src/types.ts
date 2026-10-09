@@ -1,3 +1,5 @@
+import type { NelTimetableName } from './data/nelTimetable'
+
 export type AppRoute =
   | '/'
   | '/login'
@@ -297,6 +299,7 @@ export type OccSessionState = {
   scenarioTasks: ScenarioTaskState
   selectedTrainId: string
   timetableClock: TimetableClockState
+  timetableName: NelTimetableName
   timetableRows: TimetableRow[]
   timetableView: TimetableViewState
   trainingMode: TrainingMode

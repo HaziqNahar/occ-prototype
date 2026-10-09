@@ -475,7 +475,8 @@ const manualRouteModes = { SKG: 'OCCM' as const, PGL: 'OCCM' as const, PGC: 'OCC
   assert.equal(first.lineMap.routeSegments['rail-stale'], undefined)
   assert.equal(first.lineMap.routeSegments['rail-618'].status, 'DISPATCHED')
   assert.equal(first.lineMap.routeSegments['rail-616'].status, 'DISPATCHED')
-  assert.equal(first.selectedTrainId, '312')
+  // Background timetable playback leaves the trainee's selection alone.
+  assert.equal(first.selectedTrainId, '')
   assert.equal(first.trains[0].lineMapVisible, true)
 
   const finalStepIndex = plan.steps.length - 1
