@@ -28,27 +28,48 @@ npm.cmd run dev:lan
 Other PCs open `http://<host-ip>:5173/`. Each page talks to the backend on the
 same host at port 8787, so allow ports 5173 and 8787 through the host firewall.
 
+### Accounts
+
+Everyone signs in. On the very first start the app asks for the **first
+trainer**, who becomes the admin. The admin adds the other trainers and the
+trainees on the **People** page (`/admin`): name, username, password and role.
+Passwords need at least 8 characters; five wrong passwords lock a username for
+30 seconds. Accounts are switched off, never deleted, so past runs keep their
+names.
+
+A sign-in is remembered by the browser for 7 days. On a monitor PC, signing in
+on the trainee page also signs in the three monitor windows; one person per
+browser at a time (use **Sign out** to change).
+
+If the admin cannot sign in, reset the password on the host PC:
+
+```powershell
+npm.cmd run reset:password -- <username> <new password>
+```
+
 ## How a Session Works
 
 | Page | Who | Purpose |
 | --- | --- | --- |
-| `/` | Everyone | Start page: choose **Trainer** or **Trainee**. Also opens the three monitors on a monitor PC. |
+| `/` | Everyone | Sign in (or set up the first trainer), then the start page for your role. Also opens the three monitors on a monitor PC. |
 | `/ios/modules` | Trainer | **Trainer Console**: pick a scenario and incident, set mode, time target and timetable, load it, watch the checklist and trainee activity, pause/complete/stop. Shows the session code, joined trainees and open monitors. |
-| `/session/join` | Trainee | Join with a name and the session code shown on the console, then open the monitors. Shows exercise status but never names the incident. |
+| `/session/join` | Trainee | Join with the session code shown on the console, then open the monitors. Shows exercise status but never names the incident. |
 | `/screen/alarms` | Trainee | Monitor 01: alarm summary and acknowledgement, Calls panel. |
 | `/screen/line-map` | Trainee | Monitor 02: SCADA line map, train commands (route, dispatch, HII hold), train inspector, Calls panel. |
 | `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
 | `/report` | Trainer | Post-session report: score, checklist, timeline, evidence log, trainer notes. |
+| `/admin` | Admin trainer | **People**: add trainers and trainees, reset passwords, switch accounts off, make admins. |
 
 `/ios`, `/ios/scenarios` and `/ios/assessment` are old addresses; they open the
 Trainer Console.
 
 ### Run-through
 
-1. Trainer opens `/`, chooses **Trainer**, and reads out the 4-character
-   session code (for example `K7M2`). **Reset whole session** issues a new code.
-2. Trainee opens `/` on their PC, chooses **Trainee**, joins with the code and
-   clicks **Open my monitors**.
+1. Trainer opens `/`, signs in, opens the Trainer Console and reads out the
+   4-character session code (for example `K7M2`). **Reset whole session**
+   issues a new code.
+2. Trainee opens `/` on their PC, signs in with their own account, joins with
+   the code and clicks **Open my monitors**.
 3. Trainer picks a scenario (for example **PSD Fault → Single PSD failed to
    close**) and clicks **Load scenario**.
 4. The trainee finds the incident alarm on Monitor 01, acknowledges it, selects
@@ -121,11 +142,16 @@ session rules in `src/` with the app (see `docs/production-plan.md`). It runs at
   refuses its train movement. The clock passes on when the owner window closes,
   or after 45 s without its heartbeat. Keep the owner window visible: browsers
   slow down timers in hidden tabs.
-- Loading, completing and resetting scenarios are trainer-only commands.
-- Each page acts as the trainer (Trainer Console, Report) or as the trainee who
-  joined on that PC (trainee page, monitors). Sign-in replaces this in phase 4.
-- Without a backend (`VITE_OCC_API_BASE=disabled`) commands apply in the page
-  only.
+- Every request except the health check and sign-in needs a signed-in account
+  (`Authorization: Bearer <token>`; the event stream takes `?token=`). Commands
+  act as that account, whatever the page sends, so the action log and evidence
+  name the real person.
+- Loading, completing and resetting scenarios, the action log and reports are
+  for trainers; managing people is for admin trainers.
+- Accounts (`server/auth.ts`): passwords are stored as salted scrypt hashes and
+  sign-in tokens only as SHA-256 hashes, all in the SQLite file.
+- Without a backend (`VITE_OCC_API_BASE=disabled`) there are no accounts and
+  commands apply in the page only.
 
 | Command | Use |
 | --- | --- |
@@ -144,7 +170,13 @@ backend data (stop the backend first).
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/health` | Readiness, current session code and id |
+| `GET /api/health` | Readiness, current session code and id (no sign-in needed) |
+| `GET /api/auth/status` | Whether the first trainer still has to be set up |
+| `POST /api/auth/setup` | Create the first trainer (admin); only while there are no accounts |
+| `POST /api/auth/login` | Sign in: `{ username, password }` gives `{ token, user }` |
+| `POST /api/auth/logout` | End this sign-in |
+| `GET /api/auth/me` | The signed-in account |
+| `GET /api/users`, `POST /api/users`, `PATCH /api/users/<username>` | Admin: list, add and change accounts |
 | `GET /api/session` | Session snapshot with its id and version |
 | `POST /api/session/commands` | Send a command: `{ sessionId, commandId, actor, command }`. 409 if the session has ended (reset) |
 | `GET /api/session/events` | Live stream: a snapshot, then `session:update` deltas |
@@ -180,7 +212,7 @@ npm.cmd run build:server
 
 This is a prototype for demos and practice runs, not yet for formal assessment:
 
-- There is no sign-in. Anyone with the address can open the Trainer Console,
-  and a page's trainer or trainee role is taken on trust.
+- The app is served over plain HTTP on the LAN, so passwords and tokens are
+  not encrypted in transit. Keep it on the training network.
 - One backend runs one session at a time.
 - The 12-car rescue SOP is not modelled yet.

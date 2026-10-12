@@ -24,8 +24,8 @@ import type {
 
 export type SessionActorRole = 'trainer' | 'trainee'
 
-// Who sent a command. Until sign-in (phase 4) the role comes from the page and
-// the trainee from the name they joined with.
+// Who sent a command: the signed-in account, set by the server (a page only
+// uses it to show its own command before the server answers).
 export type SessionActor = {
   id?: string
   name: string
@@ -100,7 +100,7 @@ export type SessionCommand =
   | { type: 'RESET_SCENARIO' }
   | { timetableName: NelTimetableName; trainingMode: TrainingMode; type: 'RESET_SESSION' }
   // Trainee page
-  | { code: string; name: string; type: 'TRAINEE_JOIN' }
+  | { code: string; type: 'TRAINEE_JOIN' }
   | { traineeId: string; type: 'TRAINEE_LEAVE' }
   // Monitor 01 Alarms
   | { keepRedTone?: boolean; rowKeys: string[]; type: 'ACK_ALARMS' }

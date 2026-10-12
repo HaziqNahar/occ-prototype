@@ -1,3 +1,4 @@
+import { getAuthHeaders } from './authClient'
 import type { SessionMonitorLaunch, SessionScreenJoin, SessionTransportEvent } from './types'
 
 const OCC_BACKEND_PORT = '8787'
@@ -83,6 +84,7 @@ export async function archiveOccReport(sessionId: string, notes: string) {
   const response = await fetch(buildOccApiUrl(backendBaseUrl, '/api/reports'), {
     body: JSON.stringify({ notes, sessionId }),
     headers: {
+      ...getAuthHeaders(),
       'content-type': 'application/json',
     },
     method: 'POST',
@@ -107,6 +109,7 @@ export async function requestOccMonitorLaunch(request: SessionMonitorLaunch) {
   const response = await fetch(buildOccApiUrl(backendBaseUrl, '/api/session/monitor-launches'), {
     body: JSON.stringify(request),
     headers: {
+      ...getAuthHeaders(),
       'content-type': 'application/json',
     },
     method: 'POST',
@@ -129,6 +132,7 @@ export async function fetchOccTransportStatus() {
 
   const response = await fetch(buildOccApiUrl(backendBaseUrl, '/api/session/transport-status'), {
     headers: {
+      ...getAuthHeaders(),
       accept: 'application/json',
     },
     method: 'GET',

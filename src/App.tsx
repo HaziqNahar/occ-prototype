@@ -103,7 +103,8 @@ import useTimetablePlaybackScheduler from './screens/line-map/useTimetablePlayba
 import AlarmsScreen from './screens/AlarmsScreen'
 import TimetableScreen from './screens/TimetableScreen'
 import { isManualDestinationSelection, isRt2DepotDestinationSelection } from './session-commands/lineMapCommands'
-import { getActorForRoute } from './sessionActor'
+import type { PublicUser } from './accounts'
+import type { SessionActor } from './session-commands/types'
 import type { MonitorLaunchRequest, ScreenRegistration } from './sessionClient'
 import {
   getAlarmSummaryCounts,
@@ -116,7 +117,9 @@ import {
   getTrainingScenarioDefinition,
   isActiveTrainingScenarioTargetTrain,
 } from './trainingScenarios'
-import LoginPage from './screens/LoginPage'
+import LoginPage, { AccessNotice } from './screens/LoginPage'
+import SignInPage from './screens/SignInPage'
+import { useAuth } from './useAuth'
 import type {
   AppRoute,
   LineMapRuntimeState,
@@ -130,6 +133,7 @@ import type {
 const IosModulesScreen = lazy(() => import('./screens/IosModulesScreen'))
 const ReportScreen = lazy(() => import('./screens/ReportScreen'))
 const TraineeScreen = lazy(() => import('./screens/TraineeScreen'))
+const PeopleScreen = lazy(() => import('./screens/PeopleScreen'))
 
 if (import.meta.env.DEV) {
   warnLineMapRouteValidationIssues()
@@ -186,7 +190,8 @@ function getCurrentRoute(): AppRoute {
     path === '/ios/scenarios' ||
     path === '/ios/assessment' ||
     path === '/session/join' ||
-    path === '/report'
+    path === '/report' ||
+    path === '/admin'
   ) {
     return path
   }
@@ -204,9 +209,23 @@ const screenRegistrationByRoute: Partial<Record<AppRoute, ScreenRegistration>> =
   '/session/join': { label: 'Trainee', role: 'LOBBY', route: '/session/join' },
 }
 
+const TRAINER_ROUTES = new Set<AppRoute>(['/ios', '/ios/modules', '/ios/scenarios', '/ios/assessment', '/report', '/admin'])
+
+// Without a backend there are no accounts: the page's role comes from its address.
+const LOCAL_TRAINEE: PublicUser = { admin: false, createdAt: '', disabled: false, id: 'local-trainee', name: 'Trainee', role: 'trainee' }
+
+function getLocalActor(route: AppRoute): SessionActor {
+  return TRAINER_ROUTES.has(route) ? { name: 'Trainer', role: 'trainer' } : LOCAL_TRAINEE
+}
+
 function App() {
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute)
-  const getActor = useCallback(() => getActorForRoute(route), [route])
+  const auth = useAuth()
+  const user = auth.state.status === 'signed-in' ? auth.state.user : null
+  const token = auth.state.status === 'signed-in' ? auth.state.token : null
+  const getActor = useCallback((): SessionActor => (
+    user ? { id: user.id, name: user.name, role: user.role } : getLocalActor(route)
+  ), [route, user])
   const {
     claimSimulation,
     dispatch,
@@ -216,7 +235,7 @@ function App() {
     session,
     simulate,
     subscribeMonitorLaunch,
-  } = useOccSession(getActor)
+  } = useOccSession(getActor, token, auth.handleSignedOut)
 
   useEffect(() => {
     const handlePopState = () => setRoute(getCurrentRoute())
@@ -236,11 +255,55 @@ function App() {
     const heartbeat = window.setInterval(() => registerScreen(registration), 15000)
 
     return () => window.clearInterval(heartbeat)
-  }, [registerScreen, route])
+  }, [registerScreen, route, token])
 
   const navigate = (nextRoute: AppRoute) => {
     window.history.pushState(null, '', nextRoute)
     setRoute(nextRoute)
+  }
+
+  const signOut = () => {
+    void auth.signOut()
+    navigate('/')
+  }
+
+  if (auth.state.status === 'loading') {
+    return null
+  }
+
+  // Every page needs a signed-in account when there is a training server.
+  if (auth.state.status !== 'local' && !user) {
+    return (
+      <SignInPage
+        message={auth.state.status === 'signed-out' ? auth.state.message : undefined}
+        needsSetup={auth.state.status === 'needs-setup'}
+        onRetry={auth.reload}
+        onSetup={auth.setup}
+        onSignIn={auth.signIn}
+        onSignedIn={(signedIn) => {
+          if (route === '/') {
+            navigate(signedIn.role === 'trainer' ? '/ios/modules' : '/session/join')
+          }
+        }}
+        unreachable={auth.state.status === 'unreachable'}
+      />
+    )
+  }
+
+  if (user && TRAINER_ROUTES.has(route) && user.role !== 'trainer') {
+    return <AccessNotice onNavigate={navigate} onSignOut={signOut} text="The Trainer Console, reports and people are for trainers." user={user} />
+  }
+
+  if (route === '/admin') {
+    return user?.admin
+      ? <Suspense fallback={null}><PeopleScreen onNavigate={navigate} user={user} /></Suspense>
+      : user
+        ? <AccessNotice onNavigate={navigate} onSignOut={signOut} text="Only an admin trainer can manage people." user={user} />
+        : <LoginPage onNavigate={navigate} onSignOut={signOut} user={null} />
+  }
+
+  if (route === '/session/join' && user?.role === 'trainer') {
+    return <AccessNotice onNavigate={navigate} onSignOut={signOut} text="Trainees join here with their own account. Sign out, then sign in as the trainee." user={user} />
   }
 
   if (route === '/screen/line-map') {
@@ -274,7 +337,9 @@ function App() {
         <IosModulesScreen
           dispatch={dispatch}
           onNavigate={navigate}
+          onSignOut={signOut}
           session={session}
+          user={user}
         />
       </Suspense>
     )
@@ -285,7 +350,9 @@ function App() {
       <Suspense fallback={null}>
         <TraineeScreen
           dispatch={dispatch}
+          onSignOut={signOut}
           session={session}
+          user={user ?? LOCAL_TRAINEE}
         />
       </Suspense>
     )
@@ -299,7 +366,7 @@ function App() {
     )
   }
 
-  return <LoginPage onNavigate={navigate} />
+  return <LoginPage onNavigate={navigate} onSignOut={signOut} user={user} />
 }
 
 function LineMapScreen({

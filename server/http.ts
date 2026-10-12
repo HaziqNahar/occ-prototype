@@ -12,8 +12,8 @@ export class RequestError extends Error {
 
 export function setCorsHeaders(response: ServerResponse) {
   response.setHeader('Access-Control-Allow-Origin', '*')
-  response.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-  response.setHeader('Access-Control-Allow-Headers', 'content-type')
+  response.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,PATCH,DELETE,OPTIONS')
+  response.setHeader('Access-Control-Allow-Headers', 'authorization, content-type')
   response.setHeader('Access-Control-Max-Age', '86400')
 }
 

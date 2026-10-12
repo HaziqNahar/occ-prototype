@@ -12,6 +12,7 @@ export type AppRoute =
   | '/ios/assessment'
   | '/session/join'
   | '/report'
+  | '/admin'
 
 export type ScreenRole = {
   number: string

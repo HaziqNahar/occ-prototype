@@ -37,10 +37,12 @@ try {
       actions: Array<{ accepted: number | null; action_type: string | null; actor_id: string | null; kind: string }>
     }>('/api/session/actions')
 
-    assert.deepEqual(log.actions.map((entry) => entry.kind), ['screen.joined', 'command', 'command'])
-    assert.equal(log.actions[1].action_type, 'TRAIN_HOLD')
-    assert.equal(log.actions[1].accepted, 0, 'a command for an unknown train is refused and logged')
-    assert.equal(log.actions[2].actor_id, 'alex.tan@trainee.local')
+    const commands = log.actions.filter((entry) => entry.kind === 'command' || entry.kind === 'screen.joined')
+
+    assert.deepEqual(commands.map((entry) => entry.kind), ['screen.joined', 'command', 'command'])
+    assert.equal(commands[1].action_type, 'TRAIN_HOLD')
+    assert.equal(commands[1].accepted, 0, 'a command for an unknown train is refused and logged')
+    assert.equal(commands[2].actor_id, 'alex.tan')
     assert.equal(first.stderr(), '', 'no warnings are printed (the SQLite experimental warning is silenced)')
     lastVersion = (await first.snapshot()).version
   } finally {

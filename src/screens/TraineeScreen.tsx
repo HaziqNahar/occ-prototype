@@ -1,34 +1,29 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
+import type { PublicUser } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import { createTraineeIdentity, readTraineeIdentity, writeTraineeIdentity } from '../sessionActor'
 import { normalizeEnteredSessionCode, sessionCodesMatch } from '../sessionCode'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
-import type { AppRoute, OccSessionState } from '../types'
+import type { OccSessionState } from '../types'
 import type { DispatchSessionCommand } from '../useOccSession'
+import { openOccMonitors } from '../occMonitors'
 
 type TraineeScreenProps = {
   dispatch: DispatchSessionCommand
+  onSignOut: () => void
   session: OccSessionState
+  user: PublicUser
 }
-
-const monitorWindows: Array<{ name: string; path: AppRoute }> = [
-  { name: 'occ-monitor-1-alarms', path: '/screen/alarms' },
-  { name: 'occ-monitor-2-line-map', path: '/screen/line-map' },
-  { name: 'occ-monitor-3-timetable', path: '/screen/timetable' },
-]
 
 // Trainee view: join the trainer's session, then work on the three OCC monitors.
 // It never reveals the incident, because finding it is part of the exercise.
-function TraineeScreen({ dispatch, session }: TraineeScreenProps) {
-  const [identity, setIdentity] = useState(readTraineeIdentity)
-  const [name, setName] = useState(identity?.name ?? '')
+function TraineeScreen({ dispatch, onSignOut, session, user }: TraineeScreenProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [now, setNow] = useState(() => Date.now())
   const sessionCode = session.sessionMeta?.code ?? ''
-  const joined = identity ? session.trainees.find((trainee) => trainee.email === identity.email) : undefined
+  const joined = session.trainees.find((trainee) => trainee.email === user.id)
   const onlineMonitors = getOnlineMonitors(session, now)
 
   useEffect(() => {
@@ -40,44 +35,25 @@ function TraineeScreen({ dispatch, session }: TraineeScreenProps) {
   const join = (event: FormEvent) => {
     event.preventDefault()
 
-    if (!name.trim()) {
-      setError('Enter your name.')
-      return
-    }
-
     if (!sessionCodesMatch(code, sessionCode)) {
       setError('That code does not match. Check the code on your trainer’s screen.')
       return
     }
 
-    // Stored first, so the join (and this PC's monitors) act as this trainee.
-    const nextIdentity = createTraineeIdentity(name)
-
-    writeTraineeIdentity(nextIdentity)
-    setIdentity(nextIdentity)
     setError('')
-    void dispatch({ code, name: nextIdentity.name, type: 'TRAINEE_JOIN' }).then(({ accepted, reason }) => {
+    void dispatch({ code, type: 'TRAINEE_JOIN' }).then(({ accepted, reason }) => {
       if (!accepted) {
-        writeTraineeIdentity(null)
-        setIdentity(null)
         setError(reason ?? 'Could not join the session.')
       }
     })
   }
 
   const leave = () => {
-    if (identity) {
-      void dispatch({ traineeId: identity.email, type: 'TRAINEE_LEAVE' })
-    }
-
-    writeTraineeIdentity(null)
-    setIdentity(null)
+    void dispatch({ traineeId: user.id, type: 'TRAINEE_LEAVE' })
     setCode('')
   }
 
-  const openMonitors = () => {
-    monitorWindows.forEach((monitor) => window.open(monitor.path, monitor.name))
-  }
+  const openMonitors = openOccMonitors
 
   const status = session.scenarioMode === 'RUNNING'
     ? { label: 'Exercise running', text: 'Work from the OCC monitors. Respond to what you see as per SOP.', tone: 'running' }
@@ -97,16 +73,13 @@ function TraineeScreen({ dispatch, session }: TraineeScreenProps) {
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
             <p>Trainee</p>
-            <h1 id="trainee-title">{joined ? `Hello, ${joined.name}` : 'Join a training session'}</h1>
+            <h1 id="trainee-title">{joined ? `Hello, ${joined.name}` : `Hello, ${user.name}`}</h1>
           </div>
         </header>
 
         {!joined ? (
           <form className="trainee-join" onSubmit={join}>
-            <label>
-              <span>Your name</span>
-              <input autoComplete="name" onChange={(event) => setName(event.target.value)} value={name} />
-            </label>
+            <p className="sign-in-note">Join the training session with the code on your trainer’s screen.</p>
             <label>
               <span>Session code</span>
               <input
@@ -152,6 +125,7 @@ function TraineeScreen({ dispatch, session }: TraineeScreenProps) {
             <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>
           </div>
         )}
+        <button type="button" className="trainee-leave" onClick={onSignOut}>Sign out</button>
       </section>
     </main>
   )

@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { DATABASE_FILE, DATA_DIR, LEGACY_REPORTS_FILE, LEGACY_SESSION_FILE } from './config'
 import { getIsoNow } from './http'
 import { getSessionId } from '../src/sessionCode'
+import type { PublicUser, UserRole } from '../src/accounts'
 import type { SessionActor } from '../src/session-commands/types'
 import type { OccSessionState } from '../src/types'
 
@@ -10,6 +11,8 @@ import type { OccSessionState } from '../src/types'
 // node:sqlite ships with Node 24, so the LAN host needs nothing else installed.
 
 export type ActionLogKind =
+  | 'account.created'
+  | 'account.updated'
   | 'command'
   | 'report.archived'
   | 'report.notes'
@@ -45,6 +48,27 @@ export type ActionLogRow = {
   kind: ActionLogKind
   payload: string | null
   session_id: string
+}
+
+type UserRow = {
+  admin: number
+  created_at: string
+  disabled: number
+  id: string
+  name: string
+  password_hash: string
+  role: UserRole
+}
+
+function toPublicUser(row: UserRow): PublicUser {
+  return {
+    admin: row.admin === 1,
+    createdAt: row.created_at,
+    disabled: row.disabled === 1,
+    id: row.id,
+    name: row.name,
+    role: row.role,
+  }
 }
 
 export type StoredReport = {
@@ -83,6 +107,23 @@ const SCHEMA = `
     key text primary key,
     value text not null
   );
+  create table if not exists users (
+    id text primary key,
+    name text not null,
+    role text not null,
+    admin integer not null default 0,
+    disabled integer not null default 0,
+    password_hash text not null,
+    created_at text not null,
+    updated_at text not null
+  );
+  create table if not exists auth_tokens (
+    token_hash text primary key,
+    user_id text not null,
+    created_at text not null,
+    expires_at text not null
+  );
+  create index if not exists auth_tokens_user on auth_tokens (user_id);
 `
 
 // Columns added after the database was first released.
@@ -237,6 +278,75 @@ export class OccDatabase {
       })
       renameSync(LEGACY_REPORTS_FILE, `${LEGACY_REPORTS_FILE}.migrated`)
     }
+  }
+
+  countUsers() {
+    return (this.db.prepare('select count(*) as count from users').get() as { count: number }).count
+  }
+
+  listUsers() {
+    return (this.db.prepare('select * from users order by role desc, name').all() as UserRow[]).map(toPublicUser)
+  }
+
+  getUser(id: string) {
+    const row = this.db.prepare('select * from users where id = ?').get(id) as UserRow | undefined
+
+    return row ? { passwordHash: row.password_hash, user: toPublicUser(row) } : null
+  }
+
+  insertUser(user: Omit<PublicUser, 'createdAt' | 'disabled'>, passwordHash: string) {
+    const now = getIsoNow()
+
+    this.db.prepare(`
+      insert into users (id, name, role, admin, disabled, password_hash, created_at, updated_at)
+      values (?, ?, ?, ?, 0, ?, ?, ?)
+    `).run(user.id, user.name, user.role, Number(user.admin), passwordHash, now, now)
+  }
+
+  updateUser(id: string, changes: { admin?: boolean; disabled?: boolean; name?: string; passwordHash?: string }) {
+    const current = this.db.prepare('select * from users where id = ?').get(id) as UserRow | undefined
+
+    if (!current) {
+      return
+    }
+
+    this.db.prepare(`
+      update users set name = ?, admin = ?, disabled = ?, password_hash = ?, updated_at = ? where id = ?
+    `).run(
+      changes.name ?? current.name,
+      changes.admin === undefined ? current.admin : Number(changes.admin),
+      changes.disabled === undefined ? current.disabled : Number(changes.disabled),
+      changes.passwordHash ?? current.password_hash,
+      getIsoNow(),
+      id,
+    )
+  }
+
+  insertToken(tokenHash: string, userId: string, expiresAt: string) {
+    this.db.prepare('insert into auth_tokens (token_hash, user_id, created_at, expires_at) values (?, ?, ?, ?)')
+      .run(tokenHash, userId, getIsoNow(), expiresAt)
+  }
+
+  // The account behind a sign-in token, if the token is current and the account active.
+  findTokenUser(tokenHash: string) {
+    const row = this.db.prepare(`
+      select users.* from auth_tokens join users on users.id = auth_tokens.user_id
+      where auth_tokens.token_hash = ? and auth_tokens.expires_at > ? and users.disabled = 0
+    `).get(tokenHash, getIsoNow()) as UserRow | undefined
+
+    return row ? toPublicUser(row) : null
+  }
+
+  deleteToken(tokenHash: string) {
+    this.db.prepare('delete from auth_tokens where token_hash = ?').run(tokenHash)
+  }
+
+  deleteUserTokens(userId: string) {
+    this.db.prepare('delete from auth_tokens where user_id = ?').run(userId)
+  }
+
+  deleteExpiredTokens() {
+    this.db.prepare('delete from auth_tokens where expires_at <= ?').run(getIsoNow())
   }
 
   close() {

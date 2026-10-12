@@ -49,7 +49,8 @@ function createCommandId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-export function useOccSession(getActor: () => SessionActor) {
+// token: this browser's sign-in; without one (and with a backend) nothing is sent.
+export function useOccSession(getActor: () => SessionActor, token: string | null, onSignedOut?: () => void) {
   const [session, setSession] = useState<OccSessionState>(createInitialSession)
   const [sourceId] = useState(createSourceId)
   const [backendEnabled] = useState(() => getOccBackendBaseUrl() !== null)
@@ -60,6 +61,11 @@ export function useOccSession(getActor: () => SessionActor) {
   const sendQueueRef = useRef<Promise<void>>(Promise.resolve())
   const getActorRef = useRef(getActor)
   const monitorLaunchSubscribersRef = useRef(new Set<(request: MonitorLaunchRequest) => void>())
+  const onSignedOutRef = useRef(onSignedOut)
+
+  useEffect(() => {
+    onSignedOutRef.current = onSignedOut
+  }, [onSignedOut])
 
   useEffect(() => {
     getActorRef.current = getActor
@@ -116,20 +122,26 @@ export function useOccSession(getActor: () => SessionActor) {
   }, [render])
 
   useEffect(() => {
+    if (!token) {
+      return undefined
+    }
+
     clientRef.current = createSessionClient({
       onMonitorLaunchRequest: (request) => {
         monitorLaunchSubscribersRef.current.forEach((subscriber) => subscriber(request))
       },
+      onSignedOut: () => onSignedOutRef.current?.(),
       onSnapshot: applySnapshot,
       onUpdate: applyUpdate,
       sourceId,
+      token,
     })
 
     return () => {
       clientRef.current?.close()
       clientRef.current = null
     }
-  }, [applySnapshot, applyUpdate, sourceId])
+  }, [applySnapshot, applyUpdate, sourceId, token])
 
   // Without a backend (or when it cannot be reached) commands apply in this window only.
   const applyLocally = useCallback((command: SessionCommand, actor: SessionActor): CommandOutcome => {
@@ -146,8 +158,12 @@ export function useOccSession(getActor: () => SessionActor) {
     const client = clientRef.current
     const actor = getActorRef.current()
 
-    if (!client?.enabled) {
+    if (!backendEnabled) {
       return applyLocally(command, actor)
+    }
+
+    if (!client) {
+      return { accepted: false, reason: 'Sign in first.' }
     }
 
     const pending: PendingCommand = {
@@ -181,6 +197,14 @@ export function useOccSession(getActor: () => SessionActor) {
     try {
       const result = await send
 
+      if (result.signedOut) {
+        removePending()
+        render()
+        onSignedOutRef.current?.()
+
+        return { accepted: false, reason: 'You have been signed out. Sign in again.' }
+      }
+
       if (result.stale) {
         removePending()
         applySnapshot(result.snapshot)
@@ -205,7 +229,7 @@ export function useOccSession(getActor: () => SessionActor) {
 
       return { ...outcome, reason: outcome.reason ?? 'Backend unavailable: the change was kept in this window only.' }
     }
-  }, [applyLocally, applySnapshot, applyUpdate, render])
+  }, [applyLocally, applySnapshot, applyUpdate, backendEnabled, render])
 
   // Only the session's clock owner runs the train simulation (phase 3).
   const isSimulationOwner = !backendEnabled || session.sessionMeta.simulationOwner?.sourceId === sourceId

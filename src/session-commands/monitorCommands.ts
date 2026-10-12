@@ -15,7 +15,7 @@ import type {
   TrainStatus,
 } from '../types'
 import { getAlarmRowKey } from './types'
-import type { SessionCommandResult, TimetableTripAction } from './types'
+import type { SessionActor, SessionCommandResult, TimetableTripAction } from './types'
 
 // Monitor 01 (alarms), Monitor 03 (timetable), the Calls panel and the trainee page.
 
@@ -125,16 +125,12 @@ export function showNotice(current: OccSessionState, notice: OccSessionState['sc
   return accepted({ ...current, scenarioNotice: notice })
 }
 
-// Trainee ids are derived from the name until sign-in (phase 4) gives real accounts.
-export function toTraineeId(name: string) {
-  return `${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') || 'trainee'}@trainee.local`
-}
+// A signed-in trainee joins with the code on the trainer's screen.
+export function joinTrainee(current: OccSessionState, code: string, actor: SessionActor): SessionCommandResult {
+  const trimmedName = actor.name.trim()
 
-export function joinTrainee(current: OccSessionState, code: string, name: string): SessionCommandResult {
-  const trimmedName = name.trim()
-
-  if (!trimmedName) {
-    return { accepted: false, reason: 'Enter your name.', session: current }
+  if (actor.role !== 'trainee' || !actor.id) {
+    return { accepted: false, reason: 'Sign in with a trainee account to join.', session: current }
   }
 
   if (!sessionCodesMatch(code, current.sessionMeta.code)) {
@@ -142,7 +138,7 @@ export function joinTrainee(current: OccSessionState, code: string, name: string
   }
 
   const participant: TraineeParticipant = {
-    email: toTraineeId(trimmedName),
+    email: actor.id,
     joinedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     monitor: 'Monitor 02 - Line Map',
     name: trimmedName,
@@ -160,6 +156,11 @@ export function joinTrainee(current: OccSessionState, code: string, name: string
   })
 }
 
-export function leaveTrainee(current: OccSessionState, traineeId: string): SessionCommandResult {
+// Trainees can only leave themselves; a trainer can remove anyone.
+export function leaveTrainee(current: OccSessionState, traineeId: string, actor: SessionActor): SessionCommandResult {
+  if (actor.role === 'trainee' && actor.id !== traineeId) {
+    return { accepted: false, reason: 'You can only leave the session yourself.', session: current }
+  }
+
   return accepted({ ...current, trainees: current.trainees.filter((trainee) => trainee.email !== traineeId) })
 }

@@ -67,9 +67,16 @@ function apply(session: OccSessionState, actor: SessionActor, command: SessionCo
   assert.equal(session.activeScenario.targetTrainId, '345')
   assert.equal(session.activeScenario.duration, '06:00')
 
-  session = apply(session, trainee, { code: session.sessionMeta.code.toLowerCase(), name: ' Alex Tan ', type: 'TRAINEE_JOIN' })
-  assert.deepEqual(session.trainees.map((item) => item.email), ['alex.tan@trainee.local'])
-  assert.equal(run(session, trainee, { code: 'ZZZZ', name: 'Sam', type: 'TRAINEE_JOIN' }).accepted, false, 'wrong code')
+  // Trainees join as their signed-in account; trainers cannot join as trainees.
+  session = apply(session, trainee, { code: session.sessionMeta.code.toLowerCase(), type: 'TRAINEE_JOIN' })
+  assert.deepEqual(session.trainees.map((item) => [item.email, item.name]), [['alex.tan@trainee.local', 'Alex Tan']])
+  assert.equal(run(session, trainee, { code: 'ZZZZ', type: 'TRAINEE_JOIN' }).accepted, false, 'wrong code')
+  assert.equal(run(session, trainer, { code: session.sessionMeta.code, type: 'TRAINEE_JOIN' }).accepted, false)
+
+  // A trainee can leave only themselves.
+  const other: SessionActor = { id: 'sam', name: 'Sam', role: 'trainee' }
+
+  assert.equal(run(session, other, { traineeId: 'alex.tan@trainee.local', type: 'TRAINEE_LEAVE' }).accepted, false)
 
   const incidentAlarm = session.alarmSummaryRows.find((row) => row.scenarioAlarm)
   const otherAlarm = session.alarmSummaryRows.find((row) => !row.scenarioAlarm)

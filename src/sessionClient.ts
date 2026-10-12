@@ -49,15 +49,19 @@ export type ScreenRegistration = {
 }
 
 export type CommandSendResult =
-  | { response: SessionCommandResponse; stale?: undefined }
-  | { snapshot: StaleSessionResponse; stale: true }
+  | { response: SessionCommandResponse; signedOut?: undefined; stale?: undefined }
+  | { signedOut?: undefined; snapshot: StaleSessionResponse; stale: true }
+  | { signedOut: true; stale?: undefined }
 
 type SessionClientOptions = {
   onMonitorLaunchRequest?: (request: MonitorLaunchRequest) => void
   onSnapshot: (message: SessionSnapshotMessage) => void
   onUpdate: (message: SessionUpdateMessage) => void
+  // The server stopped accepting this sign-in.
+  onSignedOut?: () => void
   // This window's id; the server names the simulation owner by it.
   sourceId: string
+  token: string
 }
 
 export type OccSessionClient = ReturnType<typeof createSessionClient>
@@ -83,7 +87,7 @@ function isMonitorLaunchMessage(message: { type?: string }): message is MonitorL
   return message.type === 'monitor-launch:request'
 }
 
-export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpdate, sourceId }: SessionClientOptions) {
+export function createSessionClient({ onMonitorLaunchRequest, onSignedOut, onSnapshot, onUpdate, sourceId, token }: SessionClientOptions) {
   const backendBaseUrl = getOccBackendBaseUrl()
   const requestedSession = getRequestedSession()
   let channel: BroadcastChannel | null = null
@@ -107,11 +111,21 @@ export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpda
     return url.toString()
   }
 
+  const authHeader = { authorization: `Bearer ${token}` }
+
+  const checkSignedIn = (response: Response) => {
+    if (response.status === 401) {
+      onSignedOut?.()
+    }
+
+    return response
+  }
+
   const postJson = (path: string, body: unknown) => fetch(apiUrl(path), {
     body: JSON.stringify(body),
-    headers: { 'content-type': 'application/json' },
+    headers: { ...authHeader, 'content-type': 'application/json' },
     method: 'POST',
-  })
+  }).then(checkSignedIn)
 
   const acceptMonitorLaunchRequest = (message: MonitorLaunchPayload, transport: MonitorLaunchTransport) => {
     lastMonitorLaunchTransport = transport
@@ -134,7 +148,7 @@ export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpda
       return
     }
 
-    const response = await fetch(apiUrl('/api/session'), { headers: { accept: 'application/json' } })
+    const response = checkSignedIn(await fetch(apiUrl('/api/session'), { headers: { ...authHeader, accept: 'application/json' } }))
 
     if (response.ok) {
       onSnapshot(await response.json() as SessionSnapshotMessage)
@@ -151,6 +165,8 @@ export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpda
       const eventUrl = new URL(apiUrl('/api/session/events'))
 
       eventUrl.searchParams.set('sourceId', sourceId)
+      // EventSource cannot send headers, so the stream takes the token in its address.
+      eventUrl.searchParams.set('token', token)
       eventSource = new EventSource(eventUrl.toString())
       lastEventAt = Date.now()
       eventSource.onopen = () => {
@@ -258,6 +274,10 @@ export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpda
 
       if (response.status === 409) {
         return { snapshot: await response.json() as StaleSessionResponse, stale: true }
+      }
+
+      if (response.status === 401) {
+        return { signedOut: true }
       }
 
       if (!response.ok) {

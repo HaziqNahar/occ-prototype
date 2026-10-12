@@ -27,7 +27,7 @@ try {
   // Browsers can no longer publish whole sessions.
   const publish = await fetch(`${server.baseUrl}/api/session`, {
     body: JSON.stringify({ session: first.session }),
-    headers: { 'content-type': 'application/json' },
+    headers: { authorization: `Bearer ${server.tokens.trainer}`, 'content-type': 'application/json' },
     method: 'PUT',
   })
 

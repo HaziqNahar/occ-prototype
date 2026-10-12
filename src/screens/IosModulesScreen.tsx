@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import type { PublicUser } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import SelectField from '../components/SelectField'
@@ -7,6 +8,7 @@ import { nelTimetableOptions } from '../data/nelTimetable'
 import type { NelTimetableName } from '../data/nelTimetable'
 import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
 import { getScenarioTaskOwner } from '../iosScenarioRoles'
+import { openOccMonitors } from '../occMonitors'
 import { scenarioTemplates } from '../scenarioLibrary'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
 import {
@@ -23,7 +25,10 @@ import type { DispatchSessionCommand } from '../useOccSession'
 type IosModulesScreenProps = {
   onNavigate: (route: AppRoute) => void
   dispatch: DispatchSessionCommand
+  onSignOut: () => void
   session: OccSessionState
+  // Null without accounts (no backend).
+  user: PublicUser | null
 }
 
 const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
@@ -34,12 +39,6 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
 
 // Scenario families the console can arm; fault families pick their SOP variant by incident.
 const consoleTemplates = scenarioTemplates.filter((template) => template.trainingScenarioKind)
-
-const monitorRoutes: Array<{ name: string; route: AppRoute }> = [
-  { name: 'occ-monitor-1-alarms', route: '/screen/alarms' },
-  { name: 'occ-monitor-2-line-map', route: '/screen/line-map' },
-  { name: 'occ-monitor-3-timetable', route: '/screen/timetable' },
-]
 
 function formatElapsed(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds))
@@ -53,7 +52,7 @@ function getTemplateIdForScenario(scenarioId: string) {
   return consoleTemplates.find((template) => template.trainingScenarioKind === definition.kind)?.id ?? consoleTemplates[0].id
 }
 
-function IosModulesScreen({ dispatch, onNavigate, session }: IosModulesScreenProps) {
+function IosModulesScreen({ dispatch, onNavigate, onSignOut, session, user }: IosModulesScreenProps) {
   const activeDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
   const isIdle = activeDefinition.id === 'idle'
   const [templateId, setTemplateId] = useState(() => getTemplateIdForScenario(session.activeScenario.id))
@@ -128,9 +127,7 @@ function IosModulesScreen({ dispatch, onNavigate, session }: IosModulesScreenPro
     void dispatch({ label, taskId, type: 'CONFIRM_TASK' })
   }
 
-  const openMonitors = () => {
-    monitorRoutes.forEach((monitor) => window.open(monitor.route, monitor.name))
-  }
+  const openMonitors = openOccMonitors
 
   return (
     <main
@@ -141,7 +138,7 @@ function IosModulesScreen({ dispatch, onNavigate, session }: IosModulesScreenPro
         <div className="trainer-console-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
-            <p>Instructor station</p>
+            <p>{user ? `Instructor station · ${user.name}` : 'Instructor station'}</p>
             <h1>Trainer Console</h1>
           </div>
         </div>
@@ -164,7 +161,10 @@ function IosModulesScreen({ dispatch, onNavigate, session }: IosModulesScreenPro
         <nav aria-label="Trainer tools">
           <button type="button" onClick={openMonitors}>Open monitors</button>
           <button type="button" onClick={() => onNavigate('/report')}>Report</button>
-          <button type="button" className="is-quiet" onClick={() => onNavigate('/')}>Exit</button>
+          {user?.admin && <button type="button" onClick={() => onNavigate('/admin')}>People</button>}
+          {user
+            ? <button type="button" className="is-quiet" onClick={onSignOut}>Sign out</button>
+            : <button type="button" className="is-quiet" onClick={() => onNavigate('/')}>Exit</button>}
         </nav>
       </header>
 

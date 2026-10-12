@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { APIRequestContext, BrowserContext, Page } from '@playwright/test'
 
 const monitorRoutes = [
   { hasStationRibbon: true, root: '.scada-dom-root--alarms', route: '/screen/alarms' },
@@ -7,9 +7,50 @@ const monitorRoutes = [
   { hasStationRibbon: false, root: '.scada-dom-root--timetable', route: '/screen/timetable' },
 ] as const
 
+// Test accounts on the test backend (port 8797): created on first use.
+const PASSWORD = 'e2e-password-1'
+const TRAINER = { name: 'Test Trainer', username: 'e2e.trainer' }
+const TRAINEE = { name: 'Aisyah', username: 'aisyah' }
+let trainerToken = ''
+
+async function ensureAccounts(request: APIRequestContext) {
+  if (trainerToken) {
+    return trainerToken
+  }
+
+  const status = await (await request.get('/api/auth/status')).json() as { needsSetup: boolean }
+
+  if (status.needsSetup) {
+    await request.post('/api/auth/setup', { data: { ...TRAINER, password: PASSWORD } })
+  }
+
+  const signIn = await request.post('/api/auth/login', { data: { password: PASSWORD, username: TRAINER.username } })
+
+  expect(signIn.ok()).toBeTruthy()
+  trainerToken = (await signIn.json() as { token: string }).token
+  // 409 once the trainee exists.
+  await request.post('/api/users', {
+    data: { ...TRAINEE, password: PASSWORD, role: 'trainee' },
+    headers: { authorization: `Bearer ${trainerToken}` },
+  })
+
+  return trainerToken
+}
+
+const trainerHeaders = () => ({ authorization: `Bearer ${trainerToken}` })
+
+async function signInBrowser(context: BrowserContext, token: string) {
+  await context.addInitScript((value) => window.localStorage.setItem('occ.auth.token.v1', value), token)
+}
+
+async function getSession(page: Page) {
+  return (await (await page.request.get('/api/session', { headers: trainerHeaders() })).json()).session
+}
+
 async function clearRuntime(page: Page) {
   const response = await page.request.post('/api/session/runtime', {
     data: { sourceId: 'playwright-regression' },
+    headers: trainerHeaders(),
   })
 
   expect(response.ok()).toBeTruthy()
@@ -34,6 +75,11 @@ function collectPageErrors(page: Page) {
 }
 
 test.describe.serial('OCC monitor regressions', () => {
+  // Each test's browser is signed in as the test trainer unless it says otherwise.
+  test.beforeEach(async ({ context, request }) => {
+    await signInBrowser(context, await ensureAccounts(request))
+  })
+
   for (const monitor of monitorRoutes) {
     test(`${monitor.route} fits the 1280x720 monitor viewport`, async ({ page }) => {
       const errors = collectPageErrors(page)
@@ -153,7 +199,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await launchRow.click()
     const commandResponse = await commandResponsePromise
     const commandPayload = await commandResponse.json()
-    const selectedSession = (await (await page.request.get('/api/session')).json()).session
+    const selectedSession = await getSession(page)
 
     expect(commandPayload.accepted).toBe(true)
     expect(selectedSession.activeScenario.targetTrainId).toBe('301')
@@ -167,10 +213,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await page.waitForTimeout(3_000)
     await expect(trainHotspot).toHaveCount(1)
 
-    const sessionResponse = await page.request.get('/api/session')
-    const sessionPayload = await sessionResponse.json()
-
-    expect(sessionPayload.session.activeScenario.targetTrainId).toBe('301')
+    expect((await getSession(page)).activeScenario.targetTrainId).toBe('301')
     expect(errors).toEqual([])
   })
   test('fault scenarios only credit acknowledging the incident alarm', async ({ page }) => {
@@ -182,7 +225,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Scenario status' }).getByText('PSD Obstructed', { exact: true })).toBeVisible()
 
-    const ackAlarmTask = async () => (await (await page.request.get('/api/session')).json()).session.scenarioTasks.ackAlarm
+    const ackAlarmTask = async () => (await getSession(page)).scenarioTasks.ackAlarm
 
     await page.goto('/screen/alarms')
     await page.locator('.alarm-dom-row--data', { hasText: 'IOS scenario armed' }).first().click()
@@ -197,37 +240,66 @@ test.describe.serial('OCC monitor regressions', () => {
     expect(errors).toEqual([])
   })
 
-  test('trainee joins with the trainer session code and the trainer sees them', async ({ page }) => {
+  test('a trainee signs in, joins with the session code and the trainer sees them', async ({ browser, page }) => {
     const errors = collectPageErrors(page)
 
     await clearRuntime(page)
-    await page.goto('/')
-    await page.getByRole('button', { name: /Trainee/ }).click()
-    await expect(page).toHaveURL(/\/session\/join$/)
 
-    await page.getByLabel('Your name').fill('Aisyah')
-    await page.getByLabel('Session code').fill('WRONG-CODE')
-    await page.getByRole('button', { name: 'Join session' }).click()
-    await expect(page.getByRole('alert')).toContainText('does not match')
+    // The trainee uses their own browser, signed in through the form.
+    const traineeContext = await browser.newContext()
+    const trainee = await traineeContext.newPage()
 
-    const sessionCode = (await (await page.request.get('/api/session')).json()).session.sessionMeta.code
-    await page.getByLabel('Session code').fill(sessionCode.toLowerCase())
-    await page.getByRole('button', { name: 'Join session' }).click()
-    await expect(page.getByRole('heading', { name: 'Hello, Aisyah' })).toBeVisible()
-    await expect(page.getByRole('status')).toContainText('Waiting for trainer')
+    await trainee.goto('/ios/modules')
+    await expect(trainee.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await trainee.getByLabel('Username').fill(TRAINEE.username)
+    await trainee.getByLabel('Password').fill(PASSWORD)
+    await trainee.getByRole('button', { name: 'Sign in' }).click()
 
-    await page.goto('/')
-    await page.getByRole('button', { name: /Trainer/ }).click()
+    // The console is for trainers.
+    await expect(trainee.getByRole('heading', { name: 'Not available' })).toBeVisible()
+    await trainee.getByRole('button', { name: 'Go to the start page' }).click()
+    await expect(trainee.getByText(`Signed in as ${TRAINEE.name}`)).toBeVisible()
+    await expect(trainee.getByRole('button', { name: /Trainer/ })).toHaveCount(0)
+    await trainee.getByRole('button', { name: /Trainee/ }).click()
+    await expect(trainee).toHaveURL(/\/session\/join$/)
+
+    await trainee.getByLabel('Session code').fill('WRONG-CODE')
+    await trainee.getByRole('button', { name: 'Join session' }).click()
+    await expect(trainee.getByRole('alert')).toContainText('does not match')
+
+    const sessionCode = (await getSession(page)).sessionMeta.code
+    await trainee.getByLabel('Session code').fill(sessionCode.toLowerCase())
+    await trainee.getByRole('button', { name: 'Join session' }).click()
+    await expect(trainee.getByRole('status')).toContainText('Waiting for trainer')
+
+    await page.goto('/ios/modules')
     await expect(page.getByLabel('Session').getByText(sessionCode, { exact: true })).toBeVisible()
-    await expect(page.getByLabel('Session').getByText('Aisyah')).toBeVisible()
+    await expect(page.getByLabel('Session').getByText(TRAINEE.name)).toBeVisible()
 
     // The trainee page reports a running exercise without naming the incident.
     await page.getByRole('radio', { name: /PSD Fault/ }).click()
     await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
-    await page.goto('/session/join')
-    await expect(page.getByRole('status')).toContainText('Exercise running')
-    await expect(page.getByText(/PSD/)).toHaveCount(0)
+    await expect(trainee.getByRole('status')).toContainText('Exercise running')
+    await expect(trainee.getByText(/PSD/)).toHaveCount(0)
+
+    // The trainee's actions are logged under their account.
+    const log = await (await page.request.get('/api/session/actions', { headers: trainerHeaders() })).json() as { actions: Array<{ action_type: string; actor_id: string }> }
+
+    expect(log.actions.find((entry) => entry.action_type === 'TRAINEE_JOIN')?.actor_id).toBe(TRAINEE.username)
+    await traineeContext.close()
     expect(errors).toEqual([])
+  })
+
+  test('without signing in, every page asks for a sign-in', async ({ browser }) => {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+
+    for (const route of ['/', '/ios/modules', '/screen/line-map', '/admin']) {
+      await page.goto(route)
+      await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    }
+
+    await context.close()
   })
 
   test('only one Line Map window runs the trains, and the clock passes on when it closes', async ({ context, page }) => {

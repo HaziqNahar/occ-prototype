@@ -14,11 +14,10 @@ try {
   const move = async (sourceId: string, x: number) => {
     const patch: SimPatch = { trains: [{ id: '317', x }] }
     const response = await server.post('/api/session/commands', {
-      actor: testTrainee,
       command: { patch, type: 'SIM_UPDATE' },
       commandId: `${sourceId}-${x}`,
       sourceId,
-    })
+    }, testTrainee.role)
 
     return await response.json() as SessionCommandResponse
   }
@@ -59,7 +58,7 @@ try {
 
   // Closing the owner's live stream frees the clock for the next window.
   const controller = new AbortController()
-  const stream = await fetch(`${server.baseUrl}/api/session/events?sourceId=window-b`, { signal: controller.signal })
+  const stream = await fetch(`${server.baseUrl}/api/session/events?sourceId=window-b&token=${server.tokens.trainee}`, { signal: controller.signal })
 
   await stream.body!.getReader().read()
   controller.abort()

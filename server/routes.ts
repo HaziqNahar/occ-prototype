@@ -1,9 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { AuthService } from './auth'
 import type { OccDatabase } from './database'
 import { createId, readJsonBody, RequestError, sendJson, setCorsHeaders } from './http'
 import { getTransportEvents, recordTransportEvent } from './realtime'
 import { SessionStore } from './sessionStore'
 import type { ManagedSession } from './sessionStore'
+import type { PublicUser } from '../src/accounts'
 import type { SessionActor, SessionCommand } from '../src/session-commands/types'
 import type {
   MonitorLaunchRoute,
@@ -19,24 +21,51 @@ const SCREEN_ROLES = new Set<string>(['ALARM', 'LINE_MAP', 'TIMETABLE', 'IOS', '
 
 const optionalString = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined)
 
-// The sender of a command. Phase 4 replaces this with signed-in accounts.
-function readActor(value: unknown): SessionActor {
-  const actor = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
-
-  if (actor.role !== 'trainer' && actor.role !== 'trainee') {
-    throw new RequestError('Expected an actor with role trainer or trainee.')
+function requireUser(user: PublicUser | null) {
+  if (!user) {
+    throw new RequestError('Sign in first.', 401)
   }
 
-  return {
-    ...(optionalString(actor.id) ? { id: String(actor.id).slice(0, 120) } : {}),
-    name: (optionalString(actor.name) ?? (actor.role === 'trainer' ? 'Trainer' : 'Trainee')).slice(0, 80),
-    role: actor.role,
+  return user
+}
+
+function requireTrainer(user: PublicUser | null) {
+  if (requireUser(user).role !== 'trainer') {
+    throw new RequestError('Only trainers can do that.', 403)
   }
+
+  return user!
+}
+
+function requireAdmin(user: PublicUser | null) {
+  if (!requireTrainer(user).admin) {
+    throw new RequestError('Only an admin trainer can manage people.', 403)
+  }
+
+  return user!
+}
+
+// Commands act as the signed-in account; whatever a page claims is ignored.
+function toActor(user: PublicUser): SessionActor {
+  return { id: user.id, name: user.name, role: user.role }
+}
+
+// The sign-in token: an Authorization header, or ?token= for the event stream
+// (EventSource cannot send headers).
+function readToken(request: IncomingMessage, url: URL) {
+  const header = request.headers.authorization
+
+  return header?.startsWith('Bearer ') ? header.slice(7).trim() : url.searchParams.get('token')
 }
 
 // HTTP API for the OCC training sessions. Browsers send commands; the server
-// applies them and streams the result. See docs/production-plan.md, phase 2.
-export function createRoutes(db: OccDatabase, store: SessionStore = new SessionStore(db)) {
+// applies them and streams the result. Everything but health and sign-in needs
+// a signed-in account. See docs/production-plan.md, phases 2 and 4.
+export function createRoutes(
+  db: OccDatabase,
+  store: SessionStore = new SessionStore(db),
+  auth: AuthService = new AuthService(db),
+) {
   // Requests name their session (id or code); without one they use the current session.
   function resolveSession(reference: string | null | undefined): ManagedSession | null {
     return reference ? store.find(reference) ?? null : store.current()
@@ -63,7 +92,7 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
     sendJson(response, statusCode, { ...extra, ...store.snapshot(managed), updatedAt: managed.session.updatedAt })
   }
 
-  async function handleCommand(request: IncomingMessage, response: ServerResponse) {
+  async function handleCommand(request: IncomingMessage, response: ServerResponse, user: PublicUser) {
     const body = await readJsonBody(request)
     const requestedSessionId = optionalString(body.sessionId)
     const managed = resolveSession(requestedSessionId)
@@ -74,7 +103,7 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
       return
     }
 
-    const actor = readActor(body.actor)
+    const actor = toActor(user)
     const command = body.command as SessionCommand
     const outcome = store.applyCommand(managed, command, actor, {
       commandId: optionalString(body.commandId),
@@ -194,6 +223,79 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
     sendJson(response, 201, { ok: true, report })
   }
 
+  async function handleAccountRoute(request: IncomingMessage, response: ServerResponse, method: string, pathname: string, user: PublicUser | null) {
+    switch (`${method} ${pathname}`) {
+      case 'GET /api/auth/status':
+        sendJson(response, 200, { needsSetup: auth.needsSetup() })
+        return true
+      case 'POST /api/auth/setup': {
+        const body = await readJsonBody(request)
+        const result = await auth.setup({ id: String(body.username ?? ''), name: String(body.name ?? ''), password: String(body.password ?? '') })
+
+        db.logAction({ actor: toActor(result.user), detail: 'First trainer (admin) set up', kind: 'account.created' })
+        sendJson(response, 201, result)
+        return true
+      }
+      case 'POST /api/auth/login': {
+        const body = await readJsonBody(request)
+
+        sendJson(response, 200, await auth.signIn(String(body.username ?? ''), String(body.password ?? '')))
+        return true
+      }
+      case 'POST /api/auth/logout': {
+        const token = readToken(request, new URL(request.url ?? '/', 'http://localhost'))
+
+        if (token) {
+          auth.signOut(token)
+        }
+
+        sendJson(response, 200, { ok: true })
+        return true
+      }
+      case 'GET /api/auth/me':
+        sendJson(response, 200, { user: requireUser(user) })
+        return true
+      case 'GET /api/users':
+        requireAdmin(user)
+        sendJson(response, 200, { users: auth.listUsers() })
+        return true
+      case 'POST /api/users': {
+        const admin = requireAdmin(user)
+        const body = await readJsonBody(request)
+        const created = await auth.createAccount({
+          admin: body.admin === true,
+          id: String(body.username ?? ''),
+          name: String(body.name ?? ''),
+          password: String(body.password ?? ''),
+          role: body.role as PublicUser['role'],
+        })
+
+        db.logAction({ actor: toActor(admin), detail: `${created.role} ${created.id}`, kind: 'account.created' })
+        sendJson(response, 201, { user: created })
+        return true
+      }
+    }
+
+    if (method === 'PATCH' && pathname.startsWith('/api/users/')) {
+      const admin = requireAdmin(user)
+      const body = await readJsonBody(request)
+      const id = decodeURIComponent(pathname.slice('/api/users/'.length))
+      const updated = await auth.updateAccount(admin, id, {
+        admin: typeof body.admin === 'boolean' ? body.admin : undefined,
+        disabled: typeof body.disabled === 'boolean' ? body.disabled : undefined,
+        name: typeof body.name === 'string' ? body.name : undefined,
+        password: typeof body.password === 'string' ? body.password : undefined,
+      })
+      const changed = Object.keys(body).filter((key) => key !== 'password').concat(body.password === undefined ? [] : ['password reset'])
+
+      db.logAction({ actor: toActor(admin), detail: `${updated.id}: ${changed.join(', ')}`, kind: 'account.updated' })
+      sendJson(response, 200, { user: updated })
+      return true
+    }
+
+    return false
+  }
+
   return async function routeRequest(request: IncomingMessage, response: ServerResponse) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const method = request.method ?? 'GET'
@@ -208,6 +310,16 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
 
     try {
       const managed = resolveSession(sessionParam)
+      const user = auth.authenticate(readToken(request, url))
+
+      if (await handleAccountRoute(request, response, method, url.pathname, user)) {
+        return
+      }
+
+      // Everything below needs a signed-in account, except the health check.
+      if (url.pathname !== '/api/health') {
+        requireUser(user)
+      }
 
       switch (`${method} ${url.pathname}`) {
         case 'GET /api/health': {
@@ -258,13 +370,15 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
           return
         }
         case 'GET /api/session/actions': {
+          requireTrainer(user)
+
           const id = managed?.id ?? sessionParam
 
           sendJson(response, 200, { actions: id ? db.listActions(id) : [], sessionId: id ?? null })
           return
         }
         case 'POST /api/session/commands':
-          await handleCommand(request, response)
+          await handleCommand(request, response, user!)
           return
         case 'POST /api/session/screens':
           await handleScreenJoin(request, response, managed ?? store.current())
@@ -277,15 +391,19 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
           return
         case 'POST /api/session/runtime':
         case 'DELETE /api/session/runtime':
+          requireTrainer(user)
           await handleClearRuntime(request, response)
           return
         case 'GET /api/reports/latest':
+          requireTrainer(user)
           sendJson(response, 200, { report: managed ? { id: store.reportId(managed), summary: store.buildReportSummary(managed) } : null })
           return
         case 'GET /api/reports':
+          requireTrainer(user)
           sendJson(response, 200, { reports: db.listReports() })
           return
         case 'POST /api/reports':
+          requireTrainer(user)
           await handleReportArchive(request, response)
           return
         // Phase 1 accepted whole sessions from browsers; the server is now the only writer.
@@ -301,7 +419,7 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
       const statusCode = error instanceof RequestError ? error.statusCode : 500
 
       sendJson(response, statusCode, {
-        error: statusCode === 500 ? 'server_error' : 'request_error',
+        error: statusCode === 500 ? 'server_error' : statusCode === 401 ? 'signed_out' : 'request_error',
         message: error instanceof Error ? error.message : String(error),
       })
     }

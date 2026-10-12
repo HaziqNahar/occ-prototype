@@ -124,7 +124,7 @@ export function validateSessionCommand(command: unknown): string | null {
     case 'RESET_SESSION':
       return isTrainingMode(value.trainingMode) && TIMETABLE_NAMES.has(String(value.timetableName)) ? null : 'Unknown mode or timetable.'
     case 'TRAINEE_JOIN':
-      return typeof value.code === 'string' && typeof value.name === 'string' ? null : 'Expected a name and code.'
+      return typeof value.code === 'string' ? null : 'Expected a session code.'
     case 'TRAINEE_LEAVE':
       return isText(value.traineeId) ? null : 'Expected a trainee.'
     case 'ACK_ALARMS':
@@ -219,7 +219,7 @@ function tagNewEvidence(before: OccSessionState['evidenceLog'], after: OccSessio
   ))
 }
 
-function runCommand(session: OccSessionState, command: SessionCommand): SessionCommandResult {
+function runCommand(session: OccSessionState, command: SessionCommand, context: SessionCommandContext): SessionCommandResult {
   switch (command.type) {
     case 'LOAD_SCENARIO':
       return loadScenario(session, command)
@@ -234,9 +234,9 @@ function runCommand(session: OccSessionState, command: SessionCommand): SessionC
     case 'RESET_SESSION':
       return resetSession(session, command.trainingMode, command.timetableName)
     case 'TRAINEE_JOIN':
-      return joinTrainee(session, command.code, command.name)
+      return joinTrainee(session, command.code, context.actor)
     case 'TRAINEE_LEAVE':
-      return leaveTrainee(session, command.traineeId)
+      return leaveTrainee(session, command.traineeId, context.actor)
     case 'ACK_ALARMS':
       return acknowledgeAlarms(session, command.rowKeys, command.keepRedTone)
     case 'SELECT_TRAIN':
@@ -297,7 +297,7 @@ export function applySessionCommand(
     return { accepted: false, reason: `Unknown train ${(command as { trainId: string }).trainId}.`, session }
   }
 
-  const result = runCommand(session, command)
+  const result = runCommand(session, command, context)
 
   if (result.session === session) {
     return result

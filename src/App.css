@@ -13618,3 +13618,94 @@
   color: #000;
   font: inherit;
 }
+
+/* Sign-in, first-time setup and the admin People page. */
+.sign-in-note {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.trainee-join select {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: rgba(8, 18, 32, 0.8);
+  font: inherit;
+  font-size: 16px;
+}
+
+.trainee-join button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.trainee-card.people-card {
+  width: min(960px, 100%);
+}
+
+.people-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.people-table th,
+.people-table td {
+  border-bottom: 1px solid var(--control-line);
+  padding: 8px 6px;
+  text-align: left;
+}
+
+.people-table th {
+  color: #9fb3ca;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.people-table tr.is-disabled td {
+  color: #64748b;
+}
+
+.people-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.people-actions button {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--ink);
+  background: rgba(8, 18, 32, 0.8);
+  font-size: 12px;
+}
+
+.people-actions button:hover {
+  border-color: #60a5fa;
+}
+
+.people-add h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.trainee-join label.people-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.people-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.people-check span {
+  text-transform: none;
+}
