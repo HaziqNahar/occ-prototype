@@ -73,7 +73,7 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
           </div>
         </div>
         <div className="report-actions">
-          <button type="button" onClick={() => onNavigate('/ios')}>Back to IOS</button>
+          <button type="button" onClick={() => onNavigate('/ios/modules')}>Back to console</button>
           <button type="button" disabled={!hasScenario} onClick={archiveReport}>Save Report</button>
           <button type="button" onClick={() => window.print()}>Print</button>
         </div>
@@ -86,10 +86,10 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
           <p className="report-copy">
             {hasScenario
               ? `${trainingModeSummary[session.trainingMode]} · Incident: ${session.activeScenario.incident} · Target ${session.activeScenario.duration}`
-              : 'Load and run a scenario from Scenario setup. The score and evidence appear here.'}
+              : 'Load and run a scenario from the Trainer Console. The score and evidence appear here.'}
           </p>
           {!hasScenario && (
-            <button type="button" className="report-hero-action" onClick={() => onNavigate('/ios/scenarios')}>Open Scenario Setup</button>
+            <button type="button" className="report-hero-action" onClick={() => onNavigate('/ios/modules')}>Open Trainer Console</button>
           )}
         </div>
         <div className={`report-result ${resultTone}`}>

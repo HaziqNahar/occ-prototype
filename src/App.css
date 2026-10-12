@@ -13187,3 +13187,409 @@
     gap: 16px;
   }
 }
+
+/* Start page and trainee page: one session, two roles. */
+.start-shell,
+.trainee-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(238, 49, 36, 0.12), transparent 30%),
+    radial-gradient(circle at 85% 5%, rgba(92, 36, 131, 0.16), transparent 32%),
+    linear-gradient(120deg, rgba(7, 17, 31, 0.95), rgba(9, 20, 34, 0.97)),
+    var(--occ-bg, none) center / cover no-repeat fixed,
+    var(--control-bg);
+}
+
+.start-card,
+.trainee-card {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 24px;
+  border: 1px solid var(--control-line);
+  border-radius: 16px;
+  padding: 32px;
+  box-sizing: border-box;
+  background: rgba(13, 26, 44, 0.94);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+
+.trainee-card {
+  width: min(520px, 100%);
+}
+
+.start-card button,
+.trainee-card button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.start-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.start-brand img {
+  height: 40px;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #ffffff;
+}
+
+.start-brand p {
+  margin: 0;
+  color: #9fb3ca;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.start-brand h1 {
+  margin: 2px 0 0;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.start-question {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.start-roles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.start-role {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 180px;
+  border: 1px solid var(--control-line-strong);
+  border-radius: 12px;
+  padding: 20px;
+  color: var(--ink);
+  text-align: left;
+  background: rgba(8, 18, 32, 0.7);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.start-role:hover,
+.start-role:focus-visible {
+  border-color: var(--control-button-active);
+  transform: translateY(-2px);
+}
+
+.start-role strong {
+  font-size: 20px;
+}
+
+.start-role span:last-child {
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.start-role-tag {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.start-role.is-trainer .start-role-tag {
+  color: #ffffff;
+  background: var(--control-button-active);
+}
+
+.start-role.is-trainee .start-role-tag {
+  color: #ffffff;
+  background: var(--control-action-hover);
+}
+
+.start-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-top: 1px solid var(--control-line);
+  padding-top: 16px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.start-footer button {
+  border: 0;
+  padding: 0;
+  color: #60a5fa;
+  background: none;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.start-footer button:hover {
+  text-decoration: underline;
+}
+
+.trainee-join {
+  display: grid;
+  gap: 16px;
+}
+
+.trainee-join label {
+  display: grid;
+  gap: 6px;
+}
+
+.trainee-join label span {
+  color: #9fb3ca;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trainee-join input {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: rgba(8, 18, 32, 0.8);
+  font: inherit;
+  font-size: 16px;
+}
+
+.trainee-join input:focus {
+  border-color: #60a5fa;
+  outline: none;
+}
+
+.trainee-join button,
+.trainee-monitors button {
+  border: 1px solid rgba(99, 179, 237, 0.65);
+  border-radius: 8px;
+  padding: 12px;
+  color: #ffffff;
+  background: var(--control-action);
+  font-weight: 900;
+}
+
+.trainee-join button:hover,
+.trainee-monitors button:hover {
+  background: var(--control-action-hover);
+}
+
+.trainee-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 14px;
+}
+
+.trainee-joined {
+  display: grid;
+  gap: 20px;
+}
+
+.trainee-status {
+  display: grid;
+  gap: 6px;
+  border-left: 4px solid #64748b;
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(8, 18, 32, 0.7);
+}
+
+.trainee-status strong {
+  font-size: 20px;
+}
+
+.trainee-status span {
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.trainee-status.is-running {
+  border-left-color: #4ade80;
+}
+
+.trainee-status.is-paused {
+  border-left-color: #facc15;
+}
+
+.trainee-status.is-complete {
+  border-left-color: var(--control-action-hover);
+}
+
+.trainee-facts {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+}
+
+.trainee-facts dt,
+.trainee-monitors > span {
+  color: #9fb3ca;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trainee-facts dd {
+  margin: 4px 0 0;
+  white-space: nowrap;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.trainee-monitors {
+  display: grid;
+  gap: 10px;
+}
+
+.trainee-monitors ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trainee-monitors li {
+  border: 1px solid var(--control-line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.trainee-monitors li::before {
+  content: '\25CB  ';
+}
+
+.trainee-monitors li.is-online {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #4ade80;
+}
+
+.trainee-monitors li.is-online::before {
+  content: '\25CF  ';
+}
+
+.trainee-leave {
+  justify-self: center;
+  border: 0;
+  color: #94a3b8;
+  background: none;
+  font-size: 13px;
+}
+
+.trainee-leave:hover {
+  color: #f87171;
+}
+
+/* Trainer Console: session code, trainees and monitors in the header. */
+.trainer-console-session {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 28px;
+  margin: 0;
+}
+
+.trainer-console-session dt {
+  color: #9fb3ca;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trainer-console-session dd {
+  max-width: 260px;
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainer-console-session .trainer-console-code {
+  color: #fde68a;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+
+.trainer-console-session .is-ok {
+  color: #4ade80;
+}
+
+.trainer-console-session .is-warn {
+  color: #facc15;
+}
+
+.trainer-console-input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  color: #0f172a;
+  background: #f8fafc;
+  font: inherit;
+  font-weight: 700;
+}
+
+.trainer-console-input[aria-invalid='true'] {
+  border-color: #f87171;
+}
+
+@media (max-width: 1100px) {
+  .trainer-console-header {
+    flex-wrap: wrap;
+  }
+
+  .trainer-console-session {
+    order: 3;
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .start-card,
+  .trainee-card {
+    padding: 20px;
+  }
+
+  .start-roles,
+  .trainee-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .start-role {
+    min-height: 0;
+  }
+
+  .trainer-console-session {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+}

@@ -204,4 +204,37 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect.poll(ackAlarmTask).toBe(true)
     expect(errors).toEqual([])
   })
+
+  test('trainee joins with the trainer session code and the trainer sees them', async ({ page }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+    await page.goto('/')
+    await page.getByRole('button', { name: /Trainee/ }).click()
+    await expect(page).toHaveURL(/\/session\/join$/)
+
+    await page.getByLabel('Your name').fill('Aisyah')
+    await page.getByLabel('Session code').fill('WRONG-CODE')
+    await page.getByRole('button', { name: 'Join session' }).click()
+    await expect(page.getByRole('alert')).toContainText('does not match')
+
+    const sessionCode = (await (await page.request.get('/api/session')).json()).session.sessionMeta.code
+    await page.getByLabel('Session code').fill(sessionCode.toLowerCase())
+    await page.getByRole('button', { name: 'Join session' }).click()
+    await expect(page.getByRole('heading', { name: 'Hello, Aisyah' })).toBeVisible()
+    await expect(page.getByRole('status')).toContainText('Waiting for trainer')
+
+    await page.goto('/')
+    await page.getByRole('button', { name: /Trainer/ }).click()
+    await expect(page.getByLabel('Session').getByText(sessionCode, { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Session').getByText('Aisyah')).toBeVisible()
+
+    // The trainee page reports a running exercise without naming the incident.
+    await page.getByRole('radio', { name: /PSD Fault/ }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+    await page.goto('/session/join')
+    await expect(page.getByRole('status')).toContainText('Exercise running')
+    await expect(page.getByText(/PSD/)).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
 })

@@ -1,11 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 import controlTabIcon from './assets/control-tab-icon.png'
 import type { OccSessionAction } from './backendClient'
 import { applyCommsRequest, getCommsLog } from './comms/commsCatalog'
 import type { CommsChannel } from './comms/commsCatalog'
-import { CommonFooterSvg } from './components/LegacyScadaFooter'
 import MonitorWorkspace from './components/MonitorWorkspace'
 import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
 import CommsDialog from './components/CommsDialog'
@@ -51,7 +50,6 @@ import {
   LINE_VIEWPORT_PANS,
   MAP_PAN_MAX,
   MAP_PAN_STEP,
-  MONITOR_HEIGHT,
   MONITOR_WIDTH,
   getTrainItamaStatusValue,
   getTrainReadinessDisplayValue,
@@ -70,7 +68,6 @@ import {
 import {
   createRouteAutomationSummary,
   createTrainOccupancyRouteSegmentStates,
-  getLineMapRouteStatus,
   getSignalEquipmentLabel,
   getSignalRouteLabels,
   updateLineMapRouteState,
@@ -117,8 +114,6 @@ import {
   createSummaryEvent,
   formatAlarmSummaryTimestamp,
   formatScenarioTime,
-  rejectScenarioAction,
-  scenarioSteps,
   submitBackendScenarioAction,
   upsertTimetableRow,
 } from './scenarioWorkflow'
@@ -126,22 +121,18 @@ import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTranspor
 import {
   getAlarmSummaryCounts,
   getTimetablePlaybackTrainIdSet,
-  trainingModeDetails,
   useOccSession,
 } from './sessionState'
 import { getTimetableClockNow } from './timetableClockState'
 import {
   applyTrainingScenarioRuntimeEvent,
   applyTrainingScenarioTrainSelection,
-  createTrainingScenarioStartSession,
-  pickRandomFaultLocation,
   getActiveTrainingScenarioTargetTrainId,
   getTrainingScenarioTrainActionDetail,
   getTrainingScenarioDefinition,
   isActiveTrainingScenarioTargetTrain,
   scoreTrainingScenario,
 } from './trainingScenarios'
-import type { TrainingScenarioKind } from './trainingScenarios'
 import LoginPage from './screens/LoginPage'
 import type {
   AlarmSummaryRow,
@@ -151,18 +142,15 @@ import type {
   OccSessionState,
   RouteControlMode,
   ScenarioNoticeTone,
-  TrainingMode,
   TrainCommand,
   TrainReadinessMode,
   TrainState,
   TrainStatus,
 } from './types'
 
-const AssessmentRubricScreen = lazy(() => import('./screens/AssessmentRubricScreen'))
 const IosModulesScreen = lazy(() => import('./screens/IosModulesScreen'))
 const ReportScreen = lazy(() => import('./screens/ReportScreen'))
-const ScenarioBuilderScreen = lazy(() => import('./screens/ScenarioBuilderScreen'))
-const TraineeLobbyScreen = lazy(() => import('./screens/TraineeLobbyScreen'))
+const TraineeScreen = lazy(() => import('./screens/TraineeScreen'))
 
 if (import.meta.env.DEV) {
   warnLineMapRouteValidationIssues()
@@ -254,14 +242,12 @@ function getCurrentRoute(): AppRoute {
 
 // Routes that should register as active backend participants in the OCC training session.
 const screenRegistrationByRoute: Partial<Record<AppRoute, ScreenRegistration>> = {
-  '/ios': { label: 'IOS Trainer Control', role: 'IOS', route: '/ios' },
-  '/ios/modules': { label: 'IOS Trainer Modules', role: 'IOS', route: '/ios/modules' },
-  '/ios/scenarios': { label: 'Scenario Builder', role: 'IOS', route: '/ios/scenarios' },
+  '/ios/modules': { label: 'Trainer Console', role: 'IOS', route: '/ios/modules' },
   '/report': { label: 'Post-Session Report', role: 'REPORT', route: '/report' },
   '/screen/alarms': { label: 'Monitor 01 - Alarms', role: 'ALARM', route: '/screen/alarms' },
   '/screen/line-map': { label: 'Monitor 02 - Line Map', role: 'LINE_MAP', route: '/screen/line-map' },
   '/screen/timetable': { label: 'Monitor 03 - Timetable', role: 'TIMETABLE', route: '/screen/timetable' },
-  '/session/join': { label: 'Session Lobby', role: 'LOBBY', route: '/session/join' },
+  '/session/join': { label: 'Trainee', role: 'LOBBY', route: '/session/join' },
 }
 
 function App() {
@@ -320,18 +306,9 @@ function App() {
     return <TimetableScreen onNavigate={navigate} session={session} updateSession={updateSession} />
   }
 
-  if (route === '/ios') {
-    return (
-      <IosScreen
-        onNavigate={navigate}
-        resetSession={resetSession}
-        session={session}
-        updateSession={updateSession}
-      />
-    )
-  }
-
-  if (route === '/ios/modules') {
+  // The Trainer Console replaced the IOS window, Scenario setup and the rubric page;
+  // their old addresses open the console so bookmarks keep working.
+  if (route === '/ios' || route === '/ios/modules' || route === '/ios/scenarios' || route === '/ios/assessment') {
     return (
       <Suspense fallback={null}>
         <IosModulesScreen
@@ -344,30 +321,10 @@ function App() {
     )
   }
 
-  if (route === '/ios/scenarios') {
-    return (
-      <Suspense fallback={null}>
-        <ScenarioBuilderScreen
-          onNavigate={navigate}
-          session={session}
-          updateSession={updateSession}
-        />
-      </Suspense>
-    )
-  }
-
-  if (route === '/ios/assessment') {
-    return (
-      <Suspense fallback={null}>
-        <AssessmentRubricScreen onNavigate={navigate} session={session} />
-      </Suspense>
-    )
-  }
-
   if (route === '/session/join') {
     return (
       <Suspense fallback={null}>
-        <TraineeLobbyScreen
+        <TraineeScreen
           session={session}
           updateSession={updateSession}
         />
@@ -383,7 +340,7 @@ function App() {
     )
   }
 
-  return <LoginPage onNavigate={navigate} resetSession={resetSession} />
+  return <LoginPage onNavigate={navigate} />
 }
 
 function LineMapScreen({
@@ -499,478 +456,6 @@ function LineMapScreen({
     </MonitorWorkspace>
   )
 }
-
-function IosScreen({
-  onNavigate,
-  resetSession,
-  session,
-  updateSession,
-}: {
-  onNavigate: (route: AppRoute) => void
-  resetSession: (trainingMode?: TrainingMode) => void
-  session: OccSessionState
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
-}) {
-  return (
-    <MonitorWorkspace
-      monitorLabel="IOS - TRAINER CONTROL"
-      onNavigate={onNavigate}
-      session={session}
-      title="Instructor Operating Station"
-    >
-      <IosCanvas
-        onNavigate={onNavigate}
-        resetSession={resetSession}
-        session={session}
-        updateSession={updateSession}
-      />
-    </MonitorWorkspace>
-  )
-}
-
-function IosCanvas({
-  onNavigate,
-  resetSession,
-  session,
-  updateSession,
-}: {
-  onNavigate: (route: AppRoute) => void
-  resetSession: (trainingMode?: TrainingMode) => void
-  session: OccSessionState
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
-}) {
-  const selectedTrain = session.trains.find((train) => train.id === session.selectedTrainId) ?? session.trains[0]
-  const trainingMode = trainingModeDetails[session.trainingMode]
-  const activeScenarioDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
-  const trainingScenarioScore = scoreTrainingScenario(session)
-  const scenarioScore = trainingScenarioScore.score
-  const nextScenarioTask = trainingScenarioScore.taskResults.find((task) => !task.complete)
-  const scenarioIsIdle = activeScenarioDefinition.tasks.length === 0
-  const cuePrimary = nextScenarioTask
-    ? `Next: ${nextScenarioTask.label}`
-    : scenarioIsIdle
-      ? 'No scenario armed.'
-      : 'All scenario tasks complete.'
-  const cueSecondary = nextScenarioTask
-    ? `${nextScenarioTask.monitor} | ${nextScenarioTask.weight}%`
-    : scenarioIsIdle
-      ? 'Choose a scenario below or in Scenario setup.'
-      : 'Press Complete, then open the Report.'
-  const noticeFill = session.scenarioNotice.tone === 'warning'
-    ? '#ff0000'
-    : session.scenarioNotice.tone === 'success'
-      ? '#008000'
-      : '#000080'
-  const noticeLines = wrapIosText(session.scenarioNotice.text, 76, 2)
-  const checklistSpacing = Math.min(42, 196 / Math.max(1, trainingScenarioScore.taskResults.length))
-  const checklistRowHeight = checklistSpacing - 6
-  const iosTrainListRows = [...session.trains]
-    .sort((left, right) => {
-      const visibleRank = Number(right.lineMapVisible !== false) - Number(left.lineMapVisible !== false)
-
-      return visibleRank || Number(left.id) - Number(right.id)
-    })
-    .slice(0, 8)
-
-  const startTrainingScenario = (kind: TrainingScenarioKind) => {
-    updateSession((current) => createTrainingScenarioStartSession(current, kind, undefined, {
-      faultLocation: pickRandomFaultLocation(current),
-    }))
-  }
-
-  const selectTrainingMode = (nextMode: TrainingMode) => {
-    updateSession((current) => {
-      const event = createMonitorEvent('317', `Trainer selected ${trainingModeDetails[nextMode].label} mode`, nextMode, 'yellow')
-
-      return {
-        ...current,
-        alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [event, ...current.eventRows].slice(0, 4),
-        scenarioNotice: {
-          text: trainingModeDetails[nextMode].cue,
-          tone: 'info',
-        },
-        trainingMode: nextMode,
-      }
-    })
-  }
-
-  const setTrainStatus = (trainId: string, status: TrainStatus, reason: string, tone: MonitorAlarmRow['tone'] = 'yellow') => {
-    const event = createMonitorEvent(trainId, reason, status, tone)
-    const backendAction: OccSessionAction['type'] = status === 'RUN'
-      ? 'DISPATCH_TRAIN'
-      : status === 'WAIT'
-        ? 'SET_ROUTE'
-        : 'SELECT_TRAIN'
-
-    // IOS train-control commands are scored by the backend validator first.
-    submitBackendScenarioAction(session, updateSession, {
-      detail: `Operator task accepted: ${reason}`,
-      source: 'IOS Train Control',
-      trainId,
-      type: backendAction,
-    }, (current) => {
-      const scenarioTargetTrainId = getActiveScenarioTargetTrainId(current)
-
-      if (trainId !== scenarioTargetTrainId) {
-        return rejectScenarioAction(
-          current,
-          `Scenario target is Train ${scenarioTargetTrainId}. Select Train ${scenarioTargetTrainId} for route and dispatch.`,
-          trainId,
-          'IOS Train Control',
-        )
-      }
-
-      const guard = status === 'RUN'
-        ? applyTrainingScenarioRuntimeEvent(current, {
-            source: 'IOS Train Control',
-            trainId,
-            type: 'DEPARTURE_TIME_CONFIRMED',
-          })
-        : status === 'WAIT'
-          ? applyTrainingScenarioRuntimeEvent(current, {
-              routeLabel: 'IOS Train Control route command',
-              source: 'IOS Train Control',
-              trainId,
-              type: 'ROUTE_SET',
-            })
-          : applyTrainingScenarioTrainSelection(current, 'IOS Train Control', trainId)
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      return {
-        ...guard.next,
-        alarmSummaryRows: [createSummaryEvent(event, tone === 'red' ? 'red' : 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [event, ...current.eventRows].slice(0, 4),
-        selectedTrainId: trainId,
-        lineMap: updateLineMapRouteState(current.lineMap, { id: trainId }, getLineMapRouteStatus(status)),
-        timetableRows: upsertTimetableRow(current.timetableRows, trainId, status === 'HOLD' ? 'H>' : status === 'RUN' ? '>' : 'R'),
-        trains: current.trains.map((train) => (
-          train.id === trainId ? { ...train, status } : train
-        )),
-      }
-    })
-  }
-
-  const completeScenarioReview = () => {
-    const scenarioTargetTrainId = getActiveScenarioTargetTrainId(session)
-
-    submitBackendScenarioAction(session, updateSession, {
-      detail: 'Scenario review complete. Report is ready.',
-      source: 'IOS Trainer Review',
-      trainId: scenarioTargetTrainId,
-      type: 'COMPLETE_SCENARIO',
-    }, (current) => {
-      const event = createMonitorEvent(
-        scenarioTargetTrainId,
-        `Scenario complete: Trainer reviewed ${current.activeScenario.title}`,
-        'COMPLETE',
-        'yellow',
-      )
-      const guard = applyTrainingScenarioRuntimeEvent(current, {
-        source: 'IOS Trainer Review',
-        type: 'SCENARIO_REVIEWED',
-      })
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      return {
-        ...guard.next,
-        alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [event, ...current.eventRows].slice(0, 4),
-        scenarioMode: 'COMPLETE',
-        scenarioStep: scenarioSteps.length - 1,
-      }
-    })
-  }
-
-  const openMonitor = (route: AppRoute, name: string) => {
-    window.open(route, name)
-  }
-
-  return (
-    <svg className="occ-monitor-svg" viewBox={`0 0 ${MONITOR_WIDTH} ${MONITOR_HEIGHT}`} role="img" aria-label="Instructor operating station">
-      <rect width={MONITOR_WIDTH} height={MONITOR_HEIGHT} fill="#c0c0c0" />
-      <rect x="0" y="0" width={MONITOR_WIDTH} height="44" fill="#000080" />
-      <text className="svg-ios-title" x="14" y="29">Instructor Operating Station - OCC Scenario Control</text>
-      <text className="svg-ios-clock" x="1260" y="28" textAnchor="end">{session.activeScenario.title}  |  {session.trainingMode}  |  {session.cycleMode}</text>
-
-      <IosPanel x={14} y={60} w={396} h={260} title="SCENARIO CONTROL">
-        <text className="svg-ios-label" x="34" y="112">Active scenario</text>
-        <rect x="34" y="126" width="336" height="32" fill="#ffffff" stroke="#404040" />
-        <text className="svg-ios-value" x="44" y="148">{session.scenarioMode} - {session.activeScenario.title}</text>
-        {!scenarioIsIdle && <text className="svg-ios-label" x="34" y="174">Target: {activeScenarioDefinition.target}</text>}
-        <rect x="34" y="184" width="336" height="46" fill="#ffffcc" stroke="#808000" />
-        <text className="svg-ios-cue" x="44" y="203">{cuePrimary}</text>
-        <text className="svg-ios-cue" x="44" y="219">{cueSecondary}</text>
-        <IosButton x={34} y={242} w={105} label="Launch" onClick={() => startTrainingScenario('TRAIN_LAUNCH')} />
-        <IosButton x={148} y={242} w={105} label="Withdraw" onClick={() => startTrainingScenario('TRAIN_WITHDRAWAL')} />
-        <IosButton x={262} y={242} w={100} label="Door Fault" onClick={() => startTrainingScenario('DOOR_FAULT')} />
-        <IosButton x={34} y={282} w={105} label="Reset" onClick={() => resetSession(session.trainingMode)} />
-        <IosButton x={148} y={282} w={105} label="PSD Fault" onClick={() => startTrainingScenario('PSD_FAULT')} />
-      </IosPanel>
-
-      <IosPanel x={430} y={60} w={396} h={250} title="TRAIN CONTROL">
-        <text className="svg-ios-label" x="450" y="112">Selected train</text>
-        <rect x="450" y="126" width="90" height="46" fill="#aab4c2" stroke="#000" strokeWidth="2" />
-        <text className="svg-ios-train" x="495" y="156" textAnchor="middle">{selectedTrain.id}</text>
-        <text className="svg-ios-value" x="560" y="142">Service: {selectedTrain.service}</text>
-        <text className="svg-ios-value" x="560" y="162">Status: {selectedTrain.status}</text>
-        <text className="svg-ios-label" x="450" y="186">Incident: {session.activeScenario.incident}</text>
-        <IosButton x={450} y={206} w={100} label="Hold" onClick={() => setTrainStatus(selectedTrain.id, 'HOLD', `Instructor command: Train ${selectedTrain.id} hold`, 'orange')} />
-        <IosButton x={562} y={206} w={100} label="Dispatch" onClick={() => setTrainStatus(selectedTrain.id, 'RUN', `Instructor command: Train ${selectedTrain.id} dispatch`, 'yellow')} />
-        <IosButton x={674} y={206} w={100} label="Route" onClick={() => setTrainStatus(selectedTrain.id, 'WAIT', `Instructor command: Train ${selectedTrain.id} route selected`, 'yellow')} />
-        <text className="svg-ios-label" x="450" y="260">Training mode</text>
-        <IosButton x={450} y={272} w={100} active={session.trainingMode === 'PRACTICE'} label="Practice" onClick={() => selectTrainingMode('PRACTICE')} />
-        <IosButton x={562} y={272} w={100} active={session.trainingMode === 'ASSESSMENT'} label="Assess" onClick={() => selectTrainingMode('ASSESSMENT')} />
-        <IosButton x={674} y={272} w={100} active={session.trainingMode === 'PLAYER'} label="Player" onClick={() => selectTrainingMode('PLAYER')} />
-      </IosPanel>
-
-      <IosPanel x={846} y={60} w={414} h={250} title="MONITOR LINKS">
-        <IosLinkStatus x={868} y={116} label="Alarms monitor" route="/screen/alarms" onOpen={openMonitor} />
-        <IosLinkStatus x={868} y={166} label="Line map monitor" route="/screen/line-map" onOpen={openMonitor} />
-        <IosLinkStatus x={868} y={216} label="Timetable monitor" route="/screen/timetable" onOpen={openMonitor} />
-        <IosButton x={868} y={258} w={112} label="Report" onClick={() => onNavigate('/report')} />
-        <IosButton x={992} y={258} w={112} label="Complete" onClick={completeScenarioReview} />
-        <text className="svg-ios-label" x="1118" y="278">Updated: {new Date(session.updatedAt).toLocaleTimeString()}</text>
-      </IosPanel>
-
-      <IosPanel x={14} y={330} w={580} h={330} title="OPERATOR CHECKLIST">
-        <rect x="34" y="348" width="526" height="40" fill={session.scenarioNotice.tone === 'warning' ? '#fff0f0' : '#f8f8f8'} stroke={noticeFill} />
-        {noticeLines.map((line, index) => (
-          <text className="svg-ios-notice" x="44" y={364 + index * 16} fill={noticeFill} key={line}>{line}</text>
-        ))}
-        <text className="svg-ios-label" x="34" y="414">Scenario progress</text>
-        <rect x="164" y="400" width="290" height="20" fill="#ffffff" stroke="#000000" />
-        <rect x="166" y="402" width={Math.max(0, Math.min(286, scenarioScore * 2.86))} height="16" fill={scenarioScore === 100 ? '#00c800' : '#ffff00'} />
-        <text className="svg-ios-value" x="470" y="415">{scenarioScore}%</text>
-        {trainingScenarioScore.taskResults.map((task, index) => {
-          const complete = task.complete
-          const top = 432 + index * checklistSpacing
-          const textY = top + (checklistRowHeight / 2) + 5
-
-          return (
-            <g key={task.id}>
-              <rect x="34" y={top} width="526" height={checklistRowHeight} fill={complete ? '#d8ffd8' : '#ffffff'} stroke="#808080" />
-              <rect x="48" y={textY - 13} width="16" height="16" fill={complete ? '#00c800' : '#c0c0c0'} stroke="#000" />
-              {complete && <text className="svg-ios-value" x="50" y={textY}>OK</text>}
-              <text className="svg-ios-value" x="78" y={textY}>{task.label}</text>
-              <text className="svg-ios-label" x="380" y={textY}>{task.monitor}</text>
-            </g>
-          )
-        })}
-      </IosPanel>
-
-      <IosPanel x={614} y={330} w={646} h={330} title={`TRAIN LIST - ${session.trains.length} trains - ${session.timetableName}`}>
-        {iosTrainListRows.map((train, index) => (
-          <g
-            className="svg-clickable"
-            onClick={() => submitBackendScenarioAction(session, updateSession, {
-              detail: getTrainingScenarioTrainActionDetail(session, train.id, `Train ${train.id} selected`),
-              source: 'IOS Train List',
-              trainId: train.id,
-              type: 'SELECT_TRAIN',
-            }, (current) => {
-              const selection = applyTrainingScenarioTrainSelection(current, 'IOS Train List', train.id)
-
-              if (!selection.allowed) {
-                return selection.next
-              }
-
-              const selected = selection.next
-
-              return {
-                ...selected,
-                scenarioNotice: isActiveScenarioTargetTrain(selected, train.id)
-                  ? { text: `Train ${train.id} selected for ${selected.activeScenario.title}.`, tone: 'info' }
-                  : { text: `Scenario target is Train ${getActiveScenarioTargetTrainId(selected)}.`, tone: 'warning' },
-                selectedTrainId: train.id,
-              }
-            })}
-            transform={`translate(638 ${380 + index * 34})`}
-            key={train.id}
-          >
-            <rect width="526" height="28" fill={train.id === session.selectedTrainId ? '#000080' : '#ffffff'} stroke="#808080" />
-            <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="14" y="19">TRN {train.id}</text>
-            <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="120" y="19">{train.service}</text>
-            <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="220" y="19">{train.status}</text>
-            <text className={train.id === session.selectedTrainId ? 'svg-ios-selected-row' : 'svg-ios-row'} x="330" y="19">{train.scheduleNumber ? `Sched ${train.scheduleNumber}` : ''}</text>
-          </g>
-        ))}
-      </IosPanel>
-
-      <IosPanel x={14} y={682} w={580} h={244} title="SCENARIO TIMELINE">
-        {trainingScenarioScore.taskResults.length > 0 ? (
-          trainingScenarioScore.taskResults.map((task, index) => (
-            <IosTimelineStep
-              x={38}
-              y={734 + index * 30}
-              active={task.complete}
-              current={!task.complete && task.id === nextScenarioTask?.id}
-              label={String(index + 1).padStart(2, '0')}
-              text={`${task.monitor}: ${task.label}`}
-              key={task.id}
-            />
-          ))
-        ) : (
-          <IosTimelineStep
-            x={38}
-            y={734}
-            active={session.scenarioMode !== 'IDLE'}
-            current={session.scenarioMode === 'IDLE'}
-            label="00"
-            text="No scenario armed"
-          />
-        )}
-      </IosPanel>
-
-      <rect x="614" y="682" width="646" height="244" fill="#b8b8b8" stroke="#ffffff" />
-      <text className="svg-ios-panel-title" x="630" y="710">Live Event Feed</text>
-      {session.eventRows.map((row, index) => (
-        <g transform={`translate(630 ${730 + index * 42})`} key={`${row.time}-${row.message}`}>
-          <rect width="606" height="34" fill={row.tone === 'red' ? '#ff0000' : row.tone === 'orange' ? '#ff9900' : '#ffff00'} stroke="#000" />
-          <text className="svg-ios-feed" x="12" y="22">{row.time}</text>
-          <text className="svg-ios-feed" x="150" y="22">{row.asset}</text>
-          <text className="svg-ios-feed" x="330" y="22">{row.value}</text>
-          <text className="svg-ios-feed" x="420" y="22">{row.message.slice(0, 26)}</text>
-        </g>
-      ))}
-
-      <CommonFooterSvg active="ADMIN" leftMode="Train" status={`${trainingMode.label} | IOS TRN ${selectedTrain.id} ${selectedTrain.status}`} />
-    </svg>
-  )
-}
-
-// SVG text does not wrap, so split IOS notices on word boundaries.
-function wrapIosText(text: string, maxChars: number, maxLines: number) {
-  const lines: string[] = []
-  let current = ''
-
-  text.split(/\s+/).filter(Boolean).forEach((word) => {
-    if (current && `${current} ${word}`.length > maxChars) {
-      lines.push(current)
-      current = word
-    } else {
-      current = current ? `${current} ${word}` : word
-    }
-  })
-
-  if (current) {
-    lines.push(current)
-  }
-
-  if (lines.length > maxLines) {
-    const kept = lines.slice(0, maxLines)
-    kept[maxLines - 1] = `${kept[maxLines - 1].slice(0, maxChars - 3)}...`
-    return kept
-  }
-
-  return lines
-}
-
-function IosPanel({
-  children,
-  h,
-  title,
-  w,
-  x,
-  y,
-}: {
-  children: ReactNode
-  h: number
-  title: string
-  w: number
-  x: number
-  y: number
-}) {
-  return (
-    <g>
-      <rect x={x} y={y} width={w} height={h} fill="#c0c0c0" stroke="#ffffff" strokeWidth="2" />
-      <rect x={x + 2} y={y + 2} width={w - 4} height={h - 4} fill="none" stroke="#808080" />
-      <rect x={x + 8} y={y + 8} width={w - 16} height="26" fill="#000080" />
-      <text className="svg-ios-panel-title" x={x + 18} y={y + 27}>{title}</text>
-      {children}
-    </g>
-  )
-}
-
-function IosButton({
-  active,
-  label,
-  onClick,
-  w,
-  x,
-  y,
-}: {
-  active?: boolean
-  label: string
-  onClick: () => void
-  w: number
-  x: number
-  y: number
-}) {
-  return (
-    <g className="svg-clickable" onClick={onClick} transform={`translate(${x} ${y})`}>
-      <rect width={w} height="32" fill={active ? '#ffff00' : '#c0c0c0'} stroke="#ffffff" strokeWidth="2" />
-      <rect x="2" y="2" width={w - 4} height="28" fill="none" stroke="#404040" />
-      <text className="svg-ios-button" x={w / 2} y="21" textAnchor="middle">{label}</text>
-    </g>
-  )
-}
-
-function IosLinkStatus({
-  label,
-  onOpen,
-  route,
-  x,
-  y,
-}: {
-  label: string
-  onOpen: (route: AppRoute, name: string) => void
-  route: AppRoute
-  x: number
-  y: number
-}) {
-  return (
-    <g>
-      <circle cx={x + 8} cy={y - 5} r="7" fill="#00c800" stroke="#006000" />
-      <text className="svg-ios-value" x={x + 24} y={y}>{label}: ONLINE</text>
-      <IosButton x={x + 230} y={y - 22} w={112} label="Open" onClick={() => onOpen(route, label)} />
-    </g>
-  )
-}
-
-function IosTimelineStep({
-  active,
-  current,
-  label,
-  text,
-  x = 638,
-  y,
-}: {
-  active: boolean
-  current?: boolean
-  label: string
-  text: string
-  x?: number
-  y: number
-}) {
-  return (
-    <g>
-      <rect x={x} y={y - 22} width="532" height="26" fill={current ? '#ffffcc' : active ? '#ffffff' : '#a8a8a8'} stroke={current ? '#000080' : '#808080'} strokeWidth={current ? 2 : 1} />
-      <rect x={x + 12} y={y - 15} width="12" height="12" fill={current ? '#ffff00' : active ? '#00c800' : '#808080'} stroke="#000" />
-      <text className="svg-ios-value" x={x + 34} y={y - 4}>{label}</text>
-      <text className="svg-ios-value" x={x + 88} y={y - 4}>{text}</text>
-    </g>
-  )
-}
-
-
-
 
 function ItamaStatusPanel({
   onAcknowledge,

@@ -41,6 +41,7 @@ import type {
   TrainDoorFailureState,
   TrainState,
 } from './types'
+import { createSessionCode } from './sessionCode'
 
 const STALE_LINE_MAP_TRAIN_DELTAS = new Set([MONITOR_WIDTH - 1064, MONITOR_WIDTH * 2 - 2084, MONITOR_WIDTH * 3 - 3066, -164, -16, -2, 2, 3, 10])
 const LEGACY_OCC_SESSION_KEYS = [
@@ -122,10 +123,9 @@ export const initialScenarioTasks: ScenarioTaskState = {
   setRoute: false,
 }
 
-const defaultSessionCode = 'OCC-TRAINING-001'
 
 export const initialScenarioNotice: ScenarioNotice = {
-  text: 'Ready for IOS training scenario selection.',
+  text: 'Ready. Choose a scenario and load it to start the exercise.',
   tone: 'info',
 }
 
@@ -137,16 +137,8 @@ export const initialActiveScenario = {
   title: 'Idle',
 }
 
-export const initialTrainees: TraineeParticipant[] = [
-  {
-    email: 'traffic.controller@sbs.local',
-    joinedAt: '11:00',
-    monitor: 'Monitor 02 - Line Map',
-    name: 'Traffic Controller',
-    role: 'Traffic Controller',
-    status: 'Joined',
-  },
-]
+// Trainees join from the trainee page; a new session starts with nobody joined.
+export const initialTrainees: TraineeParticipant[] = []
 
 export const alarmSummaryRows: AlarmSummaryRow[] = [
   {
@@ -443,7 +435,8 @@ export function createSessionMeta(lifecycle: SessionLifecycle = 'CREATED'): OccS
   const createdAt = new Date().toISOString()
 
   return {
-    code: defaultSessionCode,
+    // Each new or reset session gets a fresh code; the backend keeps it until the next reset.
+    code: createSessionCode(),
     createdAt,
     lifecycle,
     screens: {},

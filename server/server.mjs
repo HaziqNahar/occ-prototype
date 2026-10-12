@@ -15,7 +15,6 @@ const dataDir = process.env.OCC_BACKEND_DATA_DIR
   : path.join(serverDir, 'data')
 const sessionFile = path.join(dataDir, 'session.json')
 const reportsFile = path.join(dataDir, 'reports.ndjson')
-const DEFAULT_SESSION_CODE = 'OCC-TRAINING-001'
 const MONITOR_LAUNCH_ORIGIN = '/screen/line-map'
 const MONITOR_LAUNCH_TARGETS = new Set(['/screen/alarms', '/screen/timetable'])
 const MAX_TRANSPORT_EVENTS = 80
@@ -89,11 +88,26 @@ function recordTransportEvent(type, event = {}) {
   }
 }
 
+// Same alphabet as src/sessionCode.ts: no I, L, O, 0 or 1, which are easy to confuse.
+const SESSION_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const SESSION_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/
+
+function createSessionCode() {
+  return Array.from({ length: 4 }, () => (
+    SESSION_CODE_ALPHABET[Math.floor(Math.random() * SESSION_CODE_ALPHABET.length)]
+  )).join('')
+}
+
+function isSessionCode(code) {
+  // Older sessions used OCC-TRAINING-001; keep them joinable until their next reset.
+  return typeof code === 'string' && (SESSION_CODE_PATTERN.test(code) || code.startsWith('OCC-TRAINING-'))
+}
+
 function createSessionMeta(lifecycle = 'CREATED') {
   const createdAt = getIsoNow()
 
   return {
-    code: DEFAULT_SESSION_CODE,
+    code: createSessionCode(),
     createdAt,
     lifecycle,
     screens: {},
@@ -102,15 +116,7 @@ function createSessionMeta(lifecycle = 'CREATED') {
 }
 
 function normalizeSessionCode(code) {
-  if (typeof code !== 'string' || !code.trim()) {
-    return DEFAULT_SESSION_CODE
-  }
-
-  if (code.startsWith('OCC-') && !code.startsWith('OCC-TRAINING-')) {
-    return DEFAULT_SESSION_CODE
-  }
-
-  return code
+  return isSessionCode(code) ? code : createSessionCode()
 }
 
 function normalizeSessionMeta(session, lifecycle) {
@@ -133,7 +139,9 @@ function mergeSessionMeta(existingMeta, incomingMeta) {
     ...baseMeta,
     ...existingMeta,
     ...incomingMeta,
-    code: normalizeSessionCode(incomingMeta?.code ?? existingMeta?.code),
+    // The backend's code stands until a reset (which does not merge), so a freshly
+    // opened page with its own generated code cannot change it.
+    code: isSessionCode(existingMeta?.code) ? existingMeta.code : normalizeSessionCode(incomingMeta?.code),
     screens: {
       ...(existingMeta?.screens ?? {}),
       ...(incomingMeta?.screens ?? {}),

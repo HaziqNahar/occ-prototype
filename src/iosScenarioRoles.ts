@@ -27,7 +27,7 @@ export function getScenarioTaskActionRoute(monitor: string) {
     return '/screen/alarms' as const
   }
 
-  return '/ios' as const
+  return '/ios/modules' as const
 }
 
 export function getScenarioTaskActionLabel(monitor: string) {

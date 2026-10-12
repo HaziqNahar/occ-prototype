@@ -9,6 +9,7 @@ import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
 import { getScenarioTaskOwner } from '../iosScenarioRoles'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import { scenarioTemplates } from '../scenarioLibrary'
+import { getOnlineMonitors, occMonitors } from '../sessionPresence'
 import { createResetSessionState, updateSessionLifecycle } from '../sessionState'
 import {
   applyTrainingScenarioRuntimeEvent,
@@ -93,6 +94,16 @@ function formatElapsed(totalSeconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
+// Switching timetable rebuilds the trains, but the class is the same:
+// keep the joined trainees and the session code they joined with.
+function keepSessionPeople(reset: OccSessionState, loaded: OccSessionState): OccSessionState {
+  return {
+    ...reset,
+    sessionMeta: { ...reset.sessionMeta, code: loaded.sessionMeta.code, screens: loaded.sessionMeta.screens },
+    trainees: loaded.trainees,
+  }
+}
+
 function getTemplateIdForScenario(scenarioId: string) {
   const definition = getTrainingScenarioDefinition(scenarioId)
 
@@ -112,6 +123,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   const [trainingMode, setTrainingMode] = useState<TrainingMode>(session.trainingMode)
   const [timetableName, setTimetableName] = useState<NelTimetableName>(session.timetableName)
   const [launchTrainChoice, setLaunchTrainChoice] = useState('')
+  const [timeTarget, setTimeTarget] = useState('')
   const [now, setNow] = useState(() => Date.now())
 
   const score = scoreTrainingScenario(session)
@@ -121,6 +133,10 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   const needsLaunchTrain = activeDefinition.kind === 'TRAIN_LAUNCH' && !session.activeScenario.targetTrainId && !isIdle
   const startedAt = session.sessionMeta?.startedAt ? Date.parse(session.sessionMeta.startedAt) : undefined
   const isRunning = session.scenarioMode === 'RUNNING'
+  const onlineMonitors = getOnlineMonitors(session, now)
+  const sessionCode = session.sessionMeta?.code ?? '----'
+  const timeTargetValue = timeTarget || selectedDefinition.duration
+  const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
   const elapsed = !isIdle && startedAt ? formatElapsed((now - startedAt) / 1000) : '--:--'
   const activity = categoriseScenarioEvidence(session.evidenceLog)
     // Internal bookkeeping rows ("Scenario task selectTrain") repeat the action above them.
@@ -138,11 +154,8 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
     : launchTrainOptions[0]?.value ?? ''
 
   useEffect(() => {
-    if (!isRunning) {
-      return undefined
-    }
-
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    // Ticks the run timer each second, and monitor presence every few seconds when idle.
+    const timer = window.setInterval(() => setNow(Date.now()), isRunning ? 1000 : 5000)
 
     return () => window.clearInterval(timer)
   }, [isRunning])
@@ -152,15 +165,20 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
       // A different timetable changes the train roster, so start from a clean session.
       const base = loaded.timetableName === timetableName
         ? loaded
-        : createResetSessionState(trainingMode, Date.now(), (loaded.scenarioRevision ?? 0) + 1, timetableName)
+        : keepSessionPeople(
+            createResetSessionState(trainingMode, Date.now(), (loaded.scenarioRevision ?? 0) + 1, timetableName),
+            loaded,
+          )
 
       // Each run puts the fault on a different train, station and bound.
-      return createTrainingScenarioStartSession(
+      const armed = createTrainingScenarioStartSession(
         { ...base, trainingMode },
         selectedDefinition.kind,
         selectedDefinition.incident,
         { faultLocation: pickRandomFaultLocation(base) },
       )
+
+      return { ...armed, activeScenario: { ...armed.activeScenario, duration: timeTargetValue } }
     })
   }
 
@@ -270,9 +288,24 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
             <h1>Trainer Console</h1>
           </div>
         </div>
+        <dl className="trainer-console-session" aria-label="Session">
+          <div>
+            <dt>Session code</dt>
+            <dd className="trainer-console-code">{sessionCode}</dd>
+          </div>
+          <div>
+            <dt>Trainees</dt>
+            <dd>{session.trainees.length > 0 ? session.trainees.map((trainee) => trainee.name).join(', ') : 'None joined yet'}</dd>
+          </div>
+          <div>
+            <dt>Monitors</dt>
+            <dd className={onlineMonitors.length === occMonitors.length ? 'is-ok' : 'is-warn'}>
+              {onlineMonitors.length}/{occMonitors.length} open
+            </dd>
+          </div>
+        </dl>
         <nav aria-label="Trainer tools">
           <button type="button" onClick={openMonitors}>Open monitors</button>
-          <button type="button" onClick={() => onNavigate('/ios')}>IOS</button>
           <button type="button" onClick={() => onNavigate('/report')}>Report</button>
           <button type="button" className="is-quiet" onClick={() => onNavigate('/')}>Exit</button>
         </nav>
@@ -358,6 +391,16 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
               <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
             </label>
             <label className="trainer-console-field">
+              <span>Time target</span>
+              <input
+                aria-invalid={!timeTargetIsValid}
+                className="trainer-console-input"
+                onChange={(event) => setTimeTarget(event.target.value)}
+                placeholder="mm:ss"
+                value={timeTargetValue}
+              />
+            </label>
+            <label className="trainer-console-field">
               <span>Timetable</span>
               <SelectField
                 ariaLabel="Timetable"
@@ -367,7 +410,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
               />
             </label>
           </div>
-          <button type="button" className="trainer-console-load" onClick={loadScenario}>
+          <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
             {isIdle ? 'Load scenario' : 'Restart with this scenario'}
           </button>
           {timetableName !== session.timetableName && (
@@ -433,7 +476,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
         <section className="trainer-console-panel trainer-console-activity" aria-labelledby="console-activity-heading">
           <div className="trainer-console-panel-head">
             <h2 id="console-activity-heading">Trainee activity</h2>
-            <span>{session.trainees.map((trainee) => trainee.name).join(', ') || 'No trainee joined'}</span>
+            <span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span>
           </div>
           {activity.length > 0 ? (
             <ul className="trainer-console-feed">

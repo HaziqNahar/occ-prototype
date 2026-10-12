@@ -84,11 +84,7 @@ function MonitorWorkspace({
         </div>
         <div className="occ-workspace-actions">
           {extraActions}
-          <button type="button" onClick={() => onNavigate('/ios/modules')}>IOS Modules</button>
-          <button type="button" onClick={() => onNavigate('/session/join')}>Trainee Lobby</button>
-          <button type="button" onClick={() => onNavigate('/ios/scenarios')}>Scenario Builder</button>
-          <button type="button" onClick={() => onNavigate('/ios/assessment')}>Rubric</button>
-          <button type="button" onClick={() => onNavigate('/')}>Back to Launch</button>
+          <button type="button" onClick={() => onNavigate('/')}>Exit</button>
         </div>
       </header>
 
