@@ -66,13 +66,13 @@ async function getAvailablePort() {
   )
 
   try {
-    for (let attempt = 0; attempt < 50; attempt += 1) {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
       try {
         if ((await fetch(`${baseUrl}/api/health`)).ok) break
       } catch {
         // Backend still starting.
       }
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await new Promise((resolve) => setTimeout(resolve, 50))
     }
 
     const first = createInitialSession()

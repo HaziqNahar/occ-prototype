@@ -31,7 +31,7 @@ async function getAvailablePort() {
 async function waitForBackend(baseUrl: string) {
   let lastError: unknown
 
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
     try {
       const response = await fetch(`${baseUrl}/api/health`)
 
@@ -42,7 +42,7 @@ async function waitForBackend(baseUrl: string) {
       lastError = error
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 50))
   }
 
   throw lastError ?? new Error('Backend did not become ready.')

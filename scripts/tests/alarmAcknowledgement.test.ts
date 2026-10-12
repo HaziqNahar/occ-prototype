@@ -6,7 +6,7 @@ import {
 } from '../../src/alarmAcknowledgement'
 import { createInitialSession } from '../../src/sessionState'
 import { createTrainingScenarioStartSession } from '../../src/trainingScenarios'
-import { createScenarioActionEngine } from '../../server/scenarioActionEngine.mjs'
+import { applyScenarioAction } from '../../server/scenarioActions'
 
 const armed = createTrainingScenarioStartSession(createInitialSession(), 'PSD_FAULT', 'Single PSD failed to close')
 const rows = armed.alarmSummaryRows
@@ -46,18 +46,8 @@ assert.equal(acknowledgesScenarioAlarm(createInitialSession().alarmSummaryRows, 
 
 // The backend scores ACK_ALARM but leaves the alarm rows as the monitor set them.
 {
-  const engine = createScenarioActionEngine({
-    applyAcceptedTask: (session: typeof armed, taskId: string) => ({
-      ...session,
-      scenarioTasks: { ...session.scenarioTasks, [taskId]: true },
-    }),
-    createMonitorEvent: () => ({}),
-    createSummaryEvent: () => ({}),
-    getScenarioTaskBlocker: () => '',
-    rejectScenarioAction: (session: typeof armed) => session,
-    updateLineMapRouteState: (lineMap: unknown) => lineMap,
-  })
-  const result = engine(armed, { source: 'Monitor 01 Alarms', trainId: '317', type: 'ACK_ALARM' })
+  const selected = applyScenarioAction(armed, { source: 'Monitor 02 Line Map', trainId: '317', type: 'SELECT_TRAIN' })
+  const result = applyScenarioAction(selected.session, { source: 'Monitor 01 Alarms', trainId: '317', type: 'ACK_ALARM' })
 
   assert.equal(result.accepted, true)
   assert.equal(result.session.scenarioTasks.ackAlarm, true)

@@ -53,6 +53,7 @@ export type SessionTransportEventType =
   | 'scenario_action_rejected'
   | 'screen_joined'
   | 'session_reset'
+  | 'session_runtime_cleared'
   | 'session_updated'
   | 'sse_connected'
   | 'sse_disconnected'
@@ -311,4 +312,19 @@ export type OccSessionState = {
   trainees: TraineeParticipant[]
   trains: TrainState[]
   updatedAt: number
+}
+
+// Scored operator actions validated by the backend.
+export type OccSessionActionType =
+  | 'ACK_ALARM'
+  | 'COMPLETE_SCENARIO'
+  | 'DISPATCH_TRAIN'
+  | 'SELECT_TRAIN'
+  | 'SET_ROUTE'
+
+export type OccSessionAction = {
+  detail?: string
+  source: string
+  trainId?: string
+  type: OccSessionActionType
 }

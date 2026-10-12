@@ -21,19 +21,9 @@ export type ArchivedReportResponse = {
   }
 }
 
-export type OccSessionActionType =
-  | 'ACK_ALARM'
-  | 'COMPLETE_SCENARIO'
-  | 'DISPATCH_TRAIN'
-  | 'SELECT_TRAIN'
-  | 'SET_ROUTE'
+import type { OccSessionAction, OccSessionActionType } from './types'
 
-export type OccSessionAction = {
-  detail?: string
-  source: string
-  trainId?: string
-  type: OccSessionActionType
-}
+export type { OccSessionAction, OccSessionActionType }
 
 export type OccSessionActionResponse = {
   accepted: boolean

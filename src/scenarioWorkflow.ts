@@ -1,10 +1,7 @@
-import { submitOccSessionAction } from './backendClient'
-import type { OccSessionAction } from './backendClient'
 import { appendScenarioEvidence, createScenarioEvidence } from './scenario'
 import {
   initialScenarioNotice,
   initialScenarioTasks,
-  normalizeClientSession,
   updateSessionLifecycle,
 } from './sessionState'
 import { createLineMapRuntimeState } from './screens/line-map/lineMapRuntimeState'
@@ -441,30 +438,3 @@ export function applyScenarioStep(
 
 // Submit golden-path actions to the backend validator. If the local backend is
 // down, the fallback keeps the same UI reducer path working.
-export function submitBackendScenarioAction(
-  session: OccSessionState,
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void,
-  action: OccSessionAction,
-  fallback?: (current: OccSessionState) => OccSessionState,
-  onComplete?: (accepted: boolean, reason: string | null) => void,
-) {
-  void submitOccSessionAction(session, action)
-    .then((payload) => {
-      const normalized = normalizeClientSession(payload.session)
-      const nextSession = payload.accepted && fallback
-        ? fallback(normalized)
-        : normalized
-
-      updateSession(() => ({
-        ...nextSession,
-        selectedTrainId: action.trainId ?? nextSession.selectedTrainId,
-      }))
-      onComplete?.(payload.accepted, payload.reason)
-    })
-    .catch(() => {
-      if (fallback) {
-        updateSession(fallback)
-      }
-      onComplete?.(false, 'Backend unavailable. Used local fallback.')
-    })
-}

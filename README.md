@@ -102,9 +102,25 @@ not stored in this repository.
 
 ## Backend
 
-`server/server.mjs` runs at `http://127.0.0.1:8787` and owns the shared session.
-All pages publish to it, receive live updates over server-sent events, and fall
-back to a SharedWorker / `BroadcastChannel` / local storage if it is unreachable.
+The backend is TypeScript in `server/` and shares the scenario, scoring and
+session rules in `src/` with the app (see `docs/production-plan.md`). It runs at
+`http://127.0.0.1:8787` and owns the shared session. All pages publish to it,
+receive live updates over server-sent events, and fall back to a SharedWorker /
+`BroadcastChannel` / local storage if it is unreachable.
+
+| Command | Use |
+| --- | --- |
+| `npm.cmd run backend` | Development: runs `server/main.ts` through Vite, no build step |
+| `npm.cmd run backend:lan` | Development, reachable from other PCs |
+| `npm.cmd run build:server` | Bundles the backend into `dist-server/main.js` |
+| `npm.cmd run start:server` | Runs the bundled backend (use this on the LAN host) |
+
+Data is kept in one SQLite file, `server/data/occ-training.sqlite` (ignored by
+Git), using the SQLite built into Node 24: the current session, an action log
+(scored actions, screen joins, resets, report archives) and archived reports.
+On first start it imports `session.json` / `reports.ndjson` from the old
+backend and renames them `*.migrated`. `npm.cmd run reset:runtime` deletes all
+backend data (stop the backend first).
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -115,13 +131,11 @@ back to a SharedWorker / `BroadcastChannel` / local storage if it is unreachable
 | `GET /api/session/status` | Session code, lifecycle and joined screens |
 | `POST /api/session/screens` | Register or heartbeat a page |
 | `POST /api/session/actions` | Validate a scored action (select train, acknowledge alarm, route, dispatch, complete) |
+| `GET /api/session/actions` | Action log of the current session (or `?sessionId=`) |
 | `POST /api/session/reset` | Replace the session with a fresh one |
 | `POST /api/session/runtime` | Clear the runtime session |
 | `GET /api/reports/latest` | Report summary of the current session |
 | `POST /api/reports` | Archive a report snapshot |
-
-Runtime state is written under `server/data/` (ignored by Git). Clear it with
-`npm.cmd run reset:runtime`.
 
 ## Tests
 
@@ -130,6 +144,7 @@ npm.cmd test
 npm.cmd run test:ui
 npm.cmd run lint
 npm.cmd run build
+npm.cmd run build:server
 ```
 
 - `npm.cmd test` runs the unit and integration tests in `scripts/tests/`,

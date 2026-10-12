@@ -114,15 +114,15 @@ import {
   createSummaryEvent,
   formatAlarmSummaryTimestamp,
   formatScenarioTime,
-  submitBackendScenarioAction,
   upsertTimetableRow,
 } from './scenarioWorkflow'
+import { submitBackendScenarioAction } from './backendActions'
 import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTransport'
 import {
   getAlarmSummaryCounts,
   getTimetablePlaybackTrainIdSet,
-  useOccSession,
 } from './sessionState'
+import { useOccSession } from './useOccSession'
 import { getTimetableClockNow } from './timetableClockState'
 import {
   applyTrainingScenarioRuntimeEvent,

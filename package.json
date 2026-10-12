@@ -9,6 +9,8 @@
     "dev": "vite",
     "dev:lan": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "build:server": "vite build -c vite.server.config.ts",
+    "start:server": "node dist-server/main.js",
     "lint": "eslint .",
     "audit:routes": "node scripts/audit-routes.mjs",
     "audit:timetable": "node scripts/audit-timetable-routes.mjs",
