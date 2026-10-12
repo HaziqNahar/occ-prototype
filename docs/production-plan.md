@@ -1,6 +1,6 @@
 # Production Plan: From Prototype to Training Tool
 
-Status: approved 12 Oct 2026. Work happens on branch `sop-scenarios-weekday04`.
+Status: approved 12 Oct 2026; updated for two trainees (separate exercises). Work happens on branch `sop-scenarios-weekday04`.
 
 ## Goal
 
@@ -15,7 +15,8 @@ every run is kept for later review.
 | Deployment | One host PC on the OCC LAN runs the backend; trainer and trainee PCs connect over the LAN. No internet needed. |
 | Sign-in | Local accounts stored by the app. An admin trainer adds trainers and trainees. |
 | Records | Keep a history of every completed session. |
-| Classes | Version 1: one class at a time (one trainer, one trainee). Version 2: one trainer with several trainees. |
+| Class size | At most one trainer with two trainees (confirmed Oct 2026). |
+| Two trainees | **Separate exercises**: each trainee runs their own session (own monitors, trains and score), watched by one trainer from one console. No shared exercise, so the train simulation can stay with each trainee's single Line Map. |
 
 ## Why the current build is not enough
 
@@ -53,30 +54,32 @@ browser code, so the server can reuse it instead of copying it.
   toolchain in development and bundled for the LAN host.
 - **Every phase leaves the app working.**
 
-## Version 1: one class at a time
+## Phases
 
 | Phase | Delivers | Estimate |
 | --- | --- | --- |
 | 1. Shared core + TypeScript server + action log | React-free core module shared by app and server; server ported to TypeScript using it (no duplicated rules); SQLite database with the action log; same API so the app keeps working. | 4–5 days |
-| 2. Server owns actions and scoring | Every trainee and trainer action becomes a request the server validates and scores with the definition-based scoring; browsers stop publishing whole sessions; reports cannot be overwritten. | 6–8 days |
-| 3. One clock owner | Only one Line Map window drives the train simulation; other windows display. Enough while there is one trainee. | 1–2 days |
+| 2. Server owns actions and scoring | Every trainee and trainer action becomes a request the server validates and scores with the definition-based scoring; browsers stop publishing whole sessions; reports cannot be overwritten. Every action records which trainee or trainer did it. | 6–8 days |
+| 3. One clock owner | Only one Line Map window per session drives the train simulation; other windows display. | 1–2 days |
 | 4. Accounts and sign-in | Trainer and trainee accounts with passwords, admin trainer manages people, console limited to trainers. | 2–3 days |
-| 5. History | Past runs and a trainee progress view, built on the action log. | 1–2 days |
-| 6. LAN hardening | Install and start-up guide, data backup, multi-PC test. | 2 days |
-| **Total** | | **16–22 working days (about 3½–4½ weeks)** |
+| 5. Two trainees, separate exercises | The server runs up to two sessions at once. The trainer assigns each joined trainee to their own session; each trainee's monitors open on their session. The console shows both exercises side by side (status, checklist, score) and can load a scenario into either. | 3–5 days |
+| 6. History | Past runs and a trainee progress view, built on the action log. | 1–2 days |
+| 7. LAN hardening | Install and start-up guide, data backup, multi-PC test with one trainer and two trainees. | 2 days |
+| **Total** | | **19–27 working days (about 4–5½ weeks)** |
 
-Version 1 data is designed for version 2: a session holds a list of trainees,
-and every logged action records which trainee or trainer did it.
+Design notes for phases 2–5 so two sessions need no rework:
 
-## Version 2: one trainer, several trainees (later)
+- The server keeps sessions in a map keyed by session id, even while only one is
+  used; every request and live-update stream names its session.
+- Monitors, trainee pages and actions carry the session they belong to (for
+  example a `?session=` code in the monitor addresses).
+- Scores and the action log are per session, so each trainee's report is theirs.
 
-About 2 weeks on top of version 1:
+## Later (not planned)
 
-- The train simulation moves to the server (several Line Map windows).
-- Per-trainee scoring on the console and in reports.
-
-Decide first: do the trainees **share one exercise** (same trains, working
-together) or each run **their own copy** of the scenario under one trainer?
+A **shared exercise** (two trainees on the same trains, in different OCC roles)
+would need the train simulation on the server and per-role scoring: about
+7–10 days on top. Not needed for separate exercises.
 
 ## Working practice
 
@@ -91,4 +94,4 @@ together) or each run **their own copy** of the scenario under one trainer?
 | Phase | Status |
 | --- | --- |
 | 1 | Done (12 Oct 2026): shared core (`src/sessionState.ts` is React-free; hook in `src/useOccSession.ts`), TypeScript backend in `server/`, SQLite database with action log, legacy data migration. |
-| 2–6 | Not started |
+| 2–7 | Not started |
