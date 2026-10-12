@@ -52,8 +52,8 @@ npm.cmd run reset:password -- <username> <new password>
 | Page | Who | Purpose |
 | --- | --- | --- |
 | `/` | Everyone | Sign in (or set up the first trainer), then the start page for your role. Also opens the three monitors on a monitor PC. |
-| `/ios/modules` | Trainer | **Trainer Console**: pick a scenario and incident, set mode, time target and timetable, load it, watch the checklist and trainee activity, pause/complete/stop. Shows the session code, joined trainees and open monitors. |
-| `/session/join` | Trainee | Join with the session code shown on the console, then open the monitors. Shows exercise status but never names the incident. |
+| `/ios/modules` | Trainer | **Trainer Console**: one column per exercise (up to two). Each has its own code, trainee, monitors, scenario chooser (incident, mode, time target, timetable), checklist, trainee activity, pause/complete/stop and report. **Add Exercise 2** opens the second; trainees can be assigned or moved between exercises. |
+| `/session/join` | Trainee | Join with your exercise's code from the console, then open the monitors. Shows exercise status but never names the incident. |
 | `/screen/alarms` | Trainee | Monitor 01: alarm summary and acknowledgement, Calls panel. |
 | `/screen/line-map` | Trainee | Monitor 02: SCADA line map, train commands (route, dispatch, HII hold), train inspector, Calls panel. |
 | `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
@@ -65,18 +65,25 @@ Trainer Console.
 
 ### Run-through
 
-1. Trainer opens `/`, signs in, opens the Trainer Console and reads out the
-   4-character session code (for example `K7M2`). **Reset whole session**
-   issues a new code.
-2. Trainee opens `/` on their PC, signs in with their own account, joins with
-   the code and clicks **Open my monitors**.
-3. Trainer picks a scenario (for example **PSD Fault → Single PSD failed to
-   close**) and clicks **Load scenario**.
+1. Trainer opens `/`, signs in and opens the Trainer Console. For two trainees,
+   click **Add Exercise 2**: each exercise has its own 4-character code (for
+   example `K7M2`). **Reset whole session** issues a new code for that exercise.
+2. Each trainee opens `/` on their PC, signs in with their own account, joins
+   with their exercise's code and clicks **Open my monitors**. (The trainer can
+   also pick the trainee in an exercise's **Assign** list, or **Move** them.)
+3. Trainer picks a scenario in an exercise's column (for example **PSD Fault →
+   Single PSD failed to close**) and clicks **Load scenario**; the other
+   exercise is not affected.
 4. The trainee finds the incident alarm on Monitor 01, acknowledges it, selects
    and holds the train on Monitor 02, makes the SOP calls from the **Calls**
    tab (Radio / Teleph.), and releases the train.
-5. Trainer watches the checklist fill in, clicks **Complete**, then opens the
-   **Report**.
+5. Trainer watches each checklist fill in, clicks **Complete**, then opens that
+   exercise's **Report**.
+
+A trainee's pages and monitors always show their own exercise, and follow them
+when the trainer moves them. A trainee cannot see or act in the other exercise.
+The console's **Open monitors** opens an exercise's monitors on the trainer's PC
+(`/screen/...?session=<code>`).
 
 ## Scenarios
 
@@ -184,13 +191,17 @@ backend data (stop the backend first).
 | `POST /api/session/screens` | Register or heartbeat a page |
 | `POST /api/session/simulation` | A Line Map window claims the train simulation: `{ sourceId, takeover }` |
 | `GET /api/session/actions` | Action log of the current session (or `?sessionId=`) |
-| `POST /api/session/runtime` | Start a fresh session in place of the current one |
+| `POST /api/session/runtime` | Start Exercise 1 afresh |
+| `GET /api/sessions`, `POST /api/sessions`, `DELETE /api/sessions/<id>` | Trainer: list exercises, open Exercise 2, close it (once nobody is in it) |
+| `GET /api/trainees` | Trainer: trainee accounts that can be assigned |
+| `POST /api/class/join` | Trainee: join the exercise with `{ code }` |
+| `POST /api/class/assign` | Trainer: put a trainee in an exercise, `{ traineeId, sessionId }` |
 | `GET /api/reports/latest` | Report summary of the current run, built by the server |
 | `GET /api/reports` | Archived reports |
 | `POST /api/reports` | Save trainer notes with the current run's report (the server scores it) |
 
-Session requests take an optional `?session=<code or id>`; without it they use
-the current session. Completed runs are archived automatically.
+Session requests take an optional `?session=<code or id>`; without it a trainee
+gets their own exercise and everyone else Exercise 1. Completed runs are archived automatically.
 
 ## Tests
 
@@ -214,5 +225,5 @@ This is a prototype for demos and practice runs, not yet for formal assessment:
 
 - The app is served over plain HTTP on the LAN, so passwords and tokens are
   not encrypted in transit. Keep it on the training network.
-- One backend runs one session at a time.
+- One trainer console runs at most two exercises, one trainee each.
 - The 12-car rescue SOP is not modelled yet.

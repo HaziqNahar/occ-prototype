@@ -6,7 +6,14 @@ const monitorWindows: Array<{ name: string; path: AppRoute }> = [
   { name: 'occ-monitor-3-timetable', path: '/screen/timetable' },
 ]
 
-// Opens (or brings forward) the three OCC monitor windows on this PC.
-export function openOccMonitors() {
-  monitorWindows.forEach((monitor) => window.open(monitor.path, monitor.name))
+// Opens (or brings forward) the three OCC monitor windows on this PC. Without
+// an exercise they show the signed-in person's own; the trainer console opens
+// them on one exercise (?session=<code>), in windows of their own.
+export function openOccMonitors(exercise?: { code: string; number: number }) {
+  monitorWindows.forEach((monitor) => {
+    window.open(
+      exercise ? `${monitor.path}?session=${encodeURIComponent(exercise.code)}` : monitor.path,
+      exercise ? `${monitor.name}-exercise-${exercise.number}` : monitor.name,
+    )
+  })
 }

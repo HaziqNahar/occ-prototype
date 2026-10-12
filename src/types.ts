@@ -243,6 +243,8 @@ export type OccSessionMeta = {
   code: string
   completedAt?: string
   createdAt: string
+  // Which of the trainer's exercises this is (1 or 2); kept by the server.
+  exercise?: number
   lastMonitorLaunch?: SessionMonitorLaunch
   simulationOwner?: SimulationOwner
   lifecycle: SessionLifecycle

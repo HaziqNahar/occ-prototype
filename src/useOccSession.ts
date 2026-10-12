@@ -50,10 +50,19 @@ function createCommandId() {
 }
 
 // token: this browser's sign-in; without one (and with a backend) nothing is sent.
-export function useOccSession(getActor: () => SessionActor, token: string | null, onSignedOut?: () => void) {
+// sessionRef: the exercise to show, or null to follow the signed-in person.
+export function useOccSession(
+  getActor: () => SessionActor,
+  token: string | null,
+  onSignedOut?: () => void,
+  sessionRef: string | null = null,
+) {
   const [session, setSession] = useState<OccSessionState>(createInitialSession)
-  const [sourceId] = useState(createSourceId)
+  // Until the server's first snapshot arrives the page shows a placeholder
+  // session (its code is not the real one). Without a server it is the session.
   const [backendEnabled] = useState(() => getOccBackendBaseUrl() !== null)
+  const [synced, setSynced] = useState(!backendEnabled)
+  const [sourceId] = useState(createSourceId)
   const serverRef = useRef<ServerState>({ session, sessionId: null, version: 0 })
   const pendingRef = useRef<PendingCommand[]>([])
   const displayRef = useRef(session)
@@ -97,6 +106,7 @@ export function useOccSession(getActor: () => SessionActor, token: string | null
     }
 
     serverRef.current = { session: message.session, sessionId: message.sessionId, version: message.version }
+    setSynced(true)
     render()
   }, [render])
 
@@ -133,6 +143,7 @@ export function useOccSession(getActor: () => SessionActor, token: string | null
       onSignedOut: () => onSignedOutRef.current?.(),
       onSnapshot: applySnapshot,
       onUpdate: applyUpdate,
+      sessionRef,
       sourceId,
       token,
     })
@@ -141,7 +152,7 @@ export function useOccSession(getActor: () => SessionActor, token: string | null
       clientRef.current?.close()
       clientRef.current = null
     }
-  }, [applySnapshot, applyUpdate, sourceId, token])
+  }, [applySnapshot, applyUpdate, sessionRef, sourceId, token])
 
   // Without a backend (or when it cannot be reached) commands apply in this window only.
   const applyLocally = useCallback((command: SessionCommand, actor: SessionActor): CommandOutcome => {
@@ -280,6 +291,7 @@ export function useOccSession(getActor: () => SessionActor, token: string | null
     claimSimulation,
     dispatch,
     isSimulationOwner,
+    synced,
     registerScreen,
     requestMonitorPeerLaunch,
     session,

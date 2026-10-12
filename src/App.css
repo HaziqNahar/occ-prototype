@@ -13709,3 +13709,92 @@
 .people-check span {
   text-transform: none;
 }
+
+/* Trainer Console: one column per exercise (phase 5). */
+.trainer-console-exercises {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.trainer-exercise {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.trainer-exercise-head {
+  flex-wrap: wrap;
+}
+
+.trainer-exercise-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.trainer-exercise-trainee {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-right: 10px;
+}
+
+.trainer-exercise-trainee button {
+  border: 0;
+  padding: 0;
+  color: #93c5fd;
+  background: none;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.trainer-exercise-assign {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.trainer-console-message {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+/* Two exercises share the width: each one's panels stack in two columns. */
+.has-two-exercises .trainer-console-exercises {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Tools on their own row, so both exercises line up. */
+.has-two-exercises .trainer-exercise-head nav {
+  flex-basis: 100%;
+  justify-content: flex-end;
+}
+
+.has-two-exercises .trainer-console-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.has-two-exercises .trainer-console-activity {
+  grid-column: 1 / -1;
+}
+
+.has-two-exercises .trainer-console-status {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.has-two-exercises .trainer-console-figures {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+@media (max-width: 1400px) {
+  .has-two-exercises .trainer-console-exercises {
+    grid-template-columns: 1fr;
+  }
+}

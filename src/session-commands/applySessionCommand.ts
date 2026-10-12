@@ -25,6 +25,7 @@ import {
 } from './lineMapCommands'
 import {
   acknowledgeAlarms,
+  addTrainee,
   applyTimetableTripAction,
   isTimetableTripAction,
   joinTrainee,
@@ -58,6 +59,7 @@ import type {
 
 const TRAINER_COMMANDS = new Set<SessionCommandType>([
   'ASSIGN_LAUNCH_TRAIN',
+  'ASSIGN_TRAINEE',
   'CONFIRM_TASK',
   'LOAD_SCENARIO',
   'RESET_SCENARIO',
@@ -127,6 +129,8 @@ export function validateSessionCommand(command: unknown): string | null {
       return typeof value.code === 'string' ? null : 'Expected a session code.'
     case 'TRAINEE_LEAVE':
       return isText(value.traineeId) ? null : 'Expected a trainee.'
+    case 'ASSIGN_TRAINEE':
+      return isText(value.traineeId) && isText(value.name) ? null : 'Expected a trainee.'
     case 'ACK_ALARMS':
       return Array.isArray(value.rowKeys) && value.rowKeys.every((key) => typeof key === 'string') ? null : 'Expected alarm rows.'
     case 'SELECT_TRAIN':
@@ -237,6 +241,8 @@ function runCommand(session: OccSessionState, command: SessionCommand, context: 
       return joinTrainee(session, command.code, context.actor)
     case 'TRAINEE_LEAVE':
       return leaveTrainee(session, command.traineeId, context.actor)
+    case 'ASSIGN_TRAINEE':
+      return addTrainee(session, { id: command.traineeId, name: command.name }, 'assigned to this exercise by the trainer.')
     case 'ACK_ALARMS':
       return acknowledgeAlarms(session, command.rowKeys, command.keepRedTone)
     case 'SELECT_TRAIN':

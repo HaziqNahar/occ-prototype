@@ -3,7 +3,7 @@ import type { CSSProperties, FormEvent } from 'react'
 import type { PublicUser } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import { normalizeEnteredSessionCode, sessionCodesMatch } from '../sessionCode'
+import { normalizeEnteredSessionCode } from '../sessionCode'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
 import type { OccSessionState } from '../types'
 import type { DispatchSessionCommand } from '../useOccSession'
@@ -11,6 +11,9 @@ import { openOccMonitors } from '../occMonitors'
 
 type TraineeScreenProps = {
   dispatch: DispatchSessionCommand
+  // Joins the exercise whose code was typed (the server finds it); without a
+  // server, the code is checked against this page's session.
+  onJoin?: (code: string) => Promise<{ accepted: boolean; reason: string | null }>
   onSignOut: () => void
   session: OccSessionState
   user: PublicUser
@@ -18,7 +21,7 @@ type TraineeScreenProps = {
 
 // Trainee view: join the trainer's session, then work on the three OCC monitors.
 // It never reveals the incident, because finding it is part of the exercise.
-function TraineeScreen({ dispatch, onSignOut, session, user }: TraineeScreenProps) {
+function TraineeScreen({ dispatch, onJoin, onSignOut, session, user }: TraineeScreenProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [now, setNow] = useState(() => Date.now())
@@ -35,17 +38,19 @@ function TraineeScreen({ dispatch, onSignOut, session, user }: TraineeScreenProp
   const join = (event: FormEvent) => {
     event.preventDefault()
 
-    if (!sessionCodesMatch(code, sessionCode)) {
-      setError('That code does not match. Check the code on your trainer’s screen.')
+    if (!code.trim()) {
+      setError('Enter the code on your trainer’s screen.')
       return
     }
 
     setError('')
-    void dispatch({ code, type: 'TRAINEE_JOIN' }).then(({ accepted, reason }) => {
-      if (!accepted) {
-        setError(reason ?? 'Could not join the session.')
-      }
-    })
+    void (onJoin ? onJoin(code) : dispatch({ code, type: 'TRAINEE_JOIN' }))
+      .then(({ accepted, reason }) => {
+        if (!accepted) {
+          setError(reason ?? 'Could not join the session.')
+        }
+      })
+      .catch((joinError: Error) => setError(joinError.message))
   }
 
   const leave = () => {
@@ -53,7 +58,7 @@ function TraineeScreen({ dispatch, onSignOut, session, user }: TraineeScreenProp
     setCode('')
   }
 
-  const openMonitors = openOccMonitors
+  const openMonitors = () => openOccMonitors()
 
   const status = session.scenarioMode === 'RUNNING'
     ? { label: 'Exercise running', text: 'Work from the OCC monitors. Respond to what you see as per SOP.', tone: 'running' }
@@ -104,6 +109,7 @@ function TraineeScreen({ dispatch, onSignOut, session, user }: TraineeScreenProp
 
             <dl className="trainee-facts">
               <div><dt>Role</dt><dd>Traffic Controller</dd></div>
+              <div><dt>Exercise</dt><dd>{session.sessionMeta.exercise ?? 1}</dd></div>
               <div><dt>Session</dt><dd>{sessionCode}</dd></div>
               <div><dt>Mode</dt><dd>{session.trainingMode.toLowerCase()}</dd></div>
             </dl>

@@ -59,7 +59,7 @@ function LoginPage({ onNavigate, onSignOut, user }: LoginPageProps) {
 
         <footer className="start-footer">
           <span>Setting up a monitor PC?</span>
-          <button type="button" onClick={openOccMonitors}>Open the three OCC monitors</button>
+          <button type="button" onClick={() => openOccMonitors()}>Open the three OCC monitors</button>
           {user && <button type="button" onClick={onSignOut}>Sign out</button>}
         </footer>
       </section>

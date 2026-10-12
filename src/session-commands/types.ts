@@ -102,6 +102,8 @@ export type SessionCommand =
   // Trainee page
   | { code: string; type: 'TRAINEE_JOIN' }
   | { traineeId: string; type: 'TRAINEE_LEAVE' }
+  // Trainer console: put a signed-in trainee into this exercise.
+  | { name: string; traineeId: string; type: 'ASSIGN_TRAINEE' }
   // Monitor 01 Alarms
   | { keepRedTone?: boolean; rowKeys: string[]; type: 'ACK_ALARMS' }
   // Monitor 02 Line Map

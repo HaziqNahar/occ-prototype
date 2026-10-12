@@ -4,13 +4,18 @@ import { createId, getIsoNow, setCorsHeaders } from './http'
 import type { SessionSnapshotMessage, SessionUpdateMessage } from '../src/session-commands/protocol'
 import type { SessionMonitorLaunch, SessionTransportEvent } from '../src/types'
 
-// Server-sent events: the backend's live path to every open screen. Each stream
-// belongs to one session; a stream opened without one follows the current session.
+// Server-sent events: the backend's live path to every open screen. A stream
+// either names its exercise (?session=) or follows its user: a trainee's own
+// exercise, otherwise Exercise 1. When that changes (a trainee is moved, an
+// exercise is reset or removed) the stream is sent the new exercise's snapshot.
 
 type SseClient = {
-  // null: follow whichever session is current.
+  // The exercise this stream is showing now.
+  currentSessionId: string
+  // Named exercise, or null to follow the user.
   sessionId: string | null
   response: ServerResponse
+  userId: string | null
 }
 
 const transportEvents: SessionTransportEvent[] = []
@@ -33,36 +38,52 @@ function writeSse(response: ServerResponse, payload: unknown) {
 
 export class RealtimeHub {
   private readonly clients = new Set<SseClient>()
-  private readonly getCurrentSessionId: () => string
+  private readonly resolveFollowed: (userId: string | null) => string
+  private readonly snapshotFor: (sessionId: string) => SessionSnapshotMessage | null
 
-  constructor(getCurrentSessionId: () => string) {
-    this.getCurrentSessionId = getCurrentSessionId
+  constructor(
+    resolveFollowed: (userId: string | null) => string,
+    snapshotFor: (sessionId: string) => SessionSnapshotMessage | null,
+  ) {
+    this.resolveFollowed = resolveFollowed
+    this.snapshotFor = snapshotFor
   }
 
   get clientCount() {
     return this.clients.size
   }
 
-  private sessionOf(client: SseClient) {
-    return client.sessionId ?? this.getCurrentSessionId()
-  }
-
   send(sessionId: string, payload: SessionSnapshotMessage | SessionUpdateMessage) {
     this.clients.forEach((client) => {
-      if (this.sessionOf(client) === sessionId) {
+      if (client.currentSessionId === sessionId) {
         writeSse(client.response, payload)
       }
     })
   }
 
-  // A reset replaces a session: its screens move to the new one.
-  moveClients(fromSessionId: string, snapshot: SessionSnapshotMessage) {
+  // A reset or removed exercise: streams that named it now name its replacement.
+  moveClients(fromSessionId: string, toSessionId: string) {
     this.clients.forEach((client) => {
-      if (this.sessionOf(client) === fromSessionId) {
-        if (client.sessionId !== null) {
-          client.sessionId = snapshot.sessionId
-        }
+      if (client.sessionId === fromSessionId) {
+        client.sessionId = toSessionId
+      }
+    })
+    this.sync()
+  }
 
+  // Sends each stream whose exercise changed the snapshot of its new one.
+  sync() {
+    this.clients.forEach((client) => {
+      const target = client.sessionId ?? this.resolveFollowed(client.userId)
+
+      if (target === client.currentSessionId) {
+        return
+      }
+
+      const snapshot = this.snapshotFor(target)
+
+      if (snapshot) {
+        client.currentSessionId = target
         writeSse(client.response, snapshot)
       }
     })
@@ -76,10 +97,13 @@ export class RealtimeHub {
 
   open(request: IncomingMessage, response: ServerResponse, options: {
     onClose?: () => void
-    snapshot: SessionSnapshotMessage
     sourceId: string
     subscribedSessionId: string | null
+    userId: string | null
   }) {
+    const currentSessionId = options.subscribedSessionId ?? this.resolveFollowed(options.userId)
+    const snapshot = this.snapshotFor(currentSessionId)
+
     setCorsHeaders(response)
     response.writeHead(200, {
       connection: 'keep-alive',
@@ -89,11 +113,14 @@ export class RealtimeHub {
     })
     response.write(': connected\n\n')
 
-    const client: SseClient = { response, sessionId: options.subscribedSessionId }
+    const client: SseClient = { currentSessionId, response, sessionId: options.subscribedSessionId, userId: options.userId }
 
     this.clients.add(client)
     recordTransportEvent('sse_connected', { detail: 'Browser opened backend event stream.', sourceId: options.sourceId, transport: 'backend' })
-    writeSse(response, options.snapshot)
+
+    if (snapshot) {
+      writeSse(response, snapshot)
+    }
 
     // A message rather than a comment, so screens can tell a silent dead link from a quiet session.
     const heartbeat = setInterval(() => writeSse(response, { type: 'heartbeat' }), SSE_HEARTBEAT_MS)

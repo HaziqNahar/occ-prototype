@@ -119,6 +119,7 @@ import {
 } from './trainingScenarios'
 import LoginPage, { AccessNotice } from './screens/LoginPage'
 import SignInPage from './screens/SignInPage'
+import { exerciseApi } from './exerciseClient'
 import { useAuth } from './useAuth'
 import type {
   AppRoute,
@@ -210,6 +211,14 @@ const screenRegistrationByRoute: Partial<Record<AppRoute, ScreenRegistration>> =
 }
 
 const TRAINER_ROUTES = new Set<AppRoute>(['/ios', '/ios/modules', '/ios/scenarios', '/ios/assessment', '/report', '/admin'])
+// The console follows each exercise itself; the page-wide session connection is not used there.
+const CONSOLE_ROUTES = new Set<AppRoute>(['/ios', '/ios/modules', '/ios/scenarios', '/ios/assessment'])
+
+// ?session=<code or id>: the exercise a monitor or report shows. Without it a page
+// shows the signed-in trainee's own exercise, otherwise Exercise 1.
+function getRequestedSession() {
+  return new URLSearchParams(window.location.search).get('session')
+}
 
 // Without a backend there are no accounts: the page's role comes from its address.
 const LOCAL_TRAINEE: PublicUser = { admin: false, createdAt: '', disabled: false, id: 'local-trainee', name: 'Trainee', role: 'trainee' }
@@ -220,6 +229,7 @@ function getLocalActor(route: AppRoute): SessionActor {
 
 function App() {
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute)
+  const [sessionRef, setSessionRef] = useState(getRequestedSession)
   const auth = useAuth()
   const user = auth.state.status === 'signed-in' ? auth.state.user : null
   const token = auth.state.status === 'signed-in' ? auth.state.token : null
@@ -235,10 +245,13 @@ function App() {
     session,
     simulate,
     subscribeMonitorLaunch,
-  } = useOccSession(getActor, token, auth.handleSignedOut)
+  } = useOccSession(getActor, CONSOLE_ROUTES.has(route) ? null : token, auth.handleSignedOut, sessionRef)
 
   useEffect(() => {
-    const handlePopState = () => setRoute(getCurrentRoute())
+    const handlePopState = () => {
+      setRoute(getCurrentRoute())
+      setSessionRef(getRequestedSession())
+    }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
@@ -257,9 +270,10 @@ function App() {
     return () => window.clearInterval(heartbeat)
   }, [registerScreen, route, token])
 
-  const navigate = (nextRoute: AppRoute) => {
-    window.history.pushState(null, '', nextRoute)
+  const navigate = (nextRoute: AppRoute, search = '') => {
+    window.history.pushState(null, '', `${nextRoute}${search}`)
     setRoute(nextRoute)
+    setSessionRef(getRequestedSession())
   }
 
   const signOut = () => {
@@ -335,10 +349,11 @@ function App() {
     return (
       <Suspense fallback={null}>
         <IosModulesScreen
-          dispatch={dispatch}
+          getActor={getActor}
           onNavigate={navigate}
           onSignOut={signOut}
-          session={session}
+          onSignedOut={auth.handleSignedOut}
+          token={token}
           user={user}
         />
       </Suspense>
@@ -350,6 +365,7 @@ function App() {
       <Suspense fallback={null}>
         <TraineeScreen
           dispatch={dispatch}
+          onJoin={user ? exerciseApi.join : undefined}
           onSignOut={signOut}
           session={session}
           user={user ?? LOCAL_TRAINEE}

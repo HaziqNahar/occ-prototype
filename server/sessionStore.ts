@@ -6,15 +6,19 @@ import { buildScenarioReport } from '../src/scenarioReport'
 import { applySessionCommand } from '../src/session-commands/applySessionCommand'
 import { createSessionDelta } from '../src/session-commands/sessionDelta'
 import type { SessionActor, SessionCommand, SessionCommandResult } from '../src/session-commands/types'
-import { getSessionId } from '../src/sessionCode'
+import { createSessionCode, getSessionId } from '../src/sessionCode'
 import { createInitialSession, restoreSession } from '../src/sessionState'
 import type { OccSessionState, SessionScreenJoin, SessionScreenRole, SessionTransportSnapshot } from '../src/types'
 
 // The server's sessions, keyed by session id. Only this module changes a session:
 // every change is versioned, saved and sent to that session's screens as a delta.
-// Phase 2 runs one session; phase 5 runs one per trainee.
+// The trainer runs up to two at once, Exercise 1 and Exercise 2, one per trainee.
+
+export const MAX_EXERCISES = 2
 
 export type ManagedSession = {
+  // 1 or 2; also kept in sessionMeta.exercise for the screens.
+  exercise: number
   id: string
   session: OccSessionState
   version: number
@@ -66,15 +70,104 @@ export class SessionStore {
     this.db = db
 
     const stored = db.loadCurrentSession()
-    const managed = this.add(stored ? withoutSimulationOwner(restoreSession(stored)) : createInitialSession())
+    const managed = this.add(stored ? withoutSimulationOwner(restoreSession(stored)) : createInitialSession(), 1)
+    const second = db.loadSession(db.getSecondSessionId())
 
     this.currentId = managed.id
-    this.realtime = new RealtimeHub(() => this.currentId)
+    this.realtime = new RealtimeHub(
+      (userId) => this.followedSessionId(userId),
+      (sessionId) => {
+        const found = this.sessions.get(sessionId)
+
+        return found ? this.snapshot(found) : null
+      },
+    )
     db.setCurrentSession(managed.session)
+
+    if (second) {
+      db.setSecondSession(this.add(withoutSimulationOwner(restoreSession(second)), 2).session)
+    }
 
     if (!stored) {
       db.logAction({ detail: managed.session.sessionMeta.code, kind: 'session.created', sessionId: managed.id })
     }
+  }
+
+  // The trainer's exercises in order.
+  exercises() {
+    return [...this.sessions.values()].sort((left, right) => left.exercise - right.exercise)
+  }
+
+  // The exercise a trainee is in, if any.
+  sessionForTrainee(userId: string | null | undefined) {
+    return userId ? this.exercises().find((managed) => managed.session.trainees.some((trainee) => trainee.email === userId)) : undefined
+  }
+
+  // What a screen shows when it does not name an exercise: a trainee's own, otherwise Exercise 1.
+  followedSessionId(userId: string | null) {
+    return this.sessionForTrainee(userId)?.id ?? this.currentId
+  }
+
+  // Trainees work only in their own exercise (or Exercise 1 before they join one).
+  isTraineeAllowed(managed: ManagedSession, userId: string) {
+    const own = this.sessionForTrainee(userId)
+
+    return own ? own.id === managed.id : managed.id === this.currentId
+  }
+
+  addExercise(actor: SessionActor) {
+    if (this.sessions.size >= MAX_EXERCISES) {
+      return null
+    }
+
+    const managed = this.add(createInitialSession(), 2)
+
+    this.db.setSecondSession(managed.session)
+    this.db.logAction({ actor, detail: `Exercise 2 (${managed.session.sessionMeta.code})`, kind: 'session.created', sessionId: managed.id })
+
+    return managed
+  }
+
+  // Exercise 2 can be closed once nobody is in it; it stays in the database.
+  removeExercise(managed: ManagedSession, actor: SessionActor) {
+    if (managed.exercise === 1) {
+      return 'Exercise 1 cannot be removed.'
+    }
+
+    if (managed.session.trainees.length > 0) {
+      return `Move ${managed.session.trainees.map((trainee) => trainee.name).join(', ')} to Exercise 1 first.`
+    }
+
+    this.saveNow(managed)
+    this.sessions.delete(managed.id)
+    this.db.setSecondSession(null)
+    this.db.logAction({ actor, detail: 'Exercise 2 closed', kind: 'session.cleared', sessionId: managed.id })
+    this.realtime.moveClients(managed.id, this.currentId)
+
+    return null
+  }
+
+  // A trainee joins the exercise whose code they typed.
+  joinByCode(code: string, actor: SessionActor) {
+    const managed = this.find(code.replace(/\s+/g, ''))
+
+    return managed ? this.applyCommand(managed, { code, type: 'TRAINEE_JOIN' }, actor) : null
+  }
+
+  // The trainer puts a trainee into an exercise (and so out of the other).
+  assignTrainee(managed: ManagedSession, trainee: { id: string; name: string }, actor: SessionActor) {
+    return this.applyCommand(managed, { name: trainee.name, traineeId: trainee.id, type: 'ASSIGN_TRAINEE' }, actor)
+  }
+
+  summaries() {
+    return this.exercises().map((managed) => ({
+      code: managed.session.sessionMeta.code,
+      exercise: managed.exercise,
+      id: managed.id,
+      scenarioMode: managed.session.scenarioMode,
+      title: managed.session.activeScenario.title,
+      trainees: managed.session.trainees.map((trainee) => ({ id: trainee.email, name: trainee.name })),
+    }))
   }
 
   current() {
@@ -140,6 +233,20 @@ export class SessionStore {
     // Every completed run is archived, scored by the server.
     if (before.scenarioMode !== 'COMPLETE' && target.session.scenarioMode === 'COMPLETE') {
       this.archiveReport(target)
+    }
+
+    // A trainee is in one exercise at a time.
+    if (result.accepted && (command.type === 'TRAINEE_JOIN' || command.type === 'ASSIGN_TRAINEE')) {
+      const traineeId = command.type === 'ASSIGN_TRAINEE' ? command.traineeId : actor.id
+
+      this.exercises()
+        .filter((other) => other !== target && other.session.trainees.some((trainee) => trainee.email === traineeId))
+        .forEach((other) => this.applyCommand(other, { traineeId: traineeId!, type: 'TRAINEE_LEAVE' }, actor))
+    }
+
+    // Screens that follow a trainee move with them.
+    if (before.trainees !== target.session.trainees) {
+      this.realtime.sync()
     }
 
     return { managed: target, result, update }
@@ -261,7 +368,7 @@ export class SessionStore {
 
     this.db.logAction({ actor: sourceId, kind: 'session.cleared', sessionId: previous.id })
 
-    return this.replace(previous, createInitialSession())
+    return this.replace(previous, createInitialSession(), { keepTrainees: false })
   }
 
   reportId(managed: ManagedSession) {
@@ -307,32 +414,43 @@ export class SessionStore {
 
   // Versions start from the clock, so they keep rising across a server restart
   // and screens that stayed open accept the restarted server's session.
-  private add(session: OccSessionState): ManagedSession {
-    const managed: ManagedSession = { id: getSessionId(session), session, version: Date.now() }
+  private add(session: OccSessionState, exercise: number): ManagedSession {
+    const otherCodes = new Set([...this.sessions.values()].map((managed) => managed.session.sessionMeta.code))
+    let code = session.sessionMeta.code
+
+    // Each exercise needs its own code for trainees to type.
+    while (otherCodes.has(code)) {
+      code = createSessionCode()
+    }
+
+    const numbered: OccSessionState = { ...session, sessionMeta: { ...session.sessionMeta, code, exercise } }
+    const managed: ManagedSession = { exercise, id: getSessionId(numbered), session: numbered, version: Date.now() }
 
     this.sessions.set(managed.id, managed)
 
     return managed
   }
 
-  private replace(previous: ManagedSession, session: OccSessionState): ManagedSession {
+  // A whole-session reset gives the exercise a new session and code; its trainees stay in it.
+  private replace(previous: ManagedSession, session: OccSessionState, options: { keepTrainees?: boolean } = {}): ManagedSession {
     this.saveNow(previous)
     this.sessions.delete(previous.id)
 
-    const managed = this.add(session)
-
-    // Before the current session changes, so screens following it are found.
-    this.realtime.moveClients(previous.id, this.snapshot(managed))
+    const managed = this.add(
+      options.keepTrainees === false ? session : { ...session, trainees: previous.session.trainees },
+      previous.exercise,
+    )
 
     if (this.currentId === previous.id) {
       this.currentId = managed.id
-      this.db.setCurrentSession(session)
+      this.db.setCurrentSession(managed.session)
     } else {
-      this.db.saveSession(session)
+      this.db.setSecondSession(managed.session)
     }
 
-    this.db.logAction({ detail: session.sessionMeta.code, kind: 'session.created', sessionId: managed.id })
-    recordTransportEvent('session_reset', { detail: `New session ${session.sessionMeta.code}.`, transport: 'backend' })
+    this.realtime.moveClients(previous.id, managed.id)
+    this.db.logAction({ detail: managed.session.sessionMeta.code, kind: 'session.created', sessionId: managed.id })
+    recordTransportEvent('session_reset', { detail: `New session ${managed.session.sessionMeta.code}.`, transport: 'backend' })
 
     return managed
   }

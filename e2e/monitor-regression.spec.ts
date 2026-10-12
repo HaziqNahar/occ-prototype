@@ -47,7 +47,29 @@ async function getSession(page: Page) {
   return (await (await page.request.get('/api/session', { headers: trainerHeaders() })).json()).session
 }
 
+async function signInToken(request: APIRequestContext, username: string) {
+  const response = await request.post('/api/auth/login', { data: { password: PASSWORD, username } })
+
+  return (await response.json() as { token: string }).token
+}
+
+// Back to one fresh exercise: empty and close Exercise 2, then start Exercise 1 afresh.
 async function clearRuntime(page: Page) {
+  const listed = await (await page.request.get('/api/sessions', { headers: trainerHeaders() })).json() as {
+    sessions: Array<{ exercise: number; id: string; trainees: Array<{ id: string }> }>
+  }
+
+  for (const exercise of listed.sessions.filter((item) => item.exercise > 1)) {
+    for (const trainee of exercise.trainees) {
+      await page.request.post('/api/session/commands', {
+        data: { command: { traineeId: trainee.id, type: 'TRAINEE_LEAVE' }, sessionId: exercise.id, sourceId: 'playwright-regression' },
+        headers: trainerHeaders(),
+      })
+    }
+
+    await page.request.delete(`/api/sessions/${encodeURIComponent(exercise.id)}`, { headers: trainerHeaders() })
+  }
+
   const response = await page.request.post('/api/session/runtime', {
     data: { sourceId: 'playwright-regression' },
     headers: trainerHeaders(),
@@ -286,6 +308,59 @@ test.describe.serial('OCC monitor regressions', () => {
     const log = await (await page.request.get('/api/session/actions', { headers: trainerHeaders() })).json() as { actions: Array<{ action_type: string; actor_id: string }> }
 
     expect(log.actions.find((entry) => entry.action_type === 'TRAINEE_JOIN')?.actor_id).toBe(TRAINEE.username)
+    await traineeContext.close()
+    expect(errors).toEqual([])
+  })
+
+  test('two trainees work in separate exercises side by side', async ({ browser, page, request }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+    await page.goto('/ios/modules')
+    await page.getByRole('button', { name: 'Add Exercise 2' }).click()
+
+    const exercise1 = page.getByRole('region', { name: 'Exercise 1' })
+    const exercise2 = page.getByRole('region', { name: 'Exercise 2' })
+
+    await expect(exercise2).toBeVisible()
+
+    // The code shows once the exercise's session has arrived.
+    await expect(exercise2.locator('.trainer-console-code')).toHaveText(/^[A-Z2-9]{4}$/)
+
+    const code2 = (await exercise2.locator('.trainer-console-code').textContent())!.trim()
+
+    // The trainee joins Exercise 2 with its code.
+    const traineeContext = await browser.newContext()
+
+    await signInBrowser(traineeContext, await signInToken(request, TRAINEE.username))
+
+    const trainee = await traineeContext.newPage()
+
+    await trainee.goto('/session/join')
+    await trainee.getByLabel('Session code').fill(code2)
+    await trainee.getByRole('button', { name: 'Join session' }).click()
+    await expect(trainee.getByRole('status')).toContainText('Waiting for trainer')
+    await expect(trainee.locator('.trainee-facts')).toContainText(code2)
+    await expect(exercise2.getByLabel('Session').getByText(TRAINEE.name)).toBeVisible()
+
+    // A scenario loaded into Exercise 2 leaves Exercise 1 idle.
+    await exercise2.getByRole('radio', { name: /PSD Fault/ }).click()
+    await exercise2.getByRole('button', { name: 'Load scenario', exact: true }).click()
+    await expect(exercise2.getByRole('region', { name: 'Scenario status' }).getByText('RUNNING', { exact: true })).toBeVisible()
+    await expect(exercise1.getByRole('region', { name: 'Scenario status' }).getByText('IDLE', { exact: true })).toBeVisible()
+    await expect(trainee.getByRole('status')).toContainText('Exercise running')
+
+    // The trainee's monitors show their exercise, and follow them when moved.
+    const incidentAlarm = trainee.locator('.alarm-dom-row--data', { hasText: /PSD: [A-Z]{3} (NB|SB) Door 07 Obstructed/ })
+
+    await trainee.goto('/screen/alarms')
+    await expect(incidentAlarm).toHaveCount(1)
+    await exercise2.getByRole('button', { name: 'Move to Exercise 1' }).click()
+    await expect(exercise1.getByLabel('Session').getByText(TRAINEE.name)).toBeVisible()
+    await expect(incidentAlarm).toHaveCount(0)
+
+    await exercise2.getByRole('button', { name: 'Close exercise' }).click()
+    await expect(exercise2).toHaveCount(0)
     await traineeContext.close()
     expect(errors).toEqual([])
   })

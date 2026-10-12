@@ -125,23 +125,13 @@ export function showNotice(current: OccSessionState, notice: OccSessionState['sc
   return accepted({ ...current, scenarioNotice: notice })
 }
 
-// A signed-in trainee joins with the code on the trainer's screen.
-export function joinTrainee(current: OccSessionState, code: string, actor: SessionActor): SessionCommandResult {
-  const trimmedName = actor.name.trim()
-
-  if (actor.role !== 'trainee' || !actor.id) {
-    return { accepted: false, reason: 'Sign in with a trainee account to join.', session: current }
-  }
-
-  if (!sessionCodesMatch(code, current.sessionMeta.code)) {
-    return { accepted: false, reason: 'That code does not match. Check the code on your trainer’s screen.', session: current }
-  }
-
+// Puts a trainee into this exercise as its Traffic Controller.
+export function addTrainee(current: OccSessionState, trainee: { id: string; name: string }, detail: string): SessionCommandResult {
   const participant: TraineeParticipant = {
-    email: actor.id,
+    email: trainee.id,
     joinedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     monitor: 'Monitor 02 - Line Map',
-    name: trimmedName,
+    name: trainee.name.trim(),
     role: 'Traffic Controller',
     status: 'Joined',
   }
@@ -150,10 +140,23 @@ export function joinTrainee(current: OccSessionState, code: string, actor: Sessi
     ...current,
     evidenceLog: appendScenarioEvidence(
       current.evidenceLog,
-      createScenarioEvidence('Trainee', 'Trainee joined', 'info', `${participant.name} joined as Traffic Controller.`),
+      createScenarioEvidence('Trainee', 'Trainee joined', 'info', `${participant.name} ${detail}`),
     ),
     trainees: [participant, ...current.trainees.filter((trainee) => trainee.email !== participant.email)].slice(0, 8),
   })
+}
+
+// A signed-in trainee joins with the code on the trainer's screen.
+export function joinTrainee(current: OccSessionState, code: string, actor: SessionActor): SessionCommandResult {
+  if (actor.role !== 'trainee' || !actor.id) {
+    return { accepted: false, reason: 'Sign in with a trainee account to join.', session: current }
+  }
+
+  if (!sessionCodesMatch(code, current.sessionMeta.code)) {
+    return { accepted: false, reason: 'That code does not match. Check the code on your trainer’s screen.', session: current }
+  }
+
+  return addTrainee(current, { id: actor.id, name: actor.name }, 'joined as Traffic Controller.')
 }
 
 // Trainees can only leave themselves; a trainer can remove anyone.

@@ -1,137 +1,72 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PublicUser } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import SelectField from '../components/SelectField'
-import { nelTimetableOptions } from '../data/nelTimetable'
-import type { NelTimetableName } from '../data/nelTimetable'
-import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
-import { getScenarioTaskOwner } from '../iosScenarioRoles'
-import { openOccMonitors } from '../occMonitors'
-import { scenarioTemplates } from '../scenarioLibrary'
-import { getOnlineMonitors, occMonitors } from '../sessionPresence'
-import {
-  findTrainingScenarioDefinition,
-  getActiveTrainingScenarioTargetTrainId,
-  getEligibleLaunchScenarioTargetOptions,
-  getTrainingScenarioDefinition,
-  resolveFaultText,
-  scoreTrainingScenario,
-} from '../trainingScenarios'
-import type { AppRoute, OccSessionState, TrainingMode } from '../types'
-import type { DispatchSessionCommand } from '../useOccSession'
+import { exerciseApi } from '../exerciseClient'
+import type { ExerciseSummary, TraineeAccount } from '../exerciseClient'
+import type { SessionActor } from '../session-commands/types'
+import type { AppRoute } from '../types'
+import ExercisePanel from './ExercisePanel'
 
 type IosModulesScreenProps = {
-  onNavigate: (route: AppRoute) => void
-  dispatch: DispatchSessionCommand
+  getActor: () => SessionActor
+  onNavigate: (route: AppRoute, search?: string) => void
   onSignOut: () => void
-  session: OccSessionState
-  // Null without accounts (no backend).
+  onSignedOut: () => void
+  token: string | null
+  // Null without accounts (no training server): one exercise, kept in this page.
   user: PublicUser | null
 }
 
-const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
-  { label: 'Practice', value: 'PRACTICE' },
-  { label: 'Assessment', value: 'ASSESSMENT' },
-  { label: 'Player', value: 'PLAYER' },
-]
+// Exercises can be added or closed from another console; check every few seconds.
+const EXERCISE_REFRESH_MS = 4000
 
-// Scenario families the console can arm; fault families pick their SOP variant by incident.
-const consoleTemplates = scenarioTemplates.filter((template) => template.trainingScenarioKind)
+// Trainer Console: up to two exercises side by side, one per trainee, each with
+// its own scenario, checklist, score and monitors (docs/production-plan.md, phase 5).
+function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token, user }: IosModulesScreenProps) {
+  const [exercises, setExercises] = useState<ExerciseSummary[] | null>(null)
+  const [trainees, setTrainees] = useState<TraineeAccount[]>([])
+  const [message, setMessage] = useState('')
 
-function formatElapsed(totalSeconds: number) {
-  const seconds = Math.max(0, Math.floor(totalSeconds))
-
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-}
-
-function getTemplateIdForScenario(scenarioId: string) {
-  const definition = getTrainingScenarioDefinition(scenarioId)
-
-  return consoleTemplates.find((template) => template.trainingScenarioKind === definition.kind)?.id ?? consoleTemplates[0].id
-}
-
-function IosModulesScreen({ dispatch, onNavigate, onSignOut, session, user }: IosModulesScreenProps) {
-  const activeDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
-  const isIdle = activeDefinition.id === 'idle'
-  const [templateId, setTemplateId] = useState(() => getTemplateIdForScenario(session.activeScenario.id))
-  const template = consoleTemplates.find((item) => item.id === templateId) ?? consoleTemplates[0]
-  const [incident, setIncident] = useState(() => (
-    isIdle ? template.incidents[0] : session.activeScenario.incident
-  ))
-  const selectedIncident = template.incidents.includes(incident) ? incident : template.incidents[0]
-  const selectedDefinition = findTrainingScenarioDefinition(template.trainingScenarioKind!, selectedIncident)
-  const [trainingMode, setTrainingMode] = useState<TrainingMode>(session.trainingMode)
-  const [timetableName, setTimetableName] = useState<NelTimetableName>(session.timetableName)
-  const [launchTrainChoice, setLaunchTrainChoice] = useState('')
-  const [timeTarget, setTimeTarget] = useState('')
-  const [now, setNow] = useState(() => Date.now())
-
-  const score = scoreTrainingScenario(session)
-  const completedTasks = score.taskResults.filter((task) => task.complete).length
-  const nextTask = score.taskResults.find((task) => !task.complete)
-  const targetTrainId = getActiveTrainingScenarioTargetTrainId(session)
-  const needsLaunchTrain = activeDefinition.kind === 'TRAIN_LAUNCH' && !session.activeScenario.targetTrainId && !isIdle
-  const startedAt = session.sessionMeta?.startedAt ? Date.parse(session.sessionMeta.startedAt) : undefined
-  const isRunning = session.scenarioMode === 'RUNNING'
-  const onlineMonitors = getOnlineMonitors(session, now)
-  const sessionCode = session.sessionMeta?.code ?? '----'
-  const timeTargetValue = timeTarget || selectedDefinition.duration
-  const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
-  const elapsed = !isIdle && startedAt ? formatElapsed((now - startedAt) / 1000) : '--:--'
-  const activity = categoriseScenarioEvidence(session.evidenceLog)
-    .filter((evidence) => evidence.category !== 'trainer' || evidence.result === 'rejected')
-    .slice(0, 14)
-  const launchTrainOptions = useMemo(() => (
-    getEligibleLaunchScenarioTargetOptions(session).map((option) => ({
-      label: `Train ${option.trainId} · Sch ${option.scheduleNumber} · SKG → ${option.destinationPoint}`,
-      value: option.trainId,
-    }))
-  ), [session])
-  const launchTrainId = launchTrainOptions.some((option) => option.value === launchTrainChoice)
-    ? launchTrainChoice
-    : launchTrainOptions[0]?.value ?? ''
-
-  useEffect(() => {
-    // Ticks the run timer each second, and monitor presence every few seconds when idle.
-    const timer = window.setInterval(() => setNow(Date.now()), isRunning ? 1000 : 5000)
-
-    return () => window.clearInterval(timer)
-  }, [isRunning])
-
-  const loadScenario = () => {
-    void dispatch({
-      duration: timeTargetValue,
-      incident: selectedDefinition.incident,
-      kind: selectedDefinition.kind,
-      timetableName,
-      trainingMode,
-      type: 'LOAD_SCENARIO',
-    })
-  }
-
-  const assignLaunchTrain = () => {
-    if (!launchTrainId) {
+  const refresh = useCallback(() => {
+    if (!user) {
       return
     }
 
-    void dispatch({ trainId: launchTrainId, type: 'ASSIGN_LAUNCH_TRAIN' })
+    void exerciseApi.list().then((result) => setExercises(result.sessions)).catch(() => undefined)
+    void exerciseApi.trainees().then((result) => setTrainees(result.trainees)).catch(() => undefined)
+  }, [user])
+
+  useEffect(() => {
+    refresh()
+
+    const timer = window.setInterval(refresh, EXERCISE_REFRESH_MS)
+
+    return () => window.clearInterval(timer)
+  }, [refresh])
+
+  const run = (action: () => Promise<{ accepted?: boolean; reason?: string | null } | unknown>) => {
+    setMessage('')
+    void action()
+      .then((result) => {
+        const outcome = result as { accepted?: boolean; reason?: string | null }
+
+        if (outcome?.accepted === false) {
+          setMessage(outcome.reason ?? 'That did not work.')
+        }
+
+        refresh()
+      })
+      .catch((error: Error) => setMessage(error.message))
   }
 
-  const setScenarioRuntimeState = (state: 'PAUSE' | 'RESUME' | 'COMPLETE') => {
-    void dispatch({ state, type: 'SET_SCENARIO_STATE' })
-  }
-
-  const confirmTask = (taskId: string, label: string) => {
-    void dispatch({ label, taskId, type: 'CONFIRM_TASK' })
-  }
-
-  const openMonitors = openOccMonitors
+  // Without a server there is one exercise in this page; with one, wait for the list.
+  const panels: Array<ExerciseSummary | null> = user ? exercises ?? [] : [null]
 
   return (
     <main
-      className="trainer-console"
+      className={`trainer-console ${panels.length > 1 ? 'has-two-exercises' : ''}`}
       style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
     >
       <header className="trainer-console-header">
@@ -142,25 +77,11 @@ function IosModulesScreen({ dispatch, onNavigate, onSignOut, session, user }: Io
             <h1>Trainer Console</h1>
           </div>
         </div>
-        <dl className="trainer-console-session" aria-label="Session">
-          <div>
-            <dt>Session code</dt>
-            <dd className="trainer-console-code">{sessionCode}</dd>
-          </div>
-          <div>
-            <dt>Trainees</dt>
-            <dd>{session.trainees.length > 0 ? session.trainees.map((trainee) => trainee.name).join(', ') : 'None joined yet'}</dd>
-          </div>
-          <div>
-            <dt>Monitors</dt>
-            <dd className={onlineMonitors.length === occMonitors.length ? 'is-ok' : 'is-warn'}>
-              {onlineMonitors.length}/{occMonitors.length} open
-            </dd>
-          </div>
-        </dl>
+        {message && <p className="trainer-console-message" role="alert">{message}</p>}
         <nav aria-label="Trainer tools">
-          <button type="button" onClick={openMonitors}>Open monitors</button>
-          <button type="button" onClick={() => onNavigate('/report')}>Report</button>
+          {user && panels.length === 1 && (
+            <button type="button" onClick={() => run(exerciseApi.add)}>Add Exercise 2</button>
+          )}
           {user?.admin && <button type="button" onClick={() => onNavigate('/admin')}>People</button>}
           {user
             ? <button type="button" className="is-quiet" onClick={onSignOut}>Sign out</button>
@@ -168,195 +89,21 @@ function IosModulesScreen({ dispatch, onNavigate, onSignOut, session, user }: Io
         </nav>
       </header>
 
-      <section className={`trainer-console-status is-${session.scenarioMode.toLowerCase()}`} aria-label="Scenario status">
-        <div className="trainer-console-status-title">
-          <span className="trainer-console-chip">{isIdle ? 'IDLE' : session.scenarioMode}</span>
-          <div>
-            <strong>{isIdle ? 'No scenario running' : activeDefinition.title}</strong>
-            <small>
-              {isIdle
-                ? 'Choose a scenario on the left and load it.'
-                : `${session.trainingMode.toLowerCase()} · ${targetTrainId ? `Train ${targetTrainId}` : 'train not chosen yet'} · ${session.timetableName.replace('NEL_OTES_', '')}`}
-            </small>
-          </div>
-        </div>
-        <dl className="trainer-console-figures">
-          <div><dt>Time</dt><dd>{elapsed}<em> / {isIdle ? '--:--' : session.activeScenario.duration}</em></dd></div>
-          <div><dt>Tasks</dt><dd>{completedTasks}<em> / {score.totalTasks}</em></dd></div>
-          <div><dt>Score</dt><dd>{score.score}%</dd></div>
-          <div><dt>Wrong actions</dt><dd className={score.rejectedActions > 0 ? 'is-bad' : undefined}>{score.rejectedActions}</dd></div>
-        </dl>
-        <div className="trainer-console-controls">
-          <button
-            type="button"
-            disabled={isIdle || session.scenarioMode === 'COMPLETE'}
-            onClick={() => setScenarioRuntimeState(session.scenarioMode === 'PAUSED' ? 'RESUME' : 'PAUSE')}
-          >
-            {session.scenarioMode === 'PAUSED' ? 'Resume' : 'Pause'}
-          </button>
-          <button
-            type="button"
-            className="is-primary"
-            disabled={isIdle || session.scenarioMode === 'COMPLETE'}
-            onClick={() => setScenarioRuntimeState('COMPLETE')}
-          >
-            Complete
-          </button>
-          <button type="button" disabled={isIdle} onClick={() => void dispatch({ type: 'RESET_SCENARIO' })}>
-            Stop
-          </button>
-        </div>
-      </section>
-
-      {session.scenarioNotice.text && (
-        <p className={`trainer-console-notice is-${session.scenarioNotice.tone}`} role="status">{session.scenarioNotice.text}</p>
-      )}
-
-      <div className="trainer-console-grid">
-        <section className="trainer-console-panel trainer-console-scenarios" aria-labelledby="console-scenario-heading">
-          <h2 id="console-scenario-heading">Scenario</h2>
-          <div className="trainer-console-scenario-list" role="radiogroup" aria-label="Scenario">
-            {consoleTemplates.map((item) => (
-              <button
-                aria-checked={item.id === template.id}
-                className={item.id === template.id ? 'is-selected' : undefined}
-                key={item.id}
-                onClick={() => setTemplateId(item.id)}
-                role="radio"
-                type="button"
-              >
-                <strong>{item.title}</strong>
-                {item.incidents.length > 1 && <small>{item.incidents.length} incidents</small>}
-              </button>
-            ))}
-          </div>
-          {template.incidents.length > 1 && (
-            <label className="trainer-console-field">
-              <span>Incident</span>
-              <SelectField
-                ariaLabel="Incident"
-                value={selectedIncident}
-                options={template.incidents.map((value) => ({ label: value, value }))}
-                onChange={setIncident}
-              />
-            </label>
-          )}
-          <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
-          <div className="trainer-console-field-row">
-            <label className="trainer-console-field">
-              <span>Mode</span>
-              <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
-            </label>
-            <label className="trainer-console-field">
-              <span>Time target</span>
-              <input
-                aria-invalid={!timeTargetIsValid}
-                className="trainer-console-input"
-                onChange={(event) => setTimeTarget(event.target.value)}
-                placeholder="mm:ss"
-                value={timeTargetValue}
-              />
-            </label>
-            <label className="trainer-console-field">
-              <span>Timetable</span>
-              <SelectField
-                ariaLabel="Timetable"
-                value={timetableName}
-                options={nelTimetableOptions.map((option) => ({ label: option.label, value: option.value }))}
-                onChange={setTimetableName}
-              />
-            </label>
-          </div>
-          <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
-            {isIdle ? 'Load scenario' : 'Restart with this scenario'}
-          </button>
-          {timetableName !== session.timetableName && (
-            <small className="trainer-console-hint">Changing timetable resets all trains.</small>
-          )}
-          <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
-            Reset whole session
-          </button>
-        </section>
-
-        <section className="trainer-console-panel trainer-console-checklist" aria-labelledby="console-checklist-heading">
-          <div className="trainer-console-panel-head">
-            <h2 id="console-checklist-heading">Checklist</h2>
-            {!isIdle && <span>{completedTasks} of {score.totalTasks}</span>}
-          </div>
-          {!isIdle && (
-            <div className="trainer-console-progress" aria-hidden="true">
-              <span style={{ width: `${score.totalTasks ? (completedTasks / score.totalTasks) * 100 : 0}%` }} />
-            </div>
-          )}
-          {needsLaunchTrain && (
-            <div className="trainer-console-launch">
-              <SelectField ariaLabel="Launch train" value={launchTrainId} options={launchTrainOptions} onChange={setLaunchTrainChoice} />
-              <button type="button" disabled={!launchTrainId} onClick={assignLaunchTrain}>Assign train</button>
-            </div>
-          )}
-          {isIdle ? (
-            <div className="trainer-console-empty">
-              <strong>No checklist yet</strong>
-              <span>Load a scenario to see its SOP steps here.</span>
-            </div>
-          ) : (
-            <ol className="trainer-console-tasks">
-              {score.taskResults.map((task) => {
-                const isNext = task.id === nextTask?.id && session.scenarioMode !== 'COMPLETE'
-                const isLive = Boolean(task.runtimeOnly || task.commsMessageIds?.length || task.mappedTaskId)
-                const owner = getScenarioTaskOwner(task.monitor)
-                const canConfirm = !task.complete && !isLive && owner === 'Instructor'
-
-                return (
-                  <li
-                    className={`${task.complete ? 'is-done' : ''} ${isNext ? 'is-next' : ''}`}
-                    key={task.id}
-                  >
-                    <i aria-hidden="true">{task.complete ? '✓' : isNext ? '▶' : ''}</i>
-                    <div>
-                      <strong>
-                        {task.label}
-                        {task.critical && <b title="Critical SOP step"> ★</b>}
-                      </strong>
-                      <small>{task.monitor}</small>
-                    </div>
-                    {canConfirm && (
-                      <button type="button" onClick={() => confirmTask(task.id, task.label)}>Confirm</button>
-                    )}
-                  </li>
-                )
-              })}
-            </ol>
-          )}
-        </section>
-
-        <section className="trainer-console-panel trainer-console-activity" aria-labelledby="console-activity-heading">
-          <div className="trainer-console-panel-head">
-            <h2 id="console-activity-heading">Trainee activity</h2>
-            <span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span>
-          </div>
-          {activity.length > 0 ? (
-            <ul className="trainer-console-feed">
-              {activity.map((item) => (
-                <li className={`is-${item.result}`} key={item.id}>
-                  <time>{item.time}</time>
-                  <div>
-                    <strong>{item.action}</strong>
-                    {item.detail && <small>{item.detail}</small>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="trainer-console-empty">
-              <strong>Nothing yet</strong>
-              <span>Trainee actions on the monitors appear here as they happen.</span>
-            </div>
-          )}
-          <button type="button" className="trainer-console-report" disabled={isIdle} onClick={() => onNavigate('/report')}>
-            Open report
-          </button>
-        </section>
+      <div className="trainer-console-exercises">
+        {panels.map((exercise) => (
+          <ExercisePanel
+            exercise={exercise}
+            exercises={exercises ?? []}
+            getActor={getActor}
+            key={exercise?.exercise ?? 1}
+            onAssign={(traineeId, sessionId) => run(() => exerciseApi.assign(traineeId, sessionId))}
+            onClose={(sessionId) => run(() => exerciseApi.remove(sessionId))}
+            onOpenReport={(sessionCode) => onNavigate('/report', `?session=${encodeURIComponent(sessionCode)}`)}
+            onSignedOut={onSignedOut}
+            token={token}
+            trainees={trainees}
+          />
+        ))}
       </div>
     </main>
   )

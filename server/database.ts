@@ -190,6 +190,28 @@ export class OccDatabase {
     this.setSetting('current_session_id', getSessionId(session))
   }
 
+  loadSession(id: string | undefined): OccSessionState | null {
+    const row = id
+      ? this.db.prepare('select snapshot from sessions where id = ?').get(id) as { snapshot: string } | undefined
+      : undefined
+
+    return row ? JSON.parse(row.snapshot) as OccSessionState : null
+  }
+
+  // Exercise 2, if the trainer has one open (phase 5).
+  getSecondSessionId() {
+    return this.getSetting('second_session_id')
+  }
+
+  setSecondSession(session: OccSessionState | null) {
+    if (session) {
+      this.saveSession(session)
+      this.setSetting('second_session_id', getSessionId(session))
+    } else {
+      this.db.prepare('delete from settings where key = ?').run('second_session_id')
+    }
+  }
+
   clearCurrentSession() {
     this.db.prepare('delete from settings where key = ?').run('current_session_id')
   }

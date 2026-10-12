@@ -66,9 +66,21 @@ export function createRoutes(
   store: SessionStore = new SessionStore(db),
   auth: AuthService = new AuthService(db),
 ) {
-  // Requests name their session (id or code); without one they use the current session.
-  function resolveSession(reference: string | null | undefined): ManagedSession | null {
-    return reference ? store.find(reference) ?? null : store.current()
+  // The exercise a screen shows when it names none: a trainee's own, otherwise Exercise 1.
+  function followed(user: PublicUser | null) {
+    return store.find(store.followedSessionId(user?.id ?? null)) ?? store.current()
+  }
+
+  // Requests name their exercise (session id or code), or get the followed one.
+  // Trainees cannot reach the other trainee's exercise.
+  function resolveSession(reference: string | null | undefined, user: PublicUser | null): ManagedSession | null {
+    const managed = reference ? store.find(reference) ?? null : followed(user)
+
+    if (managed && user?.role === 'trainee' && !store.isTraineeAllowed(managed, user.id)) {
+      throw new RequestError('That is another trainee\'s exercise.', 403)
+    }
+
+    return managed
   }
 
   function buildTransportStatus(managed: ManagedSession) {
@@ -95,11 +107,11 @@ export function createRoutes(
   async function handleCommand(request: IncomingMessage, response: ServerResponse, user: PublicUser) {
     const body = await readJsonBody(request)
     const requestedSessionId = optionalString(body.sessionId)
-    const managed = resolveSession(requestedSessionId)
+    const managed = resolveSession(requestedSessionId, user)
 
-    // A window still showing a session that was reset gets the current one instead.
+    // A window still showing a session that was reset gets its current one instead.
     if (!managed) {
-      sendSnapshot(response, store.current(), 409, { error: 'stale_session', message: 'That session has ended. Showing the current session.' })
+      sendSnapshot(response, followed(user), 409, { error: 'stale_session', message: 'That session has ended. Showing the current session.' })
       return
     }
 
@@ -208,9 +220,9 @@ export function createRoutes(
   }
 
   // Trainer notes for the current run. The score comes from the server's session.
-  async function handleReportArchive(request: IncomingMessage, response: ServerResponse) {
+  async function handleReportArchive(request: IncomingMessage, response: ServerResponse, user: PublicUser) {
     const body = await readJsonBody(request)
-    const managed = resolveSession(optionalString(body.sessionId))
+    const managed = resolveSession(optionalString(body.sessionId), user)
 
     if (!managed) {
       sendJson(response, 404, { error: 'unknown_session', message: 'That session has ended.' })
@@ -296,6 +308,82 @@ export function createRoutes(
     return false
   }
 
+  // Exercises: the trainer opens a second one and assigns trainees; trainees join by code.
+  async function handleExerciseRoute(request: IncomingMessage, response: ServerResponse, method: string, pathname: string, user: PublicUser | null) {
+    switch (`${method} ${pathname}`) {
+      case 'GET /api/sessions':
+        requireTrainer(user)
+        sendJson(response, 200, { sessions: store.summaries() })
+        return true
+      // Trainee accounts a trainer can assign to an exercise.
+      case 'GET /api/trainees':
+        requireTrainer(user)
+        sendJson(response, 200, {
+          trainees: auth.listUsers()
+            .filter((account) => account.role === 'trainee' && !account.disabled)
+            .map((account) => ({ id: account.id, name: account.name })),
+        })
+        return true
+      case 'POST /api/sessions': {
+        const added = store.addExercise(toActor(requireTrainer(user)))
+
+        if (!added) {
+          throw new RequestError('Two exercises are already open.', 409)
+        }
+
+        sendJson(response, 201, { session: store.summaries().find((summary) => summary.id === added.id) })
+        return true
+      }
+      case 'POST /api/class/join': {
+        const signedIn = requireUser(user)
+        const body = await readJsonBody(request)
+        const outcome = store.joinByCode(String(body.code ?? ''), toActor(signedIn))
+
+        if (!outcome) {
+          throw new RequestError('That code does not match. Check the code on your trainer\'s screen.', 404)
+        }
+
+        sendJson(response, 200, { accepted: outcome.result.accepted, reason: outcome.result.reason ?? null, sessionId: outcome.managed.id })
+        return true
+      }
+      case 'POST /api/class/assign': {
+        const trainer = requireTrainer(user)
+        const body = await readJsonBody(request)
+        const managed = store.find(optionalString(body.sessionId))
+        const trainee = auth.listUsers().find((account) => account.id === body.traineeId && account.role === 'trainee' && !account.disabled)
+
+        if (!managed || !trainee) {
+          throw new RequestError('Unknown exercise or trainee.', 404)
+        }
+
+        const outcome = store.assignTrainee(managed, { id: trainee.id, name: trainee.name }, toActor(trainer))
+
+        sendJson(response, 200, { accepted: outcome.result.accepted, reason: outcome.result.reason ?? null, sessions: store.summaries() })
+        return true
+      }
+    }
+
+    if (method === 'DELETE' && pathname.startsWith('/api/sessions/')) {
+      const trainer = requireTrainer(user)
+      const managed = store.find(decodeURIComponent(pathname.slice('/api/sessions/'.length)))
+
+      if (!managed) {
+        throw new RequestError('No such exercise.', 404)
+      }
+
+      const problem = store.removeExercise(managed, toActor(trainer))
+
+      if (problem) {
+        throw new RequestError(problem, 409)
+      }
+
+      sendJson(response, 200, { sessions: store.summaries() })
+      return true
+    }
+
+    return false
+  }
+
   return async function routeRequest(request: IncomingMessage, response: ServerResponse) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const method = request.method ?? 'GET'
@@ -309,7 +397,6 @@ export function createRoutes(
     }
 
     try {
-      const managed = resolveSession(sessionParam)
       const user = auth.authenticate(readToken(request, url))
 
       if (await handleAccountRoute(request, response, method, url.pathname, user)) {
@@ -320,6 +407,12 @@ export function createRoutes(
       if (url.pathname !== '/api/health') {
         requireUser(user)
       }
+
+      if (await handleExerciseRoute(request, response, method, url.pathname, user)) {
+        return
+      }
+
+      const managed = url.pathname === '/api/health' ? store.current() : resolveSession(sessionParam, user)
 
       switch (`${method} ${url.pathname}`) {
         case 'GET /api/health': {
@@ -355,7 +448,7 @@ export function createRoutes(
           })
           return
         case 'GET /api/session/transport-status':
-          sendJson(response, 200, buildTransportStatus(managed ?? store.current()))
+          sendJson(response, 200, buildTransportStatus(managed ?? followed(user)))
           return
         case 'GET /api/session/events': {
           const subscribed = sessionParam ? managed : null
@@ -363,9 +456,9 @@ export function createRoutes(
 
           store.realtime.open(request, response, {
             onClose: sourceId ? () => store.releaseSimulation(sourceId) : undefined,
-            snapshot: store.snapshot(subscribed ?? store.current()),
             sourceId: sourceId ?? 'browser',
             subscribedSessionId: subscribed?.id ?? null,
+            userId: user?.id ?? null,
           })
           return
         }
@@ -381,13 +474,13 @@ export function createRoutes(
           await handleCommand(request, response, user!)
           return
         case 'POST /api/session/screens':
-          await handleScreenJoin(request, response, managed ?? store.current())
+          await handleScreenJoin(request, response, managed ?? followed(user))
           return
         case 'POST /api/session/simulation':
-          await handleSimulationClaim(request, response, managed ?? store.current())
+          await handleSimulationClaim(request, response, managed ?? followed(user))
           return
         case 'POST /api/session/monitor-launches':
-          await handleMonitorLaunch(request, response, managed ?? store.current())
+          await handleMonitorLaunch(request, response, managed ?? followed(user))
           return
         case 'POST /api/session/runtime':
         case 'DELETE /api/session/runtime':
@@ -404,7 +497,7 @@ export function createRoutes(
           return
         case 'POST /api/reports':
           requireTrainer(user)
-          await handleReportArchive(request, response)
+          await handleReportArchive(request, response, user!)
           return
         // Phase 1 accepted whole sessions from browsers; the server is now the only writer.
         case 'PUT /api/session':

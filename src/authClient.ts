@@ -39,7 +39,8 @@ export function getAuthHeaders(token = readAuthToken()): Record<string, string> 
   return token ? { authorization: `Bearer ${token}` } : {}
 }
 
-async function request<T>(path: string, options: { body?: unknown; method?: string; token?: string | null } = {}) {
+// A signed-in request to the training server; throws AuthRequestError with the server's message.
+export async function apiRequest<T>(path: string, options: { body?: unknown; method?: string; token?: string | null } = {}) {
   const baseUrl = getOccBackendBaseUrl()
 
   if (baseUrl === null) {
@@ -64,6 +65,8 @@ async function request<T>(path: string, options: { body?: unknown; method?: stri
 }
 
 type SignInResult = { token: string; user: PublicUser }
+
+const request = apiRequest
 
 export const authApi = {
   createUser: (account: { admin?: boolean; name: string; password: string; role: UserRole; username: string }) => (

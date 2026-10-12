@@ -57,6 +57,9 @@ type SessionClientOptions = {
   onMonitorLaunchRequest?: (request: MonitorLaunchRequest) => void
   onSnapshot: (message: SessionSnapshotMessage) => void
   onUpdate: (message: SessionUpdateMessage) => void
+  // The exercise to show (session id or code); null follows the signed-in
+  // person: a trainee's own exercise, otherwise Exercise 1.
+  sessionRef?: string | null
   // The server stopped accepting this sign-in.
   onSignedOut?: () => void
   // This window's id; the server names the simulation owner by it.
@@ -74,22 +77,13 @@ export function createSourceId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-// Phase 5 opens monitors on one trainee's session with ?session=<code>.
-function getRequestedSession() {
-  try {
-    return new URLSearchParams(window.location.search).get('session')
-  } catch {
-    return null
-  }
-}
-
 function isMonitorLaunchMessage(message: { type?: string }): message is MonitorLaunchPayload {
   return message.type === 'monitor-launch:request'
 }
 
-export function createSessionClient({ onMonitorLaunchRequest, onSignedOut, onSnapshot, onUpdate, sourceId, token }: SessionClientOptions) {
+export function createSessionClient({ onMonitorLaunchRequest, onSignedOut, onSnapshot, onUpdate, sessionRef = null, sourceId, token }: SessionClientOptions) {
   const backendBaseUrl = getOccBackendBaseUrl()
-  const requestedSession = getRequestedSession()
+  const requestedSession = sessionRef
   let channel: BroadcastChannel | null = null
   let eventSource: EventSource | null = null
   let backendSse: SessionTransportHealth = backendBaseUrl === null ? 'UNAVAILABLE' : 'AVAILABLE'
