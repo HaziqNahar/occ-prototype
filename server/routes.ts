@@ -1,22 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { OccDatabase } from './database'
-import { getSessionId } from './database'
-import { createId, getIsoNow, readJsonBody, RequestError, sendJson, setCorsHeaders } from './http'
-import { normalizeAssessmentMetrics, REQUIRED_TASKS } from './legacyAssessment'
-import {
-  broadcastMonitorLaunch,
-  broadcastSession,
-  getSseClientCount,
-  getTransportEvents,
-  openEventStream,
-  recordTransportEvent,
-} from './realtime'
-import { applyScenarioAction } from './scenarioActions'
-import { isSessionCandidate, normalizeSession, normalizeSessionMeta } from './sessionNormalize'
+import { createId, readJsonBody, RequestError, sendJson, setCorsHeaders } from './http'
+import { getTransportEvents, recordTransportEvent } from './realtime'
+import { SessionStore } from './sessionStore'
+import type { ManagedSession } from './sessionStore'
+import type { SessionActor, SessionCommand } from '../src/session-commands/types'
 import type {
   MonitorLaunchRoute,
-  OccSessionAction,
-  OccSessionState,
   SessionMonitorLaunch,
   SessionScreenJoin,
   SessionScreenRole,
@@ -25,135 +15,102 @@ import type {
 
 const MONITOR_LAUNCH_ORIGIN = '/screen/line-map'
 const MONITOR_LAUNCH_TARGETS = new Set<string>(['/screen/alarms', '/screen/timetable'])
+const SCREEN_ROLES = new Set<string>(['ALARM', 'LINE_MAP', 'TIMETABLE', 'IOS', 'TRAINEE', 'LOBBY', 'REPORT'])
 
-// HTTP API for the shared OCC session. Holds the current session in memory and
-// saves every change to the database.
-export function createRoutes(db: OccDatabase) {
-  let currentSession: OccSessionState | null = db.loadCurrentSession()
+const optionalString = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined)
 
-  if (currentSession) {
-    currentSession = normalizeSession(currentSession)
+// The sender of a command. Phase 4 replaces this with signed-in accounts.
+function readActor(value: unknown): SessionActor {
+  const actor = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+
+  if (actor.role !== 'trainer' && actor.role !== 'trainee') {
+    throw new RequestError('Expected an actor with role trainer or trainee.')
   }
 
-  const sessionId = () => (currentSession ? getSessionId(currentSession) : undefined)
+  return {
+    ...(optionalString(actor.id) ? { id: String(actor.id).slice(0, 120) } : {}),
+    name: (optionalString(actor.name) ?? (actor.role === 'trainer' ? 'Trainer' : 'Trainee')).slice(0, 80),
+    role: actor.role,
+  }
+}
 
-  const saveAndBroadcast = (type: 'session:reset' | 'session:update', sourceId?: string) => {
-    if (currentSession) {
-      db.saveCurrentSession(currentSession)
-    }
-
-    broadcastSession(currentSession, type, sourceId)
+// HTTP API for the OCC training sessions. Browsers send commands; the server
+// applies them and streams the result. See docs/production-plan.md, phase 2.
+export function createRoutes(db: OccDatabase, store: SessionStore = new SessionStore(db)) {
+  // Requests name their session (id or code); without one they use the current session.
+  function resolveSession(reference: string | null | undefined): ManagedSession | null {
+    return reference ? store.find(reference) ?? null : store.current()
   }
 
-  const optionalString = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined)
-
-  function buildReport(session: OccSessionState | null) {
-    if (!session) {
-      return null
-    }
-
-    const taskValues = Object.values(session.scenarioTasks ?? {})
-    const rejectedRows = (session.eventRows ?? []).filter((row) => String(row.message ?? '').toLowerCase().includes('rejected'))
-    const sessionMeta = normalizeSessionMeta(session)
-    const metrics = normalizeAssessmentMetrics(session)
-    const taskMetrics = REQUIRED_TASKS.map((taskId) => metrics.tasks[taskId])
-    const completedTaskMetrics = taskMetrics.filter((task) => task.completedAt)
-
-    return {
-      averageResponseSeconds: completedTaskMetrics.length
-        ? Math.round(completedTaskMetrics.reduce((total, task) => total + (task.responseSeconds ?? 0), 0) / completedTaskMetrics.length)
-        : 0,
-      completedTasks: taskValues.filter(Boolean).length,
-      evidenceCount: session.evidenceLog?.length ?? 0,
-      generatedAt: getIsoNow(),
-      joinedScreens: Object.values(sessionMeta.screens ?? {}).length,
-      lateTasks: metrics.lateTasks,
-      lifecycle: sessionMeta.lifecycle,
-      mode: session.trainingMode,
-      onTimeTasks: metrics.onTimeTasks,
-      rejectedActions: Math.max(metrics.rejectedActions, rejectedRows.length),
-      result: metrics.result,
-      scenarioId: session.activeScenario?.id,
-      scenarioTitle: session.activeScenario?.title,
-      score: metrics.score,
-      sessionCode: sessionMeta.code,
-      sessionUpdatedAt: session.updatedAt,
-      taskMetrics,
-      totalTasks: taskValues.length,
-    }
-  }
-
-  function buildTransportStatus() {
-    const sessionMeta = currentSession ? normalizeSessionMeta(currentSession) : null
-    const screens = Object.values(sessionMeta?.screens ?? {})
+  function buildTransportStatus(managed: ManagedSession) {
+    const screens = Object.values(managed.session.sessionMeta.screens ?? {})
     const snapshots = screens.map((screen) => screen?.transport).filter((transport): transport is SessionTransportSnapshot => Boolean(transport))
 
     return {
-      clients: getSseClientCount(),
+      clients: store.realtime.clientCount,
       connectedChannelScreens: snapshots.filter((transport) => transport.broadcastChannel === 'CONNECTED').length,
       connectedSseScreens: snapshots.filter((transport) => transport.backendSse === 'CONNECTED').length,
       connectedWorkerScreens: snapshots.filter((transport) => transport.sharedWorker === 'CONNECTED').length,
       events: getTransportEvents(),
-      lastMonitorLaunch: sessionMeta?.lastMonitorLaunch ?? null,
+      lastMonitorLaunch: managed.session.sessionMeta.lastMonitorLaunch ?? null,
       screens,
-      sessionCode: sessionMeta?.code ?? null,
-      updatedAt: currentSession?.updatedAt ?? null,
+      sessionCode: managed.session.sessionMeta.code,
+      updatedAt: managed.session.updatedAt,
     }
   }
 
-  // A browser publishes its whole session. Older snapshots are refused with 409 and
-  // the current one, so that window catches up. A reset replaces without merging.
-  async function acceptSessionUpdate(request: IncomingMessage, response: ServerResponse, force = false) {
+  function sendSnapshot(response: ServerResponse, managed: ManagedSession, statusCode = 200, extra: Record<string, unknown> = {}) {
+    sendJson(response, statusCode, { ...extra, ...store.snapshot(managed), updatedAt: managed.session.updatedAt })
+  }
+
+  async function handleCommand(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request)
-    const incoming = body.session ?? body
-    const sourceId = optionalString(body.sourceId)
+    const requestedSessionId = optionalString(body.sessionId)
+    const managed = resolveSession(requestedSessionId)
 
-    if (!isSessionCandidate(incoming)) {
-      sendJson(response, 400, { error: 'invalid_session', message: 'Expected a serialized OCC session state.' })
+    // A window still showing a session that was reset gets the current one instead.
+    if (!managed) {
+      sendSnapshot(response, store.current(), 409, { error: 'stale_session', message: 'That session has ended. Showing the current session.' })
       return
     }
 
-    const incomingRevision = Number(incoming.scenarioRevision ?? 0)
-    const currentRevision = Number(currentSession?.scenarioRevision ?? 0)
-    const isStale = currentSession && (
-      incomingRevision < currentRevision
-      || (incomingRevision === currentRevision && incoming.updatedAt < currentSession.updatedAt)
-    )
-
-    if (!force && isStale) {
-      sendJson(response, 409, { error: 'stale_session', message: 'Backend already has a newer OCC session state.', session: currentSession })
-      return
-    }
-
-    currentSession = normalizeSession(incoming, force ? null : currentSession)
-    saveAndBroadcast(force ? 'session:reset' : 'session:update', sourceId)
-    recordTransportEvent(force ? 'session_reset' : 'session_updated', {
-      detail: force ? 'Session reset from browser snapshot.' : 'Session snapshot accepted from browser.',
-      sourceId,
-      transport: 'backend',
+    const actor = readActor(body.actor)
+    const command = body.command as SessionCommand
+    const outcome = store.applyCommand(managed, command, actor, {
+      commandId: optionalString(body.commandId),
+      sourceId: optionalString(body.sourceId),
     })
 
-    if (force) {
-      db.logAction({ detail: currentSession.activeScenario?.title, kind: 'session.reset', sessionId: sessionId() })
-    }
-
-    sendJson(response, 200, { ok: true, session: currentSession, updatedAt: currentSession.updatedAt })
+    sendJson(response, 200, {
+      accepted: outcome.result.accepted,
+      ok: true,
+      reason: outcome.result.reason ?? null,
+      sessionId: outcome.managed.id,
+      update: outcome.update,
+      version: outcome.managed.version,
+    })
   }
 
-  async function clearRuntimeSession(request: IncomingMessage, response: ServerResponse) {
-    const body = request.method === 'POST' ? await readJsonBody(request) : {}
-    const sourceId = optionalString(body.sourceId) ?? 'backend'
+  async function handleScreenJoin(request: IncomingMessage, response: ServerResponse, managed: ManagedSession) {
+    const body = await readJsonBody(request)
+    const label = optionalString(body.label)
+    const role = optionalString(body.role)
+    const route = optionalString(body.route) as SessionScreenJoin['route'] | undefined
 
-    db.logAction({ actor: sourceId, kind: 'session.cleared', sessionId: sessionId() })
-    currentSession = null
-    db.clearCurrentSession()
-    recordTransportEvent('session_runtime_cleared', {
-      detail: 'Runtime session cleared. The next browser seed will create a fresh training session.',
-      sourceId,
-      transport: 'backend',
+    if (!label || !role || !SCREEN_ROLES.has(role) || !route) {
+      sendJson(response, 400, { error: 'invalid_screen_registration', message: 'Expected role, label, and route for screen registration.' })
+      return
+    }
+
+    const screen = store.registerScreen(managed, {
+      label,
+      role: role as SessionScreenRole,
+      route,
+      sourceId: optionalString(body.sourceId),
+      transport: body.transport as SessionTransportSnapshot | undefined,
     })
-    broadcastSession(null, 'session:reset', sourceId)
-    sendJson(response, 200, { ok: true, session: null, updatedAt: null })
+
+    sendJson(response, 200, { ok: true, screen, sessionId: managed.id, version: managed.version })
   }
 
   function normalizeMonitorLaunchRequest(body: Record<string, unknown>): SessionMonitorLaunch {
@@ -186,153 +143,49 @@ export function createRoutes(db: OccDatabase) {
     }
   }
 
-  async function handleMonitorLaunch(request: IncomingMessage, response: ServerResponse) {
+  async function handleMonitorLaunch(request: IncomingMessage, response: ServerResponse, managed: ManagedSession) {
     const launchRequest = normalizeMonitorLaunchRequest(await readJsonBody(request))
 
-    // Launches are one-shot events; the latest is also kept in the session metadata.
-    if (currentSession) {
-      const normalized = normalizeSession(currentSession)
-
-      currentSession = { ...normalized, sessionMeta: { ...normalized.sessionMeta, lastMonitorLaunch: launchRequest }, updatedAt: Date.now() }
-      saveAndBroadcast('session:update', launchRequest.sourceId)
-    }
-
+    store.recordMonitorLaunch(managed, launchRequest)
     recordTransportEvent('monitor_launch_requested', {
       detail: `Launch ${launchRequest.targets.join(', ')} from Line Map.`,
       route: launchRequest.originRoute,
       sourceId: launchRequest.sourceId,
       transport: 'backend',
     })
-    broadcastMonitorLaunch(launchRequest)
-    sendJson(response, 202, { ok: true, request: launchRequest, session: currentSession })
+    store.realtime.broadcastMonitorLaunch(launchRequest)
+    sendJson(response, 202, { ok: true, request: launchRequest })
   }
 
-  // Screen joins double as 15-second heartbeats: lastSeenAt moves, joinedAt stays.
-  async function handleScreenJoin(request: IncomingMessage, response: ServerResponse) {
-    const body = await readJsonBody(request)
+  async function handleClearRuntime(request: IncomingMessage, response: ServerResponse) {
+    const body = request.method === 'POST' ? await readJsonBody(request) : {}
+    const sourceId = optionalString(body.sourceId) ?? 'backend'
+    const managed = store.clearCurrent(sourceId)
 
-    if (!currentSession && isSessionCandidate(body.session)) {
-      currentSession = normalizeSession(body.session)
-    }
-
-    if (!currentSession) {
-      sendJson(response, 409, { error: 'missing_session', message: 'Create or publish an OCC session before registering screens.' })
-      return
-    }
-
-    const label = optionalString(body.label)
-    const role = optionalString(body.role) as SessionScreenRole | undefined
-    const route = optionalString(body.route) as SessionScreenJoin['route'] | undefined
-    const sourceId = optionalString(body.sourceId)
-
-    if (!label || !role || !route) {
-      sendJson(response, 400, { error: 'invalid_screen_registration', message: 'Expected role, label, and route for screen registration.' })
-      return
-    }
-
-    const now = getIsoNow()
-    const normalized = normalizeSession(currentSession)
-    const existingScreen = normalized.sessionMeta.screens[role]
-    const isNewJoin = !existingScreen || existingScreen.sourceId !== sourceId
-
-    currentSession = {
-      ...normalized,
-      sessionMeta: {
-        ...normalized.sessionMeta,
-        lifecycle: normalized.scenarioMode === 'COMPLETE' ? 'COMPLETE' : normalized.sessionMeta.lifecycle,
-        screens: {
-          ...normalized.sessionMeta.screens,
-          [role]: {
-            joinedAt: existingScreen?.joinedAt ?? now,
-            label,
-            lastSeenAt: now,
-            role,
-            route,
-            sourceId,
-            status: 'ONLINE',
-            transport: body.transport as SessionTransportSnapshot | undefined,
-          },
-        },
-      },
-      updatedAt: Date.now(),
-    }
-    saveAndBroadcast('session:update', sourceId)
-
-    if (isNewJoin) {
-      const transport = body.transport as Partial<SessionTransportSnapshot> | undefined
-
-      recordTransportEvent('screen_joined', {
-        detail: `${label} registered ${transport?.backendSse ?? 'UNKNOWN'} SSE, ${transport?.sharedWorker ?? 'UNKNOWN'} worker, ${transport?.broadcastChannel ?? 'UNKNOWN'} channel.`,
-        role,
-        route,
-        sourceId,
-        transport: 'backend',
-      })
-      db.logAction({ actor: sourceId, detail: label, kind: 'screen.joined', payload: { role, route }, sessionId: sessionId() })
-    }
-
-    sendJson(response, 200, { ok: true, screen: currentSession.sessionMeta.screens[role], session: currentSession, sourceId: 'backend' })
+    recordTransportEvent('session_runtime_cleared', { detail: 'Runtime session cleared; a fresh session started.', sourceId, transport: 'backend' })
+    sendSnapshot(response, managed, 200, { ok: true })
   }
 
-  // Scored actions: validated against the snapshot the operator acted on, then logged.
-  async function handleScenarioAction(request: IncomingMessage, response: ServerResponse) {
-    const body = await readJsonBody(request)
-    const incomingSession = isSessionCandidate(body.session) ? normalizeSession(body.session, currentSession) : null
-
-    if (!currentSession && incomingSession) {
-      currentSession = incomingSession
-    }
-
-    if (!currentSession) {
-      sendJson(response, 409, { error: 'missing_session', message: 'Create or publish an OCC session before submitting actions.' })
-      return
-    }
-
-    const action = (body.action ?? body) as OccSessionAction
-    const actionSession = normalizeSession(incomingSession ?? currentSession, currentSession)
-    const result = applyScenarioAction(actionSession, action)
-
-    currentSession = { ...normalizeSession(result.session, currentSession), updatedAt: Date.now() }
-    saveAndBroadcast('session:update', optionalString(body.sourceId))
-    db.logAction({
-      accepted: result.accepted,
-      actionType: action.type,
-      actor: action.source,
-      detail: result.reason ?? action.detail,
-      kind: 'scenario.action',
-      payload: { trainId: action.trainId },
-      sessionId: sessionId(),
-    })
-    recordTransportEvent(result.accepted ? 'scenario_action_accepted' : 'scenario_action_rejected', {
-      detail: result.reason ?? `${action.type} processed by backend validator.`,
-      sourceId: optionalString(body.sourceId) ?? action.source,
-      transport: 'backend',
-    })
-    sendJson(response, 200, { accepted: result.accepted, action: action.type, ok: true, reason: result.reason ?? null, session: currentSession })
-  }
-
+  // Trainer notes for the current run. The score comes from the server's session.
   async function handleReportArchive(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request)
-    const session = body.session ?? currentSession
+    const managed = resolveSession(optionalString(body.sessionId))
 
-    if (!isSessionCandidate(session)) {
-      sendJson(response, 400, { error: 'invalid_session', message: 'No valid OCC session is available to archive.' })
+    if (!managed) {
+      sendJson(response, 404, { error: 'unknown_session', message: 'That session has ended.' })
       return
     }
 
-    const summaryOverride = body.summary && typeof body.summary === 'object' && !Array.isArray(body.summary)
-      ? body.summary as Record<string, unknown>
-      : {}
-    const report = { id: createId(), notes: body.notes ?? '', summary: { ...buildReport(session), ...summaryOverride } }
+    const notes = typeof body.notes === 'string' ? body.notes.slice(0, 10_000) : ''
+    const report = store.archiveReport(managed, notes)
 
-    db.saveReport(report, getSessionId(normalizeSession(session)))
-    db.logAction({ detail: report.id, kind: 'report.archived', sessionId: getSessionId(normalizeSession(session)) })
     sendJson(response, 201, { ok: true, report })
   }
 
   return async function routeRequest(request: IncomingMessage, response: ServerResponse) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const method = request.method ?? 'GET'
+    const sessionParam = url.searchParams.get('session') ?? url.searchParams.get('sessionId')
 
     if (method === 'OPTIONS') {
       setCorsHeaders(response)
@@ -342,67 +195,87 @@ export function createRoutes(db: OccDatabase) {
     }
 
     try {
+      const managed = resolveSession(sessionParam)
+
       switch (`${method} ${url.pathname}`) {
         case 'GET /api/health': {
-          const sessionMeta = currentSession ? normalizeSessionMeta(currentSession) : null
+          const current = store.current()
 
           sendJson(response, 200, {
-            clients: getSseClientCount(),
-            hasSession: Boolean(currentSession),
-            joinedScreens: sessionMeta ? Object.keys(sessionMeta.screens ?? {}).length : 0,
-            sessionCode: sessionMeta?.code ?? null,
+            clients: store.realtime.clientCount,
+            hasSession: true,
+            joinedScreens: Object.keys(current.session.sessionMeta.screens ?? {}).length,
             service: 'sbs-occ-session-backend',
+            sessionCode: current.session.sessionMeta.code,
+            sessionId: current.id,
             status: 'ok',
-            updatedAt: currentSession?.updatedAt ?? null,
+            updatedAt: current.session.updatedAt,
           })
           return
         }
         case 'GET /api/session':
-          sendJson(response, 200, { session: currentSession, updatedAt: currentSession?.updatedAt ?? null })
+          if (!managed) {
+            sendJson(response, 404, { error: 'unknown_session', message: 'No session with that id or code.' })
+            return
+          }
+
+          sendSnapshot(response, managed)
           return
         case 'GET /api/session/status':
           sendJson(response, 200, {
-            clients: getSseClientCount(),
-            sessionMeta: currentSession ? normalizeSessionMeta(currentSession) : null,
-            updatedAt: currentSession?.updatedAt ?? null,
+            clients: store.realtime.clientCount,
+            sessionId: managed?.id ?? null,
+            sessionMeta: managed?.session.sessionMeta ?? null,
+            updatedAt: managed?.session.updatedAt ?? null,
+            version: managed?.version ?? null,
           })
           return
         case 'GET /api/session/transport-status':
-          sendJson(response, 200, buildTransportStatus())
+          sendJson(response, 200, buildTransportStatus(managed ?? store.current()))
           return
-        case 'GET /api/session/events':
-          openEventStream(request, response, url.searchParams.get('sourceId') ?? 'browser', currentSession)
+        case 'GET /api/session/events': {
+          const subscribed = sessionParam ? managed : null
+
+          store.realtime.open(request, response, {
+            snapshot: store.snapshot(subscribed ?? store.current()),
+            sourceId: url.searchParams.get('sourceId') ?? 'browser',
+            subscribedSessionId: subscribed?.id ?? null,
+          })
           return
+        }
         case 'GET /api/session/actions': {
-          const id = url.searchParams.get('sessionId') ?? sessionId()
+          const id = managed?.id ?? sessionParam
 
           sendJson(response, 200, { actions: id ? db.listActions(id) : [], sessionId: id ?? null })
           return
         }
-        case 'PUT /api/session':
-          await acceptSessionUpdate(request, response)
+        case 'POST /api/session/commands':
+          await handleCommand(request, response)
           return
-        case 'POST /api/session/reset':
-          await acceptSessionUpdate(request, response, true)
+        case 'POST /api/session/screens':
+          await handleScreenJoin(request, response, managed ?? store.current())
+          return
+        case 'POST /api/session/monitor-launches':
+          await handleMonitorLaunch(request, response, managed ?? store.current())
           return
         case 'POST /api/session/runtime':
         case 'DELETE /api/session/runtime':
-          await clearRuntimeSession(request, response)
-          return
-        case 'POST /api/session/screens':
-          await handleScreenJoin(request, response)
-          return
-        case 'POST /api/session/monitor-launches':
-          await handleMonitorLaunch(request, response)
-          return
-        case 'POST /api/session/actions':
-          await handleScenarioAction(request, response)
+          await handleClearRuntime(request, response)
           return
         case 'GET /api/reports/latest':
-          sendJson(response, 200, { report: buildReport(currentSession) })
+          sendJson(response, 200, { report: managed ? { id: store.reportId(managed), summary: store.buildReportSummary(managed) } : null })
+          return
+        case 'GET /api/reports':
+          sendJson(response, 200, { reports: db.listReports() })
           return
         case 'POST /api/reports':
           await handleReportArchive(request, response)
+          return
+        // Phase 1 accepted whole sessions from browsers; the server is now the only writer.
+        case 'PUT /api/session':
+        case 'POST /api/session/reset':
+        case 'POST /api/session/actions':
+          sendJson(response, 410, { error: 'gone', message: 'Send a command to POST /api/session/commands instead.' })
           return
         default:
           sendJson(response, 404, { error: 'not_found', message: 'Unknown OCC backend route.' })

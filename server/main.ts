@@ -2,15 +2,17 @@ import { createServer } from 'node:http'
 import { HOST, PORT } from './config'
 import { OccDatabase } from './database'
 import { createRoutes } from './routes'
+import { SessionStore } from './sessionStore'
 
-// OCC training backend: one shared session for the trainer console, trainee page
-// and the three OCC monitors. See docs/production-plan.md.
+// OCC training backend: owns the training session for the trainer console,
+// trainee page and the three OCC monitors. See docs/production-plan.md.
 
 const db = new OccDatabase()
 
 db.migrateLegacyFiles()
 
-const server = createServer(createRoutes(db))
+const store = new SessionStore(db)
+const server = createServer(createRoutes(db, store))
 
 server.listen(PORT, HOST, () => {
   console.log(`OCC session backend listening on http://${HOST}:${PORT}`)
@@ -18,6 +20,7 @@ server.listen(PORT, HOST, () => {
 
 const shutdown = () => {
   server.close()
+  store.flush()
   db.close()
   process.exit(0)
 }

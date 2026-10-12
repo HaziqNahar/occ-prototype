@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { archiveOccReport } from '../backendClient'
+import { getSessionId } from '../sessionCode'
 import { buildScenarioReport } from '../scenarioReport'
 import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
 import type { AppRoute, OccSessionState } from '../types'
@@ -45,11 +46,10 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
         ? 'review'
         : session.scenarioMode === 'COMPLETE' ? 'incomplete' : 'running'
   const generatedAt = new Date(session.updatedAt).toLocaleString()
-  const scenarioReportSummary = scenarioReport.archiveSummary
   const archiveReport = () => {
     setArchiveNote('Saving...')
-    // The backend stores the scored assessment summary, not just a printable UI.
-    void archiveOccReport(session, trainerNotes, scenarioReportSummary)
+    // The server scores the report from its own session; only the notes come from here.
+    void archiveOccReport(getSessionId(session), trainerNotes)
       .then((payload) => {
         setArchiveNote(`Saved as ${payload.report.id}`)
       })

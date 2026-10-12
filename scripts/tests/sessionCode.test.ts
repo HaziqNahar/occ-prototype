@@ -1,18 +1,17 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { once } from 'node:events'
 import { mkdtemp, rm } from 'node:fs/promises'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { nelTimetableOptions } from '../../src/data/nelTimetable'
 import {
   SESSION_CODE_ALPHABET,
   createSessionCode,
+  isSessionCode,
   normalizeEnteredSessionCode,
   sessionCodesMatch,
 } from '../../src/sessionCode'
 import { createInitialSession, createResetSessionState } from '../../src/sessionState'
-import type { OccSessionState } from '../../src/types'
+import { startBackend, stopBackend, testTrainer } from './support/backend'
 
 // Codes are four characters from an alphabet without look-alikes.
 for (let index = 0; index < 200; index += 1) {
@@ -26,81 +25,49 @@ assert.equal(sessionCodesMatch('k7m2', 'K7M2'), true)
 assert.equal(sessionCodesMatch('K7M3', 'K7M2'), false)
 assert.equal(sessionCodesMatch('', 'K7M2'), false)
 
+// Sessions saved before short codes keep their old code until reset.
+assert.equal(isSessionCode('OCC-TRAINING-001'), true)
+
 // A new or reset session gets its own code.
 assert.match(createInitialSession().sessionMeta.code, /^[A-Z2-9]{4}$/)
 assert.match(createResetSessionState('PRACTICE', 1, 2).sessionMeta.code, /^[A-Z2-9]{4}$/)
 
-async function getAvailablePort() {
-  const probe = createServer()
-
-  await new Promise<void>((resolve, reject) => {
-    probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', resolve)
-  })
-
-  const address = probe.address()
-  const port = typeof address === 'object' && address ? address.port : 0
-
-  await new Promise<void>((resolve, reject) => {
-    probe.close((error) => (error ? reject(error) : resolve()))
-  })
-
-  return port
-}
-
-// The backend keeps its code through ordinary updates and takes a new one only on reset.
+// The server keeps its code through every command and issues a new one only on reset.
 {
-  const port = await getAvailablePort()
   const dataDir = await mkdtemp(path.join(tmpdir(), 'occ-session-code-'))
-  const baseUrl = `http://127.0.0.1:${port}`
-  const backend = spawn(process.execPath, [path.resolve('server/server.mjs')], {
-    env: { ...process.env, OCC_BACKEND_DATA_DIR: dataDir, OCC_BACKEND_HOST: '127.0.0.1', OCC_BACKEND_PORT: String(port) },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  const publish = async (pathName: string, method: string, session: OccSessionState) => (
-    (await (await fetch(`${baseUrl}${pathName}`, {
-      body: JSON.stringify({ session, sourceId: 'session-code-test' }),
-      headers: { 'content-type': 'application/json' },
-      method,
-    })).json()) as { session: OccSessionState }
-  )
+  const server = await startBackend(dataDir)
 
   try {
-    for (let attempt = 0; attempt < 300; attempt += 1) {
-      try {
-        if ((await fetch(`${baseUrl}/api/health`)).ok) break
-      } catch {
-        // Backend still starting.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    }
+    const first = await server.snapshot()
+    const code = first.session.sessionMeta.code
+    const otherTimetable = nelTimetableOptions.find((option) => option.value !== first.session.timetableName)!.value
 
-    const first = createInitialSession()
-    const seeded = await publish('/api/session', 'PUT', first)
-    const code = seeded.session.sessionMeta.code
+    assert.match(code, /^[A-Z2-9]{4}$/)
 
-    assert.equal(code, first.sessionMeta.code, 'the first session seeds the backend code')
+    // Loading on another timetable rebuilds the trains but keeps the class's code.
+    await server.command(testTrainer, {
+      duration: '06:00',
+      incident: 'Train launch',
+      kind: 'TRAIN_LAUNCH',
+      timetableName: otherTimetable,
+      trainingMode: 'PRACTICE',
+      type: 'LOAD_SCENARIO',
+    })
 
-    // Another page opened later carries its own generated code; the backend keeps the original.
-    const otherPage = { ...createInitialSession(), updatedAt: Date.now() + 1000 }
-    assert.notEqual(otherPage.sessionMeta.code, code)
-    const updated = await publish('/api/session', 'PUT', otherPage)
-    assert.equal(updated.session.sessionMeta.code, code)
+    const loaded = await server.snapshot()
 
-    // Resetting the session issues the reset session's new code.
-    const reset = createResetSessionState('PRACTICE', Date.now() + 2000, 5)
-    const afterReset = await publish('/api/session/reset', 'POST', reset)
-    assert.equal(afterReset.session.sessionMeta.code, reset.sessionMeta.code)
-    assert.notEqual(afterReset.session.sessionMeta.code, code)
+    assert.equal(loaded.session.timetableName, otherTimetable)
+    assert.equal(loaded.session.sessionMeta.code, code)
+    assert.equal(loaded.sessionId, first.sessionId)
 
-    // Sessions saved before short codes keep their old code until reset.
-    const legacy = { ...createResetSessionState('PRACTICE', Date.now() + 3000, 6) }
-    legacy.sessionMeta = { ...legacy.sessionMeta, code: 'OCC-TRAINING-001' }
-    const legacyReset = await publish('/api/session/reset', 'POST', legacy)
-    assert.equal(legacyReset.session.sessionMeta.code, 'OCC-TRAINING-001')
+    await server.command(testTrainer, { timetableName: otherTimetable, trainingMode: 'PRACTICE', type: 'RESET_SESSION' })
+
+    const reset = await server.snapshot()
+
+    assert.notEqual(reset.session.sessionMeta.code, code)
+    assert.match(reset.session.sessionMeta.code, /^[A-Z2-9]{4}$/)
   } finally {
-    backend.kill()
-    await Promise.race([once(backend, 'exit'), new Promise((resolve) => setTimeout(resolve, 1000))])
+    await stopBackend(server.backend)
     await rm(dataDir, { force: true, recursive: true })
   }
 }

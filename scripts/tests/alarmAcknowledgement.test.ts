@@ -6,7 +6,8 @@ import {
 } from '../../src/alarmAcknowledgement'
 import { createInitialSession } from '../../src/sessionState'
 import { createTrainingScenarioStartSession } from '../../src/trainingScenarios'
-import { applyScenarioAction } from '../../server/scenarioActions'
+import { applySessionCommand } from '../../src/session-commands/applySessionCommand'
+import { getAlarmRowKey } from '../../src/session-commands/types'
 
 const armed = createTrainingScenarioStartSession(createInitialSession(), 'PSD_FAULT', 'Single PSD failed to close')
 const rows = armed.alarmSummaryRows
@@ -44,12 +45,18 @@ assert.equal(acknowledgesScenarioAlarm(rows, new Set(rows.map((_, index) => inde
 // Sessions from before tagging keep the old rule: any acknowledgement counts.
 assert.equal(acknowledgesScenarioAlarm(createInitialSession().alarmSummaryRows, new Set([0])), true)
 
-// The backend scores ACK_ALARM but leaves the alarm rows as the monitor set them.
+// The server acknowledges the rows the monitor names and scores only the incident alarm.
 {
-  const selected = applyScenarioAction(armed, { source: 'Monitor 02 Line Map', trainId: '317', type: 'SELECT_TRAIN' })
-  const result = applyScenarioAction(selected.session, { source: 'Monitor 01 Alarms', trainId: '317', type: 'ACK_ALARM' })
+  const actor = { name: 'Alex Tan', role: 'trainee' as const }
+  const other = applySessionCommand(armed, { rowKeys: [getAlarmRowKey(rows[armedNoticeIndex])], type: 'ACK_ALARMS' }, { actor })
 
-  assert.equal(result.accepted, true)
-  assert.equal(result.session.scenarioTasks.ackAlarm, true)
-  assert.deepEqual(result.session.alarmSummaryRows, rows)
+  assert.equal(other.accepted, true)
+  assert.equal(other.session.scenarioTasks.ackAlarm, false)
+  assert.ok(other.session.alarmSummaryRows[armedNoticeIndex].acknowledgedAt)
+
+  const incident = applySessionCommand(armed, { rowKeys: [getAlarmRowKey(rows[faultIndex])], type: 'ACK_ALARMS' }, { actor })
+
+  assert.equal(incident.accepted, true)
+  assert.equal(incident.session.scenarioTasks.ackAlarm, true)
+  assert.equal(isScenarioAlarmPending(incident.session.alarmSummaryRows), false)
 }

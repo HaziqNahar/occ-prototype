@@ -1,9 +1,11 @@
 import type { OccSessionState, RouteControlMode, TimetableRow } from '../../types'
 import { upsertTimetableRow } from '../../scenarioWorkflow'
+import type { SimScenarioEvent } from '../../session-commands/types'
 import { clearInactiveTimetablePlaybackTrains } from '../../sessionState'
 import {
   applyTrainingScenarioTimetableCompletion,
   applyTrainingScenarioTimetableStep,
+  getTrainingScenarioDefinition,
 } from '../../trainingScenarios'
 import {
   applyTimetablePlaybackStepState,
@@ -33,9 +35,30 @@ import {
 import type { TimetablePlatformDoorPhase } from './platformDoorState'
 import { getTimetablePlatformStopForStep } from './timetablePlatformStops'
 
+// Applies simulation output to the session. The optional events carry launch
+// progress of the scenario train, which the server scores.
 export type TimetablePlaybackSessionUpdater = (
-  updater: (current: OccSessionState) => OccSessionState
+  updater: (current: OccSessionState) => OccSessionState,
+  getEvents?: (current: OccSessionState) => SimScenarioEvent[],
 ) => void
+
+// Scenario progress for the scheduled step, only for a Train Launch's own train.
+export function getTimetablePlaybackScenarioEvents(
+  current: OccSessionState,
+  entry: TimetablePlaybackScheduleEntry,
+): SimScenarioEvent[] {
+  if (
+    entry.platformDoorPhase
+    || entry.plan.trainId !== current.activeScenario.targetTrainId
+    || getTrainingScenarioDefinition(current.activeScenario.id).kind !== 'TRAIN_LAUNCH'
+  ) {
+    return []
+  }
+
+  return entry.completeRoute
+    ? [{ plan: entry.plan, type: 'TIMETABLE_COMPLETE' }]
+    : [{ plan: entry.plan, stepIndex: entry.stepIndex, type: 'TIMETABLE_STEP' }]
+}
 
 export function createTimetablePlaybackRouteModeKey(routeControlModes: Record<string, RouteControlMode>) {
   return Object.entries(routeControlModes)
@@ -345,7 +368,10 @@ export function scheduleTimetablePlaybackPlans({
 
   return scheduleTimetablePlaybackEntries({
     runEntry: (entry) => {
-      updateSession((current) => applyTimetablePlaybackScheduleEntrySession(current, entry))
+      updateSession(
+        (current) => applyTimetablePlaybackScheduleEntrySession(current, entry),
+        (current) => getTimetablePlaybackScenarioEvents(current, entry),
+      )
     },
     schedule: playbackSchedule,
     scheduleTimeout,

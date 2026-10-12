@@ -2,18 +2,16 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
+import { createTraineeIdentity, readTraineeIdentity, writeTraineeIdentity } from '../sessionActor'
 import { normalizeEnteredSessionCode, sessionCodesMatch } from '../sessionCode'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
-import type { AppRoute, OccSessionState, TraineeParticipant } from '../types'
+import type { AppRoute, OccSessionState } from '../types'
+import type { DispatchSessionCommand } from '../useOccSession'
 
 type TraineeScreenProps = {
+  dispatch: DispatchSessionCommand
   session: OccSessionState
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
 }
-
-const identityStorageKey = 'occ.trainee.identity.v1'
-const traineeMonitor = 'Monitor 02 - Line Map'
 
 const monitorWindows: Array<{ name: string; path: AppRoute }> = [
   { name: 'occ-monitor-1-alarms', path: '/screen/alarms' },
@@ -21,38 +19,10 @@ const monitorWindows: Array<{ name: string; path: AppRoute }> = [
   { name: 'occ-monitor-3-timetable', path: '/screen/timetable' },
 ]
 
-function readStoredIdentity() {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(identityStorageKey) ?? 'null')
-
-    return stored && typeof stored === 'object' && typeof (stored as { email?: unknown }).email === 'string'
-      ? stored as { email: string; name: string }
-      : null
-  } catch {
-    return null
-  }
-}
-
-function writeStoredIdentity(identity: { email: string; name: string } | null) {
-  try {
-    if (identity) {
-      localStorage.setItem(identityStorageKey, JSON.stringify(identity))
-    } else {
-      localStorage.removeItem(identityStorageKey)
-    }
-  } catch {
-    // Without storage the trainee simply joins again after a reload.
-  }
-}
-
-function toTraineeId(name: string) {
-  return `${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') || 'trainee'}@trainee.local`
-}
-
 // Trainee view: join the trainer's session, then work on the three OCC monitors.
 // It never reveals the incident, because finding it is part of the exercise.
-function TraineeScreen({ session, updateSession }: TraineeScreenProps) {
-  const [identity, setIdentity] = useState(readStoredIdentity)
+function TraineeScreen({ dispatch, session }: TraineeScreenProps) {
+  const [identity, setIdentity] = useState(readTraineeIdentity)
   const [name, setName] = useState(identity?.name ?? '')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
@@ -80,38 +50,27 @@ function TraineeScreen({ session, updateSession }: TraineeScreenProps) {
       return
     }
 
-    const nextIdentity = { email: toTraineeId(name), name: name.trim() }
-    const participant: TraineeParticipant = {
-      email: nextIdentity.email,
-      joinedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      monitor: traineeMonitor,
-      name: nextIdentity.name,
-      role: 'Traffic Controller',
-      status: 'Joined',
-    }
+    // Stored first, so the join (and this PC's monitors) act as this trainee.
+    const nextIdentity = createTraineeIdentity(name)
 
-    updateSession((current) => ({
-      ...current,
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence('Trainee', 'Trainee joined', 'info', `${participant.name} joined as Traffic Controller.`),
-      ),
-      trainees: [participant, ...current.trainees.filter((trainee) => trainee.email !== participant.email)].slice(0, 8),
-    }))
-    writeStoredIdentity(nextIdentity)
+    writeTraineeIdentity(nextIdentity)
     setIdentity(nextIdentity)
     setError('')
+    void dispatch({ code, name: nextIdentity.name, type: 'TRAINEE_JOIN' }).then(({ accepted, reason }) => {
+      if (!accepted) {
+        writeTraineeIdentity(null)
+        setIdentity(null)
+        setError(reason ?? 'Could not join the session.')
+      }
+    })
   }
 
   const leave = () => {
     if (identity) {
-      updateSession((current) => ({
-        ...current,
-        trainees: current.trainees.filter((trainee) => trainee.email !== identity.email),
-      }))
+      void dispatch({ traineeId: identity.email, type: 'TRAINEE_LEAVE' })
     }
 
-    writeStoredIdentity(null)
+    writeTraineeIdentity(null)
     setIdentity(null)
     setCode('')
   }

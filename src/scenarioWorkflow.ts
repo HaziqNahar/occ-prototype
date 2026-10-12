@@ -97,6 +97,11 @@ const scenarioTaskEvidenceLabels: Record<ScenarioTaskId, string> = {
   setRoute: 'Route command applied',
 }
 
+// The evidence row recorded when a checklist step is completed.
+export function getScenarioTaskEvidenceLabel(taskId: ScenarioTaskId) {
+  return scenarioTaskEvidenceLabels[taskId]
+}
+
 type ApplyScenarioStepOptions = {
   updateLineMapRouteState: (
     lineMap: Partial<LineMapRuntimeState> | undefined,

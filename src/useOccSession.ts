@@ -1,118 +1,232 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NelTimetableName } from './data/nelTimetable'
-import {
-  applyOccSessionUpdate,
-  createInitialSession,
-  createResetSessionState,
-  normalizeClientSession,
-  normalizeTimetableRows,
-  restoreSession,
-  shouldAcceptRemoteSession,
-} from './sessionState'
-import { createOccSessionTransport, OCC_SESSION_KEY } from './sessionTransport'
-import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTransport'
-import type { OccSessionState, TrainingMode } from './types'
+import { applySessionCommand } from './session-commands/applySessionCommand'
+import type { SessionSnapshotMessage, SessionUpdateMessage } from './session-commands/protocol'
+import { applySessionDelta } from './session-commands/sessionDelta'
+import { createSimPatch } from './session-commands/simPatch'
+import type { SessionActor, SessionCommand, SessionCommandType, SimScenarioEvent } from './session-commands/types'
+import { createSessionClient } from './sessionClient'
+import type { MonitorLaunchRequest, OccSessionClient, ScreenRegistration } from './sessionClient'
+import { createInitialSession } from './sessionState'
+import type { OccSessionState } from './types'
 
-// React hook that keeps one OCC session in sync between this browser window,
-// other windows and the backend.
+// React hook for one window's view of the training session. The server owns the
+// session: this window sends commands and shows the server's state, with its own
+// not-yet-confirmed commands applied on top so the screen responds at once.
 
-const LEGACY_OCC_SESSION_KEYS = [
-  'sbs-occ-training-session-v1',
-  'sbs-occ-training-session-v2',
-  'sbs-occ-training-session-v3',
-  'sbs-occ-training-session-v4',
-] as const
-
-export function clearStoredOccSessions(includeCurrent = false) {
-  try {
-    const keys = includeCurrent
-      ? [...LEGACY_OCC_SESSION_KEYS, OCC_SESSION_KEY]
-      : [...LEGACY_OCC_SESSION_KEYS]
-
-    keys.forEach((key) => window.localStorage.removeItem(key))
-  } catch {
-    // Storage is a fallback transport; reset still works through in-memory state.
-  }
+export type CommandOutcome = {
+  accepted: boolean
+  reason: string | null
 }
 
-function readStoredSession(): OccSessionState {
-  try {
-    clearStoredOccSessions()
+export type DispatchSessionCommand = (command: SessionCommand) => Promise<CommandOutcome>
 
-    const stored = window.localStorage.getItem(OCC_SESSION_KEY)
+// Runs train-simulation code against the current session and sends what moved.
+export type SimulateSession = (
+  updater: (current: OccSessionState) => OccSessionState,
+  getEvents?: (current: OccSessionState) => SimScenarioEvent[],
+) => void
 
-    return stored ? restoreSession(JSON.parse(stored) as Partial<OccSessionState>) : createInitialSession()
-  } catch {
-    return createInitialSession()
-  }
+type PendingCommand = {
+  actor: SessionActor
+  // Server version that includes this command; set when the server answers.
+  ackVersion?: number
+  command: SessionCommand
+  id: string
+  predicted: boolean
 }
 
-export function useOccSession() {
-  const [session, setSession] = useState<OccSessionState>(readStoredSession)
+type ServerState = {
+  session: OccSessionState
+  sessionId: string | null
+  version: number
+}
+
+// Random (fault location) or wholesale changes: wait for the server's result.
+const UNPREDICTED_COMMANDS = new Set<SessionCommandType>(['LOAD_SCENARIO', 'RESET_SESSION'])
+
+function createCommandId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+export function useOccSession(getActor: () => SessionActor) {
+  const [session, setSession] = useState<OccSessionState>(createInitialSession)
+  const serverRef = useRef<ServerState>({ session, sessionId: null, version: 0 })
+  const pendingRef = useRef<PendingCommand[]>([])
+  const displayRef = useRef(session)
+  const clientRef = useRef<OccSessionClient | null>(null)
+  const sendQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const getActorRef = useRef(getActor)
   const monitorLaunchSubscribersRef = useRef(new Set<(request: MonitorLaunchRequest) => void>())
-  const sessionRef = useRef(session)
-  const transportRef = useRef<ReturnType<typeof createOccSessionTransport> | null>(null)
 
   useEffect(() => {
-    setSession((current) => {
-      const normalizedRows = normalizeTimetableRows(current.timetableRows, current.timetableName)
+    getActorRef.current = getActor
+  }, [getActor])
 
-      if (normalizedRows.length === current.timetableRows.length) {
-        return current
-      }
+  const render = useCallback(() => {
+    const server = serverRef.current
 
-      const next = {
-        ...current,
-        timetableRows: normalizedRows,
-        updatedAt: Date.now(),
-      }
+    // Confirmed commands are already in the server state.
+    pendingRef.current = pendingRef.current.filter((pending) => pending.ackVersion === undefined || pending.ackVersion > server.version)
 
-      transportRef.current?.publish(next)
-      return next
-    })
-  }, [session.timetableRows.length])
+    const display = pendingRef.current
+      .filter((pending) => pending.predicted)
+      .reduce((current, pending) => applySessionCommand(current, pending.command, { actor: pending.actor }).session, server.session)
 
-  useEffect(() => {
-    sessionRef.current = session
+    displayRef.current = display
+    setSession(display)
+  }, [])
 
-    try {
-      window.localStorage.setItem(OCC_SESSION_KEY, JSON.stringify(session))
-    } catch {
-      // Storage is a fallback transport; the SharedWorker/BroadcastChannel bus can still run.
+  const applySnapshot = useCallback((message: SessionSnapshotMessage) => {
+    const server = serverRef.current
+
+    if (message.sessionId === server.sessionId && message.version < server.version) {
+      return
     }
-  }, [session])
+
+    if (message.sessionId !== server.sessionId) {
+      pendingRef.current = []
+    }
+
+    serverRef.current = { session: message.session, sessionId: message.sessionId, version: message.version }
+    render()
+  }, [render])
+
+  const applyUpdate = useCallback((message: SessionUpdateMessage) => {
+    const server = serverRef.current
+
+    if (message.sessionId !== server.sessionId || message.baseVersion > server.version) {
+      // Missed a change (or another session): fetch the whole session once.
+      void clientRef.current?.fetchSnapshot().catch(() => undefined)
+      return
+    }
+
+    if (message.version <= server.version) {
+      return
+    }
+
+    serverRef.current = {
+      session: applySessionDelta(server.session, message.delta),
+      sessionId: server.sessionId,
+      version: message.version,
+    }
+    render()
+  }, [render])
 
   useEffect(() => {
-    transportRef.current = createOccSessionTransport({
-      initialSession: sessionRef.current,
+    clientRef.current = createSessionClient({
       onMonitorLaunchRequest: (request) => {
         monitorLaunchSubscribersRef.current.forEach((subscriber) => subscriber(request))
       },
-      onSession: (nextSession) => {
-        setSession((currentSession) => {
-          const normalizedSession = normalizeClientSession(nextSession)
-
-          if (!shouldAcceptRemoteSession(currentSession, normalizedSession)) {
-            return currentSession
-          }
-
-          return normalizedSession
-        })
-      },
+      onSnapshot: applySnapshot,
+      onUpdate: applyUpdate,
     })
 
     return () => {
-      transportRef.current?.close()
-      transportRef.current = null
+      clientRef.current?.close()
+      clientRef.current = null
     }
-  }, [])
+  }, [applySnapshot, applyUpdate])
+
+  // Without a backend (or when it cannot be reached) commands apply in this window only.
+  const applyLocally = useCallback((command: SessionCommand, actor: SessionActor): CommandOutcome => {
+    const server = serverRef.current
+    const result = applySessionCommand(server.session, command, { actor })
+
+    serverRef.current = { ...server, session: result.session }
+    render()
+
+    return { accepted: result.accepted, reason: result.reason ?? null }
+  }, [render])
+
+  const dispatch = useCallback<DispatchSessionCommand>(async (command) => {
+    const client = clientRef.current
+    const actor = getActorRef.current()
+
+    if (!client?.enabled) {
+      return applyLocally(command, actor)
+    }
+
+    const pending: PendingCommand = {
+      actor,
+      command,
+      id: createCommandId(),
+      predicted: !UNPREDICTED_COMMANDS.has(command.type),
+    }
+
+    pendingRef.current = [...pendingRef.current, pending]
+
+    if (pending.predicted) {
+      render()
+    }
+
+    const removePending = () => {
+      pendingRef.current = pendingRef.current.filter((item) => item !== pending)
+    }
+
+    // One at a time, so the server applies this window's commands in order
+    // (a destination is declared before the departure that relies on it).
+    const send = sendQueueRef.current.then(() => client.sendCommand({
+      actor,
+      command,
+      commandId: pending.id,
+      sessionId: serverRef.current.sessionId ?? undefined,
+    }))
+
+    sendQueueRef.current = send.then(() => undefined, () => undefined)
+
+    try {
+      const result = await send
+
+      if (result.stale) {
+        removePending()
+        applySnapshot(result.snapshot)
+
+        return { accepted: false, reason: result.snapshot.message }
+      }
+
+      const { response } = result
+
+      if (response.update) {
+        applyUpdate(response.update)
+      }
+
+      pending.ackVersion = response.sessionId === serverRef.current.sessionId ? response.version : 0
+      render()
+
+      return { accepted: response.accepted, reason: response.reason }
+    } catch {
+      removePending()
+
+      const outcome = applyLocally(command, actor)
+
+      return { ...outcome, reason: outcome.reason ?? 'Backend unavailable: the change was kept in this window only.' }
+    }
+  }, [applyLocally, applySnapshot, applyUpdate, render])
+
+  const simulate = useCallback<SimulateSession>((updater, getEvents) => {
+    const current = displayRef.current
+    const next = updater(current)
+
+    if (next === current) {
+      return
+    }
+
+    const patch = createSimPatch(current, next)
+    const events = getEvents?.(current) ?? []
+
+    if (!patch && events.length === 0) {
+      return
+    }
+
+    void dispatch({ ...(events.length > 0 ? { events } : {}), patch: patch ?? {}, type: 'SIM_UPDATE' })
+  }, [dispatch])
 
   const requestMonitorPeerLaunch = useCallback(() => (
-    transportRef.current?.requestMonitorPeerLaunch() ?? ''
+    clientRef.current?.requestMonitorPeerLaunch() ?? ''
   ), [])
 
   const registerScreen = useCallback((screen: ScreenRegistration) => {
-    transportRef.current?.registerScreen(screen, sessionRef.current)
+    clientRef.current?.registerScreen(screen)
   }, [])
 
   const subscribeMonitorLaunch = useCallback((subscriber: (request: MonitorLaunchRequest) => void) => {
@@ -123,36 +237,5 @@ export function useOccSession() {
     }
   }, [])
 
-  const updateSession = useCallback((updater: (current: OccSessionState) => OccSessionState) => {
-    setSession((current) => {
-      const next = applyOccSessionUpdate(current, updater)
-
-      if (next === current) {
-        return current
-      }
-
-      transportRef.current?.publish(next)
-
-      return next
-    })
-  }, [])
-
-  const resetSession = useCallback((
-    trainingMode: TrainingMode = 'PRACTICE',
-    timetableName: NelTimetableName = sessionRef.current.timetableName,
-  ) => {
-    clearStoredOccSessions(true)
-    const next = createResetSessionState(
-      trainingMode,
-      Date.now(),
-      (sessionRef.current.scenarioRevision ?? 0) + 1,
-      timetableName,
-    )
-
-    sessionRef.current = next
-    transportRef.current?.reset(next)
-    setSession(next)
-  }, [])
-
-  return { registerScreen, requestMonitorPeerLaunch, resetSession, session, subscribeMonitorLaunch, updateSession }
+  return { dispatch, registerScreen, requestMonitorPeerLaunch, session, simulate, subscribeMonitorLaunch }
 }

@@ -20,23 +20,12 @@ function collectPageErrors(page: Page) {
 
   page.on('console', (message) => {
     if (message.type() === 'error') {
-      if (message.text().includes('409 (Conflict)')) {
-        return
-      }
-
       errors.push(message.text())
     }
   })
   page.on('pageerror', (error) => errors.push(error.message))
   page.on('response', (response) => {
-    const isExpectedSessionConflict = response.status() === 409 && (
-      response.url().endsWith('/api/session/screens')
-      || (response.request().method() === 'PUT' && response.url().endsWith('/api/session'))
-    )
-
-    if (isExpectedSessionConflict) {
-      return
-    } else if (response.status() >= 400) {
+    if (response.status() >= 400) {
       errors.push(`${response.status()} ${response.request().method()} ${response.url()}`)
     }
   })
@@ -155,17 +144,20 @@ test.describe.serial('OCC monitor regressions', () => {
     const launchRow = page.getByTestId('timetable-row-301-1000')
     await expect(launchRow).toBeVisible()
 
-    const actionResponsePromise = page.waitForResponse((response) => (
+    // Selecting the row is a command; the server binds the launch train.
+    const commandResponsePromise = page.waitForResponse((response) => (
       response.request().method() === 'POST'
-      && response.url().endsWith('/api/session/actions')
+      && response.url().endsWith('/api/session/commands')
+      && response.request().postDataJSON()?.command?.type === 'SELECT_TRAIN'
     ))
     await launchRow.click()
-    const actionResponse = await actionResponsePromise
-    const actionPayload = await actionResponse.json()
+    const commandResponse = await commandResponsePromise
+    const commandPayload = await commandResponse.json()
+    const selectedSession = (await (await page.request.get('/api/session')).json()).session
 
-    expect(actionPayload.accepted).toBe(true)
-    expect(actionPayload.session.activeScenario.targetTrainId).toBe('301')
-    expect(actionPayload.session.selectedTrainId).toBe('301')
+    expect(commandPayload.accepted).toBe(true)
+    expect(selectedSession.activeScenario.targetTrainId).toBe('301')
+    expect(selectedSession.selectedTrainId).toBe('301')
 
     await page.goto('/screen/line-map')
     const trainHotspot = page.locator('[data-testid^="train-hotspot-301-"]')

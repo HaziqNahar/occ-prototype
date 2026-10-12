@@ -1,4 +1,4 @@
-import type { OccSessionState, SessionMonitorLaunch, SessionScreenJoin, SessionTransportEvent } from './types'
+import type { SessionMonitorLaunch, SessionScreenJoin, SessionTransportEvent } from './types'
 
 const OCC_BACKEND_PORT = '8787'
 
@@ -21,22 +21,9 @@ export type ArchivedReportResponse = {
   }
 }
 
-import type { OccSessionAction, OccSessionActionType } from './types'
-
-export type { OccSessionAction, OccSessionActionType }
-
-export type OccSessionActionResponse = {
-  accepted: boolean
-  action: OccSessionActionType
-  ok: boolean
-  reason: string | null
-  session: OccSessionState
-}
-
 export type MonitorLaunchResponse = {
   ok: boolean
   request: SessionMonitorLaunch
-  session: OccSessionState | null
 }
 
 export type OccTransportStatusResponse = {
@@ -84,12 +71,9 @@ export function buildOccApiUrl(baseUrl: string, path: string) {
   return baseUrl ? `${baseUrl}${path}` : path
 }
 
-// Archives the current scored session into the local backend report log.
-export async function archiveOccReport(
-  session: OccSessionState,
-  notes: string,
-  summary?: Record<string, unknown>,
-) {
+// Saves trainer notes with the current run's report. The server builds and
+// scores the report itself; a browser cannot change the score.
+export async function archiveOccReport(sessionId: string, notes: string) {
   const backendBaseUrl = getOccBackendBaseUrl()
 
   if (backendBaseUrl === null) {
@@ -97,7 +81,7 @@ export async function archiveOccReport(
   }
 
   const response = await fetch(buildOccApiUrl(backendBaseUrl, '/api/reports'), {
-    body: JSON.stringify({ notes, session, summary }),
+    body: JSON.stringify({ notes, sessionId }),
     headers: {
       'content-type': 'application/json',
     },
@@ -109,30 +93,6 @@ export async function archiveOccReport(
   }
 
   return await response.json() as ArchivedReportResponse
-}
-
-// Sends one scored operator action to the backend validator. The returned
-// session is already mutated, scored, and ready to broadcast/render.
-export async function submitOccSessionAction(session: OccSessionState, action: OccSessionAction) {
-  const backendBaseUrl = getOccBackendBaseUrl()
-
-  if (backendBaseUrl === null) {
-    throw new Error('Backend API is disabled.')
-  }
-
-  const response = await fetch(buildOccApiUrl(backendBaseUrl, '/api/session/actions'), {
-    body: JSON.stringify({ action, session }),
-    headers: {
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Backend action failed (${response.status}).`)
-  }
-
-  return await response.json() as OccSessionActionResponse
 }
 
 // Promotes the Monitor 02 launch command into a backend event. SSE subscribers

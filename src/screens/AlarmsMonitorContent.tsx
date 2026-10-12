@@ -1,21 +1,19 @@
 import { useMemo, useState } from 'react'
-import { applyCommsRequest, getCommsLog } from '../comms/commsCatalog'
+import { getCommsLog } from '../comms/commsCatalog'
 import type { CommsChannel } from '../comms/commsCatalog'
 import CommsDialog from '../components/CommsDialog'
 import { ScadaDomButton } from '../components/LegacyScadaFooter'
 import ScadaDomSurface from '../components/ScadaDomSurface'
 import ScadaFooter from '../components/ScadaFooter'
 import { AlarmCallsHeaderDom, StationRibbon } from '../components/MonitorAlarmCalls'
-import { submitBackendScenarioAction } from '../backendActions'
 import { getAlarmSummaryCounts } from '../sessionState'
-import { applyTrainingScenarioRuntimeEvent, getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
-import { acknowledgeAlarmRows, acknowledgesScenarioAlarm } from '../alarmAcknowledgement'
+import { getAlarmRowKey } from '../session-commands/types'
 import type { AlarmSummaryRow } from '../types'
 import type { MonitorScreenProps } from './monitorScreenTypes'
 export default function AlarmsMonitorContent({
   onNavigate,
   session,
-  updateSession,
+  dispatch,
 }: MonitorScreenProps) {
   const rows = session.alarmSummaryRows
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -55,41 +53,14 @@ export default function AlarmsMonitorContent({
     setStatusNote(`Live alarm row ${index + 1} selected: ${entry.row.asset}`)
   }
 
-  // Only acknowledging the scenario's incident alarm is a scored action; any other
-  // row is simply acknowledged on the GWS.
-  const acknowledgeRows = (indexes: ReadonlySet<number>, options: { keepRedTone?: boolean }, detail: string, doneNote: string) => {
-    if (!acknowledgesScenarioAlarm(session.alarmSummaryRows, indexes)) {
-      updateSession((current) => ({
-        ...current,
-        alarmSummaryRows: acknowledgeAlarmRows(current.alarmSummaryRows, indexes, options),
-      }))
-      setStatusNote(doneNote)
-      return
-    }
-
-    const trainId = getActiveTrainingScenarioTargetTrainId(session) || '317'
-
-    submitBackendScenarioAction(session, updateSession, {
-      detail,
-      source: 'Monitor 01 Alarms',
-      trainId,
-      type: 'ACK_ALARM',
-    }, (current) => {
-      const guard = applyTrainingScenarioRuntimeEvent(current, {
-        source: 'Monitor 01 Alarms',
-        trainId,
-        type: 'ALARM_ACKNOWLEDGED',
-      })
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      return {
-        ...guard.next,
-        alarmSummaryRows: acknowledgeAlarmRows(current.alarmSummaryRows, indexes, options),
-      }
-    }, (accepted, reason) => {
+  // The server decides whether this acknowledges the scenario's incident alarm,
+  // which is the only scored acknowledgement.
+  const acknowledgeRows = (indexes: ReadonlySet<number>, options: { keepRedTone?: boolean }, doneNote: string) => {
+    void dispatch({
+      keepRedTone: options.keepRedTone,
+      rowKeys: rows.filter((_row, index) => indexes.has(index)).map(getAlarmRowKey),
+      type: 'ACK_ALARMS',
+    }).then(({ accepted, reason }) => {
       setStatusNote(accepted ? doneNote : reason ?? 'Alarm acknowledgement rejected')
     })
   }
@@ -103,7 +74,6 @@ export default function AlarmsMonitorContent({
     acknowledgeRows(
       new Set([selectedEntry.originalIndex]),
       {},
-      `Alarm acknowledgement accepted for ${selectedRow.asset}.`,
       `Acknowledged selected alarm: ${selectedRow.asset}`,
     )
   }
@@ -117,7 +87,6 @@ export default function AlarmsMonitorContent({
     acknowledgeRows(
       liveRowIndexes,
       { keepRedTone: true },
-      'All visible live alarms acknowledged.',
       'Acknowledged all visible live alarms',
     )
   }
@@ -231,7 +200,7 @@ export default function AlarmsMonitorContent({
         <CommsDialog
           channel={commsChannel}
           onClose={() => setCommsChannel(null)}
-          onSend={(request) => updateSession((current) => applyCommsRequest(current, request))}
+          onSend={(request) => void dispatch({ request, type: 'LOG_CALL' })}
           selectedTrainId={session.selectedTrainId}
           trainIds={session.trains.map((train) => train.id)}
         />

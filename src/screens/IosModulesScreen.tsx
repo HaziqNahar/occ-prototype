@@ -7,32 +7,23 @@ import { nelTimetableOptions } from '../data/nelTimetable'
 import type { NelTimetableName } from '../data/nelTimetable'
 import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
 import { getScenarioTaskOwner } from '../iosScenarioRoles'
-import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import { scenarioTemplates } from '../scenarioLibrary'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
-import { createResetSessionState, updateSessionLifecycle } from '../sessionState'
 import {
-  applyTrainingScenarioRuntimeEvent,
-  applyTrainingScenarioTrainSelection,
-  completeTrainingScenarioDefinitionTask,
-  createTrainingScenarioStartSession,
   findTrainingScenarioDefinition,
   getActiveTrainingScenarioTargetTrainId,
   getEligibleLaunchScenarioTargetOptions,
-  getTrainingScenarioCompletionBlockers,
   getTrainingScenarioDefinition,
-  pickRandomFaultLocation,
-  resetTrainingScenarioRuntime,
   resolveFaultText,
   scoreTrainingScenario,
 } from '../trainingScenarios'
-import type { AlarmSummaryRow, AppRoute, MonitorAlarmRow, OccSessionState, TrainingMode } from '../types'
+import type { AppRoute, OccSessionState, TrainingMode } from '../types'
+import type { DispatchSessionCommand } from '../useOccSession'
 
 type IosModulesScreenProps = {
   onNavigate: (route: AppRoute) => void
-  resetSession: (trainingMode?: TrainingMode) => void
+  dispatch: DispatchSessionCommand
   session: OccSessionState
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
 }
 
 const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
@@ -50,58 +41,10 @@ const monitorRoutes: Array<{ name: string; route: AppRoute }> = [
   { name: 'occ-monitor-3-timetable', route: '/screen/timetable' },
 ]
 
-function formatScenarioTime() {
-  const now = new Date()
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  const seconds = String(now.getSeconds()).padStart(2, '0')
-
-  return `05/11 ${hours}:${minutes}:${seconds}`
-}
-
-function createModuleEvent(
-  message: string,
-  value: string,
-  tone: MonitorAlarmRow['tone'],
-  trainId?: string,
-): MonitorAlarmRow {
-  return {
-    level: 'S',
-    time: formatScenarioTime(),
-    asset: trainId ? `EMU/${trainId}/TRN/OCC` : 'IOS/TRAINER/OCC',
-    message,
-    value,
-    tone,
-  }
-}
-
-function createSummaryEvent(event: MonitorAlarmRow, tone: AlarmSummaryRow['tone']): AlarmSummaryRow {
-  return {
-    ack: 'Y',
-    avl: '',
-    mms: 'S',
-    timestamp: event.time.replace('05/11 ', '05/11/25 '),
-    asset: event.asset,
-    description: event.message,
-    value: event.value,
-    tone,
-  }
-}
-
 function formatElapsed(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds))
 
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-}
-
-// Switching timetable rebuilds the trains, but the class is the same:
-// keep the joined trainees and the session code they joined with.
-function keepSessionPeople(reset: OccSessionState, loaded: OccSessionState): OccSessionState {
-  return {
-    ...reset,
-    sessionMeta: { ...reset.sessionMeta, code: loaded.sessionMeta.code, screens: loaded.sessionMeta.screens },
-    trainees: loaded.trainees,
-  }
 }
 
 function getTemplateIdForScenario(scenarioId: string) {
@@ -110,7 +53,7 @@ function getTemplateIdForScenario(scenarioId: string) {
   return consoleTemplates.find((template) => template.trainingScenarioKind === definition.kind)?.id ?? consoleTemplates[0].id
 }
 
-function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: IosModulesScreenProps) {
+function IosModulesScreen({ dispatch, onNavigate, session }: IosModulesScreenProps) {
   const activeDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
   const isIdle = activeDefinition.id === 'idle'
   const [templateId, setTemplateId] = useState(() => getTemplateIdForScenario(session.activeScenario.id))
@@ -139,8 +82,6 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
   const elapsed = !isIdle && startedAt ? formatElapsed((now - startedAt) / 1000) : '--:--'
   const activity = categoriseScenarioEvidence(session.evidenceLog)
-    // Internal bookkeeping rows ("Scenario task selectTrain") repeat the action above them.
-    .filter((evidence) => !evidence.action.startsWith('Scenario task '))
     .filter((evidence) => evidence.category !== 'trainer' || evidence.result === 'rejected')
     .slice(0, 14)
   const launchTrainOptions = useMemo(() => (
@@ -161,24 +102,13 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
   }, [isRunning])
 
   const loadScenario = () => {
-    updateSession((loaded) => {
-      // A different timetable changes the train roster, so start from a clean session.
-      const base = loaded.timetableName === timetableName
-        ? loaded
-        : keepSessionPeople(
-            createResetSessionState(trainingMode, Date.now(), (loaded.scenarioRevision ?? 0) + 1, timetableName),
-            loaded,
-          )
-
-      // Each run puts the fault on a different train, station and bound.
-      const armed = createTrainingScenarioStartSession(
-        { ...base, trainingMode },
-        selectedDefinition.kind,
-        selectedDefinition.incident,
-        { faultLocation: pickRandomFaultLocation(base) },
-      )
-
-      return { ...armed, activeScenario: { ...armed.activeScenario, duration: timeTargetValue } }
+    void dispatch({
+      duration: timeTargetValue,
+      incident: selectedDefinition.incident,
+      kind: selectedDefinition.kind,
+      timetableName,
+      trainingMode,
+      type: 'LOAD_SCENARIO',
     })
   }
 
@@ -187,88 +117,15 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
       return
     }
 
-    updateSession((current) => applyTrainingScenarioTrainSelection(current, 'IOS Scenario Runtime', launchTrainId).next)
+    void dispatch({ trainId: launchTrainId, type: 'ASSIGN_LAUNCH_TRAIN' })
   }
 
-  const setScenarioRuntimeState = (action: 'PAUSE' | 'RESUME' | 'COMPLETE') => {
-    updateSession((current) => {
-      const definition = getTrainingScenarioDefinition(current.activeScenario.id)
-      const currentTargetTrainId = getActiveTrainingScenarioTargetTrainId(current)
-      const nextMode = action === 'PAUSE' ? 'PAUSED' as const : action === 'RESUME' ? 'RUNNING' as const : 'COMPLETE' as const
-      const event = createModuleEvent(
-        `IOS scenario ${action.toLowerCase()}: ${definition.title}`,
-        nextMode,
-        action === 'PAUSE' ? 'orange' : 'yellow',
-        currentTargetTrainId,
-      )
-
-      if (action === 'COMPLETE') {
-        const openRequiredTasks = getTrainingScenarioCompletionBlockers(current)
-
-        if (openRequiredTasks.length > 0) {
-          return {
-            ...current,
-            scenarioNotice: {
-              text: `Cannot complete yet. Open: ${openRequiredTasks.map((task) => task.label).join(', ')}.`,
-              tone: 'warning' as const,
-            },
-          }
-        }
-
-        const guard = applyTrainingScenarioRuntimeEvent(current, {
-          source: 'IOS Scenario Runtime',
-          type: 'SCENARIO_REVIEWED',
-        })
-
-        if (!guard.allowed) {
-          return guard.next
-        }
-
-        return {
-          ...guard.next,
-          alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...guard.next.alarmSummaryRows].slice(0, 12),
-          eventRows: [event, ...guard.next.eventRows].slice(0, 4),
-        }
-      }
-
-      const noticeText = `${definition.title} ${action === 'PAUSE' ? 'paused' : 'resumed'} by the trainer.`
-
-      return {
-        ...current,
-        alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
-        evidenceLog: appendScenarioEvidence(
-          current.evidenceLog,
-          createScenarioEvidence('IOS Scenario Runtime', `Scenario ${action.toLowerCase()}`, 'info', noticeText),
-        ),
-        eventRows: [event, ...current.eventRows].slice(0, 4),
-        scenarioMode: nextMode,
-        scenarioNotice: { text: noticeText, tone: 'info' as const },
-        sessionMeta: updateSessionLifecycle(current.sessionMeta, nextMode),
-      }
-    })
+  const setScenarioRuntimeState = (state: 'PAUSE' | 'RESUME' | 'COMPLETE') => {
+    void dispatch({ state, type: 'SET_SCENARIO_STATE' })
   }
 
   const confirmTask = (taskId: string, label: string) => {
-    updateSession((current) => {
-      const guard = completeTrainingScenarioDefinitionTask(current, taskId, 'IOS Scenario Runtime')
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      const event = createModuleEvent(
-        `IOS scenario task confirmed: ${label}`,
-        'DONE',
-        'yellow',
-        getActiveTrainingScenarioTargetTrainId(current),
-      )
-
-      return {
-        ...guard.next,
-        alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...guard.next.alarmSummaryRows].slice(0, 12),
-        eventRows: [event, ...guard.next.eventRows].slice(0, 4),
-      }
-    })
+    void dispatch({ label, taskId, type: 'CONFIRM_TASK' })
   }
 
   const openMonitors = () => {
@@ -345,7 +202,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
           >
             Complete
           </button>
-          <button type="button" disabled={isIdle} onClick={() => updateSession((current) => resetTrainingScenarioRuntime(current))}>
+          <button type="button" disabled={isIdle} onClick={() => void dispatch({ type: 'RESET_SCENARIO' })}>
             Stop
           </button>
         </div>
@@ -416,7 +273,7 @@ function IosModulesScreen({ onNavigate, resetSession, session, updateSession }: 
           {timetableName !== session.timetableName && (
             <small className="trainer-console-hint">Changing timetable resets all trains.</small>
           )}
-          <button type="button" className="trainer-console-reset" onClick={() => resetSession(session.trainingMode)}>
+          <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
             Reset whole session
           </button>
         </section>

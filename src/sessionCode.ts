@@ -1,6 +1,6 @@
 // Short join codes the trainer reads out to trainees, e.g. "K7M2".
 // Letters and digits that are easy to confuse aloud or on screen (I, L, O, 0, 1) are left out.
-// server/server.mjs generates codes with the same alphabet.
+// The server uses this module too.
 export const SESSION_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 export const SESSION_CODE_LENGTH = 4
 
@@ -24,4 +24,9 @@ export function normalizeEnteredSessionCode(value: string) {
 
 export function sessionCodesMatch(entered: string, sessionCode: string) {
   return normalizeEnteredSessionCode(entered) === normalizeEnteredSessionCode(sessionCode)
+}
+
+// A session's id is stable for its lifetime: a reset creates a new session.
+export function getSessionId(session: { sessionMeta: { code: string; createdAt: string } }) {
+  return `${session.sessionMeta.code}-${session.sessionMeta.createdAt}`
 }

@@ -798,31 +798,11 @@ export function restoreSession(parsed: Partial<OccSessionState>): OccSessionStat
   }
 }
 
-export function applyOccSessionUpdate(
-  current: OccSessionState,
-  updater: (current: OccSessionState) => OccSessionState,
-  updatedAt = Date.now(),
-) {
-  const updated = cleanSessionTimetableGuideRouteState(updater(current))
+// Run after every command: clears timetable guide routes, keeps the scenario train
+// on the map and derives the legacy door-fault state from the alarm rows.
+export function finalizeSessionUpdate(session: OccSessionState): OccSessionState {
+  const revealed = revealActiveScenarioTargetTrain(cleanSessionTimetableGuideRouteState(session))
+  const trains = inferTrain317DoorFailureState(revealed, revealed.trains)
 
-  return updated === current
-    ? current
-    : {
-        ...updated,
-        updatedAt,
-      }
-}
-
-export function shouldAcceptRemoteSession(
-  current: OccSessionState,
-  incoming: OccSessionState,
-) {
-  const currentRevision = current.scenarioRevision ?? 0
-  const incomingRevision = incoming.scenarioRevision ?? 0
-
-  if (incomingRevision !== currentRevision) {
-    return incomingRevision > currentRevision
-  }
-
-  return incoming.updatedAt > current.updatedAt
+  return trains === revealed.trains ? revealed : { ...revealed, trains }
 }

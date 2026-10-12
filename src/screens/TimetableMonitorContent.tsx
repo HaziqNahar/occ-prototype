@@ -4,18 +4,14 @@ import { ScadaDomButton } from '../components/LegacyScadaFooter'
 import ScadaDomSurface from '../components/ScadaDomSurface'
 import ScadaFooter from '../components/ScadaFooter'
 import TimetableRegulationGraph from '../components/TimetableRegulationGraph'
-import { getLineMapRouteStatus, updateLineMapRouteState } from './line-map/lineMapRouteState'
-import { completeScenarioTask, createMonitorEvent, createSummaryEvent } from '../scenarioWorkflow'
-import { submitBackendScenarioAction } from '../backendActions'
-import { applyTrainingScenarioTrainSelection, getTrainingScenarioTrainActionDetail } from '../trainingScenarios'
+import { isTimetableTripAction } from '../session-commands/monitorCommands'
 import { formatTimetableClockTime, getTimetableClockNow } from '../timetableClockState'
 import { getActiveTimetableView, getTimetableStationOptions, getTimetableViewRows } from '../timetableViewState'
-import type { MonitorAlarmRow, ScenarioTaskId, TrainStatus } from '../types'
 import type { MonitorScreenProps } from './monitorScreenTypes'
 export default function TimetableMonitorContent({
   onNavigate,
   session,
-  updateSession,
+  dispatch,
 }: MonitorScreenProps) {
   const tableRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -125,106 +121,34 @@ export default function TimetableMonitorContent({
     const row = rows[index]
 
     if (row) {
-      submitBackendScenarioAction(session, updateSession, {
-        detail: getTrainingScenarioTrainActionDetail(session, row.train, `Train ${row.train} timetable row selected`),
-        source: 'Monitor 03 Timetable',
-        trainId: row.train,
-        type: 'SELECT_TRAIN',
-      }, (current) => {
-        const selection = applyTrainingScenarioTrainSelection(current, 'Monitor 03 Timetable', row.train)
-
-        if (!selection.allowed) {
-          return selection.next
-        }
-
-        return {
-          ...selection.next,
-          selectedTrainId: row.train,
-        }
-      })
+      void dispatch({ trainId: row.train, type: 'SELECT_TRAIN', view: 'timetable' })
     }
   }
 
   const setDirectionFilter = (nextDirection: 'NB' | 'SB') => {
     setSelectedIndex(0)
     setActionNote(`Direction filter changed to ${nextDirection}`)
-    updateSession((current) => ({
-      ...current,
-      timetableView: {
-        ...current.timetableView,
-        direction: nextDirection,
-      },
-    }))
+    void dispatch({ direction: nextDirection, type: 'SET_TIMETABLE_VIEW' })
   }
 
   const setStationSelection = (nextStation: string) => {
     setSelectedIndex(0)
     setActionNote(`Station ${nextStation} selected`)
-    updateSession((current) => ({
-      ...current,
-      timetableView: {
-        ...current.timetableView,
-        station: nextStation,
-      },
-    }))
+    void dispatch({ station: nextStation, type: 'SET_TIMETABLE_VIEW' })
   }
 
-  const applyTripAction = (action: string) => {
+  const applyTripAction = (label: string) => {
     if (!selectedRow) {
       setActionNote('No timetable row selected')
       return
     }
 
-    const actionMeta: Record<string, { state: string; status: TrainStatus; tone: MonitorAlarmRow['tone']; value: string }> = {
-      'Service cancellation': { state: 'C>', status: 'HOLD', tone: 'red', value: 'CANCELLED' },
-      'Service restoration': { state: '>', status: 'RUN', tone: 'yellow', value: 'RESTORED' },
-      'Shift trips': { state: 'S>', status: 'WAIT', tone: 'yellow', value: 'SHIFTED' },
-      'Trip interruption': { state: 'H>', status: 'HOLD', tone: 'orange', value: 'INTERRUPT' },
-      'Trip modification': { state: 'M>', status: 'WAIT', tone: 'yellow', value: 'MODIFIED' },
-      'Creation of additional trips': { state: 'A>', status: 'WAIT', tone: 'yellow', value: 'ADDED' },
-    }
-    const meta = actionMeta[action] ?? actionMeta['Trip modification']
-    const taskId: ScenarioTaskId = action === 'Service restoration' ? 'dispatchTrain' : 'setRoute'
-    const event = createMonitorEvent(
-      selectedRow.train,
-      `Timetable ${action.toLowerCase()}: Train ${selectedRow.train}`,
-      meta.value,
-      meta.tone,
-    )
+    const action = isTimetableTripAction(label) ? label : 'Trip modification'
 
-    submitBackendScenarioAction(session, updateSession, {
-      detail: `${action} accepted for Train ${selectedRow.train}.`,
-      source: 'Monitor 03 Timetable',
-      trainId: selectedRow.train,
-      type: taskId === 'dispatchTrain' ? 'DISPATCH_TRAIN' : 'SET_ROUTE',
-    }, (current) => {
-      const guard = completeScenarioTask(
-        current,
-        taskId,
-        `${action} accepted for Train ${selectedRow.train}.`,
-        'Monitor 03 Timetable',
-      )
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      return {
-        ...guard.next,
-        alarmSummaryRows: [createSummaryEvent(event, meta.tone === 'red' ? 'red' : 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [event, ...current.eventRows].slice(0, 4),
-        selectedTrainId: selectedRow.train,
-        lineMap: updateLineMapRouteState(current.lineMap, { id: selectedRow.train }, getLineMapRouteStatus(meta.status)),
-        timetableRows: current.timetableRows.map((row) => (
-          row.train === selectedRow.train && row.sched === selectedRow.sched ? { ...row, state: meta.state } : row
-        )),
-        trains: current.trains.map((train) => (
-          train.id === selectedRow.train ? { ...train, status: meta.status } : train
-        )),
-      }
-    }, (accepted, reason) => {
-      setActionNote(accepted ? `${action}: Train ${selectedRow.train} schedule ${selectedRow.sched}` : reason ?? 'Timetable action rejected')
-    })
+    void dispatch({ action, sched: selectedRow.sched, trainId: selectedRow.train, type: 'TIMETABLE_TRIP_ACTION' })
+      .then(({ accepted, reason }) => {
+        setActionNote(accepted ? `${action}: Train ${selectedRow.train} schedule ${selectedRow.sched}` : reason ?? 'Timetable action rejected')
+      })
   }
 
   const printTimetable = () => {

@@ -2,27 +2,47 @@ import { mkdirSync, readFileSync, renameSync, existsSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
 import { DATABASE_FILE, DATA_DIR, LEGACY_REPORTS_FILE, LEGACY_SESSION_FILE } from './config'
 import { getIsoNow } from './http'
+import { getSessionId } from '../src/sessionCode'
+import type { SessionActor } from '../src/session-commands/types'
 import type { OccSessionState } from '../src/types'
 
-// One SQLite file holds the session, the action log and archived reports.
+// One SQLite file holds the sessions, the action log and archived reports.
 // node:sqlite ships with Node 24, so the LAN host needs nothing else installed.
 
 export type ActionLogKind =
+  | 'command'
   | 'report.archived'
-  | 'scenario.action'
+  | 'report.notes'
   | 'screen.joined'
   | 'session.cleared'
+  | 'session.created'
+  // Kinds written before phase 2; kept so older logs still read back.
+  | 'scenario.action'
   | 'session.published'
   | 'session.reset'
 
 export type ActionLogEntry = {
   accepted?: boolean
   actionType?: string
-  actor?: string
+  actor?: SessionActor | string
   detail?: string
   kind: ActionLogKind
   payload?: unknown
   sessionId?: string
+}
+
+export type ActionLogRow = {
+  accepted: number | null
+  action_type: string | null
+  actor: string | null
+  actor_id: string | null
+  actor_role: string | null
+  at: string
+  detail: string | null
+  id: number
+  kind: ActionLogKind
+  payload: string | null
+  session_id: string
 }
 
 export type StoredReport = {
@@ -63,6 +83,13 @@ const SCHEMA = `
   );
 `
 
+// Columns added after the database was first released.
+const ADDED_COLUMNS: Array<{ column: string; definition: string; table: string }> = [
+  { column: 'actor_role', definition: 'text', table: 'action_log' },
+  { column: 'actor_id', definition: 'text', table: 'action_log' },
+  { column: 'updated_at', definition: 'text', table: 'reports' },
+]
+
 // Loading node:sqlite prints an "experimental" warning; silence only that one.
 function loadSqlite() {
   const originalEmitWarning = process.emitWarning
@@ -82,11 +109,6 @@ function loadSqlite() {
   }
 }
 
-// A session's id is stable for its lifetime: a reset creates a new session.
-export function getSessionId(session: Pick<OccSessionState, 'sessionMeta'>) {
-  return `${session.sessionMeta.code}-${session.sessionMeta.createdAt}`
-}
-
 export class OccDatabase {
   private readonly db: DatabaseSync
 
@@ -100,6 +122,7 @@ export class OccDatabase {
     this.db = new Database(file)
     this.db.exec('pragma journal_mode = wal; pragma synchronous = normal;')
     this.db.exec(SCHEMA)
+    this.addMissingColumns()
   }
 
   loadCurrentSession(): OccSessionState | null {
@@ -111,14 +134,17 @@ export class OccDatabase {
     return row ? JSON.parse(row.snapshot) as OccSessionState : null
   }
 
-  saveCurrentSession(session: OccSessionState) {
-    const id = getSessionId(session)
-
+  saveSession(session: OccSessionState) {
     this.db.prepare(`
       insert into sessions (id, code, created_at, updated_at, snapshot) values (?, ?, ?, ?, ?)
       on conflict (id) do update set updated_at = excluded.updated_at, snapshot = excluded.snapshot
-    `).run(id, session.sessionMeta.code, session.sessionMeta.createdAt, session.updatedAt, JSON.stringify(session))
-    this.setSetting('current_session_id', id)
+    `).run(getSessionId(session), session.sessionMeta.code, session.sessionMeta.createdAt, session.updatedAt, JSON.stringify(session))
+  }
+
+  // The session new screens open on (phase 5 runs two at once).
+  setCurrentSession(session: OccSessionState) {
+    this.saveSession(session)
+    this.setSetting('current_session_id', getSessionId(session))
   }
 
   clearCurrentSession() {
@@ -126,14 +152,18 @@ export class OccDatabase {
   }
 
   logAction(entry: ActionLogEntry) {
+    const actor: Partial<SessionActor> | undefined = typeof entry.actor === 'string' ? { name: entry.actor } : entry.actor
+
     this.db.prepare(`
-      insert into action_log (session_id, at, kind, actor, action_type, accepted, detail, payload)
-      values (?, ?, ?, ?, ?, ?, ?, ?)
+      insert into action_log (session_id, at, kind, actor, actor_role, actor_id, action_type, accepted, detail, payload)
+      values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       entry.sessionId ?? null,
       getIsoNow(),
       entry.kind,
-      entry.actor ?? null,
+      actor?.name ?? null,
+      actor?.role ?? null,
+      actor?.id ?? null,
       entry.actionType ?? null,
       entry.accepted === undefined ? null : Number(entry.accepted),
       entry.detail ?? null,
@@ -142,22 +172,32 @@ export class OccDatabase {
   }
 
   listActions(sessionId: string) {
-    return this.db.prepare('select * from action_log where session_id = ? order by id').all(sessionId) as Array<{
-      accepted: number | null
-      action_type: string | null
-      actor: string | null
-      at: string
-      detail: string | null
-      id: number
-      kind: ActionLogKind
-      payload: string | null
-      session_id: string
-    }>
+    return this.db.prepare('select * from action_log where session_id = ? order by id').all(sessionId) as ActionLogRow[]
   }
 
-  saveReport(report: StoredReport, sessionId?: string) {
-    this.db.prepare('insert into reports (id, session_id, created_at, report) values (?, ?, ?, ?)')
-      .run(report.id, sessionId ?? null, getIsoNow(), JSON.stringify(report))
+  // Browsers never send a summary: the server computes it from its own session.
+  // Notes are kept when the summary is refreshed.
+  saveReport(report: { id: string; notes?: string; summary: Record<string, unknown> }, sessionId: string) {
+    const existing = this.getReport(report.id)
+    const stored: StoredReport = {
+      id: report.id,
+      notes: report.notes ?? existing?.notes ?? '',
+      summary: report.summary,
+    }
+    const now = getIsoNow()
+
+    this.db.prepare(`
+      insert into reports (id, session_id, created_at, updated_at, report) values (?, ?, ?, ?, ?)
+      on conflict (id) do update set updated_at = excluded.updated_at, report = excluded.report
+    `).run(report.id, sessionId, now, now, JSON.stringify(stored))
+
+    return stored
+  }
+
+  getReport(id: string) {
+    const row = this.db.prepare('select report from reports where id = ?').get(id) as { report: string } | undefined
+
+    return row ? JSON.parse(row.report) as StoredReport : null
   }
 
   listReports() {
@@ -173,10 +213,10 @@ export class OccDatabase {
         const session = JSON.parse(readFileSync(LEGACY_SESSION_FILE, 'utf8')) as OccSessionState
 
         if (!this.loadCurrentSession() && session?.sessionMeta?.code && session.sessionMeta.createdAt) {
-          this.saveCurrentSession(session)
+          this.setCurrentSession(session)
         }
       } catch {
-        // An unreadable legacy session is skipped; the next browser seeds a fresh one.
+        // An unreadable legacy session is skipped; the server starts a fresh one.
       }
 
       renameSync(LEGACY_SESSION_FILE, `${LEGACY_SESSION_FILE}.migrated`)
@@ -199,6 +239,16 @@ export class OccDatabase {
 
   close() {
     this.db.close()
+  }
+
+  private addMissingColumns() {
+    ADDED_COLUMNS.forEach(({ column, definition, table }) => {
+      const columns = this.db.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>
+
+      if (!columns.some((item) => item.name === column)) {
+        this.db.exec(`alter table ${table} add column ${column} ${definition}`)
+      }
+    })
   }
 
   private getSetting(key: string) {

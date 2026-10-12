@@ -104,9 +104,22 @@ not stored in this repository.
 
 The backend is TypeScript in `server/` and shares the scenario, scoring and
 session rules in `src/` with the app (see `docs/production-plan.md`). It runs at
-`http://127.0.0.1:8787` and owns the shared session. All pages publish to it,
-receive live updates over server-sent events, and fall back to a SharedWorker /
-`BroadcastChannel` / local storage if it is unreachable.
+`http://127.0.0.1:8787` and is the only writer of the session:
+
+- Every page action is a **command** (`src/session-commands/types.ts`), for
+  example `ACK_ALARMS`, `TRAIN_HOLD` or `LOAD_SCENARIO`. The server checks it,
+  applies it with the same code the page uses (`applySessionCommand`), scores
+  the session with the scenario definition and logs who sent it.
+- Pages receive a snapshot, then small versioned deltas, over server-sent
+  events. A page shows its own command at once and corrects itself when the
+  server's version arrives.
+- The Line Map's train movement is sent as `SIM_UPDATE`; it can move trains and
+  routes but cannot change door faults, ITAMA, the checklist or evidence.
+- Loading, completing and resetting scenarios are trainer-only commands.
+- Each page acts as the trainer (Trainer Console, Report) or as the trainee who
+  joined on that PC (trainee page, monitors). Sign-in replaces this in phase 4.
+- Without a backend (`VITE_OCC_API_BASE=disabled`) commands apply in the page
+  only.
 
 | Command | Use |
 | --- | --- |
@@ -116,26 +129,29 @@ receive live updates over server-sent events, and fall back to a SharedWorker /
 | `npm.cmd run start:server` | Runs the bundled backend (use this on the LAN host) |
 
 Data is kept in one SQLite file, `server/data/occ-training.sqlite` (ignored by
-Git), using the SQLite built into Node 24: the current session, an action log
-(scored actions, screen joins, resets, report archives) and archived reports.
+Git), using the SQLite built into Node 24: the sessions, an action log (every
+command with its sender and result, screen joins, new sessions, report
+archives) and archived reports. Train movement is not logged.
 On first start it imports `session.json` / `reports.ndjson` from the old
 backend and renames them `*.migrated`. `npm.cmd run reset:runtime` deletes all
 backend data (stop the backend first).
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/health` | Readiness and connected screen count |
-| `GET /api/session` | Current session state |
-| `PUT /api/session` | Publish session state from a page |
-| `GET /api/session/events` | Live server-sent event stream |
+| `GET /api/health` | Readiness, current session code and id |
+| `GET /api/session` | Session snapshot with its id and version |
+| `POST /api/session/commands` | Send a command: `{ sessionId, commandId, actor, command }`. 409 if the session has ended (reset) |
+| `GET /api/session/events` | Live stream: a snapshot, then `session:update` deltas |
 | `GET /api/session/status` | Session code, lifecycle and joined screens |
 | `POST /api/session/screens` | Register or heartbeat a page |
-| `POST /api/session/actions` | Validate a scored action (select train, acknowledge alarm, route, dispatch, complete) |
 | `GET /api/session/actions` | Action log of the current session (or `?sessionId=`) |
-| `POST /api/session/reset` | Replace the session with a fresh one |
-| `POST /api/session/runtime` | Clear the runtime session |
-| `GET /api/reports/latest` | Report summary of the current session |
-| `POST /api/reports` | Archive a report snapshot |
+| `POST /api/session/runtime` | Start a fresh session in place of the current one |
+| `GET /api/reports/latest` | Report summary of the current run, built by the server |
+| `GET /api/reports` | Archived reports |
+| `POST /api/reports` | Save trainer notes with the current run's report (the server scores it) |
+
+Session requests take an optional `?session=<code or id>`; without it they use
+the current session. Completed runs are archived automatically.
 
 ## Tests
 
@@ -157,8 +173,9 @@ npm.cmd run build:server
 
 This is a prototype for demos and practice runs, not yet for formal assessment:
 
-- The session state, including scores, is published by the browsers; the
-  backend validates only the main scored actions.
-- There is no sign-in. Anyone with the address can open the Trainer Console.
+- There is no sign-in. Anyone with the address can open the Trainer Console,
+  and a page's trainer or trainee role is taken on trust.
+- Every open Line Map window runs the train simulation (phase 3 makes one
+  window the clock owner).
 - One backend runs one session at a time.
 - The 12-car rescue SOP is not modelled yet.

@@ -1,3 +1,4 @@
+import { getScenarioTaskEvidenceLabel } from '../scenarioWorkflow'
 import { updateSessionLifecycle } from '../sessionState'
 import type { TimetablePlaybackPlan } from '../screens/line-map/timetablePlayback'
 import type { OccSessionState, ScenarioTaskId, TrainState } from '../types'
@@ -115,7 +116,7 @@ function updateLaunchScenarioTask(
   detail: string,
 ) {
   return {
-    ...appendTrainingScenarioEvidence(current, 'Timetable Playback', `Scenario task ${taskId}`, detail),
+    ...appendTrainingScenarioEvidence(current, 'Timetable Playback', getScenarioTaskEvidenceLabel(taskId), detail),
     scenarioMode: taskId === 'completeScenario' ? 'COMPLETE' as const : 'RUNNING' as const,
     scenarioNotice: {
       text: detail,

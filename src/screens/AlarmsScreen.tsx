@@ -5,7 +5,7 @@ import type { MonitorScreenProps } from './monitorScreenTypes'
 export default function AlarmsScreen({
   onNavigate,
   session,
-  updateSession,
+  dispatch,
 }: MonitorScreenProps) {
   return (
     <MonitorWorkspace
@@ -15,7 +15,7 @@ export default function AlarmsScreen({
       session={session}
       title="Alarm Summary Monitor"
     >
-      <AlarmsMonitorContent onNavigate={onNavigate} session={session} updateSession={updateSession} />
+      <AlarmsMonitorContent onNavigate={onNavigate} session={session} dispatch={dispatch} />
     </MonitorWorkspace>
   )
 }

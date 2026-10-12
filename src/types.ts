@@ -149,6 +149,8 @@ export type ScenarioNotice = {
 
 export type ScenarioEvidence = {
   action: string
+  // Who did it: the trainee or trainer whose command added this row.
+  actor?: string
   detail: string
   id: string
   result: 'accepted' | 'info' | 'rejected'
@@ -237,8 +239,8 @@ export type OccSessionMeta = {
   trainer: string
 }
 
-// One row in the backend scoring model. Thresholds are intentionally stored
-// with the session so archived reports can be interpreted later.
+// Timing of one checklist step. Thresholds are stored with the session so
+// archived reports can be interpreted later.
 export type AssessmentTaskMetric = {
   completedAt?: string
   label: string
@@ -250,8 +252,9 @@ export type AssessmentTaskMetric = {
   thresholdSeconds: number
 }
 
-// Backend assessment summary for the golden-path scenario. The browser renders
-// this, but the score itself is produced by `/api/session/actions`.
+// The session's assessment, kept by the server after every command: score and
+// result from the scenario definition, plus step timings
+// (session-commands/assessment.ts).
 export type OccAssessmentMetrics = {
   completedAt?: string
   lateTasks: number
@@ -287,8 +290,8 @@ export type LineMapRuntimeState = {
   platformDoorStates: Record<string, LineMapPlatformDoorState>
   routeSegments: Record<string, LineMapRouteSegmentState>
 }
-// The complete state model rendered by all screens. The backend publishes this
-// through SSE, while SharedWorker/BroadcastChannel carry fallback copies.
+// The complete state model rendered by all screens. Only the server changes it
+// (session-commands/); screens receive it as a snapshot plus deltas over SSE.
 export type OccSessionState = {
   activeScenario: ActiveScenario
   alarmSummaryRows: AlarmSummaryRow[]
@@ -312,19 +315,4 @@ export type OccSessionState = {
   trainees: TraineeParticipant[]
   trains: TrainState[]
   updatedAt: number
-}
-
-// Scored operator actions validated by the backend.
-export type OccSessionActionType =
-  | 'ACK_ALARM'
-  | 'COMPLETE_SCENARIO'
-  | 'DISPATCH_TRAIN'
-  | 'SELECT_TRAIN'
-  | 'SET_ROUTE'
-
-export type OccSessionAction = {
-  detail?: string
-  source: string
-  trainId?: string
-  type: OccSessionActionType
 }

@@ -2,8 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 import controlTabIcon from './assets/control-tab-icon.png'
-import type { OccSessionAction } from './backendClient'
-import { applyCommsRequest, getCommsLog } from './comms/commsCatalog'
+import { getCommsLog } from './comms/commsCatalog'
 import type { CommsChannel } from './comms/commsCatalog'
 import MonitorWorkspace from './components/MonitorWorkspace'
 import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
@@ -31,14 +30,12 @@ import type { InspectorPage, TrainAuxiliaryView, TrainDepartureCommandResult } f
 import {
   getAllowedTrainDoorCommands,
   getTrainDoorCommandFromRequest,
-  getTrainDoorCommandLabel,
   getTrainDoorCommandRejectionMessage,
   getTrainDoorCommandStatusMessage,
   getTrainDoorCommandValue,
   getTrainDoorFailureState,
   getTrainDoorFaultDisplayValue,
   getTrainDoorIsolationStatus,
-  getTrainDoorStateAfterCommand,
   getTrainDoorSummaryStatus,
   getTrainReadinessModeFromCommand,
 } from './components/train-control/trainCommandState'
@@ -70,7 +67,6 @@ import {
   createTrainOccupancyRouteSegmentStates,
   getSignalEquipmentLabel,
   getSignalRouteLabels,
-  updateLineMapRouteState,
 } from './screens/line-map/lineMapRouteState'
 import {
   MANUAL_TRAIN_ROUTE_STEP_DURATION_MS,
@@ -83,8 +79,6 @@ import {
 } from './screens/line-map/trainMovementState'
 import type { AllowedTrainMovementAuthority } from './screens/line-map/trainMovementState'
 import {
-  applySignalRouteSetSession,
-  applySignalRouteUnsetSession,
   createSignalRouteSetOverrideSegments,
   createSignalRouteUnsetOverrideSegments,
   getSignalRouteTargetTrainForSession,
@@ -108,44 +102,29 @@ import useManualTrainRoutePlayback from './screens/line-map/useManualTrainRouteP
 import useTimetablePlaybackScheduler from './screens/line-map/useTimetablePlaybackScheduler'
 import AlarmsScreen from './screens/AlarmsScreen'
 import TimetableScreen from './screens/TimetableScreen'
-import { appendScenarioEvidence, createScenarioEvidence } from './scenario'
-import {
-  createMonitorEvent,
-  createSummaryEvent,
-  formatAlarmSummaryTimestamp,
-  formatScenarioTime,
-  upsertTimetableRow,
-} from './scenarioWorkflow'
-import { submitBackendScenarioAction } from './backendActions'
-import type { MonitorLaunchRequest, ScreenRegistration } from './sessionTransport'
+import { isManualDestinationSelection, isRt2DepotDestinationSelection } from './session-commands/lineMapCommands'
+import { getActorForRoute } from './sessionActor'
+import type { MonitorLaunchRequest, ScreenRegistration } from './sessionClient'
 import {
   getAlarmSummaryCounts,
   getTimetablePlaybackTrainIdSet,
 } from './sessionState'
 import { useOccSession } from './useOccSession'
+import type { DispatchSessionCommand, SimulateSession } from './useOccSession'
 import { getTimetableClockNow } from './timetableClockState'
 import {
-  applyTrainingScenarioRuntimeEvent,
-  applyTrainingScenarioTrainSelection,
-  getActiveTrainingScenarioTargetTrainId,
-  getTrainingScenarioTrainActionDetail,
   getTrainingScenarioDefinition,
   isActiveTrainingScenarioTargetTrain,
-  scoreTrainingScenario,
 } from './trainingScenarios'
 import LoginPage from './screens/LoginPage'
 import type {
-  AlarmSummaryRow,
   AppRoute,
   LineMapRuntimeState,
-  MonitorAlarmRow,
   OccSessionState,
   RouteControlMode,
-  ScenarioNoticeTone,
   TrainCommand,
   TrainReadinessMode,
   TrainState,
-  TrainStatus,
 } from './types'
 
 const IosModulesScreen = lazy(() => import('./screens/IosModulesScreen'))
@@ -156,33 +135,12 @@ if (import.meta.env.DEV) {
   warnLineMapRouteValidationIssues()
 }
 
-function getActiveScenarioTargetTrainId(session: OccSessionState) {
-  return getActiveTrainingScenarioTargetTrainId(session)
-}
-
 function isRt1LaunchToSkgAuthority(authority: AllowedTrainMovementAuthority) {
   return authority.service === 'NB' && authority.routeLabels.includes(RT1_LAUNCH_ROUTE_LABEL)
 }
 
 function isActiveScenarioTargetTrain(session: OccSessionState, trainId: string) {
   return isActiveTrainingScenarioTargetTrain(session, trainId)
-}
-
-function normalizeTrainTimeSelectionValue(value: string | undefined) {
-  return (value ?? '').trim().toUpperCase()
-}
-
-function isRt2DepotDestinationSelection(selection: TrainTimeSelection | undefined) {
-  return normalizeTrainTimeSelectionValue(selection?.station) === 'NED'
-    && normalizeTrainTimeSelectionValue(selection?.platformSiding) === 'RT2D'
-}
-
-function isManualDestinationSelection(selection: TrainTimeSelection | undefined) {
-  const station = normalizeTrainTimeSelectionValue(selection?.station)
-  const platformSiding = normalizeTrainTimeSelectionValue(selection?.platformSiding)
-
-  return (station === 'NED' && platformSiding === 'RT2D')
-    || (station === 'SKG' && platformSiding === 'SKGS')
 }
 
 function toManualArrivalDestination(selection: TrainTimeSelection | undefined) {
@@ -194,10 +152,6 @@ function toManualArrivalDestination(selection: TrainTimeSelection | undefined) {
     ...selection,
     kind: 'arrival' as const,
   }
-}
-
-function isTrainingScenarioDefinitionTaskComplete(session: OccSessionState, taskId: string) {
-  return scoreTrainingScenario(session).taskResults.some((task) => task.id === taskId && task.complete)
 }
 
 type SignalMenuState = {
@@ -252,14 +206,15 @@ const screenRegistrationByRoute: Partial<Record<AppRoute, ScreenRegistration>> =
 
 function App() {
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute)
+  const getActor = useCallback(() => getActorForRoute(route), [route])
   const {
+    dispatch,
     registerScreen,
     requestMonitorPeerLaunch,
-    resetSession,
     session,
+    simulate,
     subscribeMonitorLaunch,
-    updateSession,
-  } = useOccSession()
+  } = useOccSession(getActor)
 
   useEffect(() => {
     const handlePopState = () => setRoute(getCurrentRoute())
@@ -291,19 +246,20 @@ function App() {
       <LineMapScreen
         onNavigate={navigate}
         requestMonitorPeerLaunch={requestMonitorPeerLaunch}
+        dispatch={dispatch}
         session={session}
+        simulate={simulate}
         subscribeMonitorLaunch={subscribeMonitorLaunch}
-        updateSession={updateSession}
       />
     )
   }
 
   if (route === '/screen/alarms') {
-    return <AlarmsScreen onNavigate={navigate} session={session} updateSession={updateSession} />
+    return <AlarmsScreen dispatch={dispatch} onNavigate={navigate} session={session} />
   }
 
   if (route === '/screen/timetable') {
-    return <TimetableScreen onNavigate={navigate} session={session} updateSession={updateSession} />
+    return <TimetableScreen dispatch={dispatch} onNavigate={navigate} session={session} />
   }
 
   // The Trainer Console replaced the IOS window, Scenario setup and the rubric page;
@@ -312,10 +268,9 @@ function App() {
     return (
       <Suspense fallback={null}>
         <IosModulesScreen
+          dispatch={dispatch}
           onNavigate={navigate}
-          resetSession={resetSession}
           session={session}
-          updateSession={updateSession}
         />
       </Suspense>
     )
@@ -325,8 +280,8 @@ function App() {
     return (
       <Suspense fallback={null}>
         <TraineeScreen
+          dispatch={dispatch}
           session={session}
-          updateSession={updateSession}
         />
       </Suspense>
     )
@@ -344,17 +299,19 @@ function App() {
 }
 
 function LineMapScreen({
+  dispatch,
   onNavigate,
   requestMonitorPeerLaunch,
   session,
+  simulate,
   subscribeMonitorLaunch,
-  updateSession,
 }: {
+  dispatch: DispatchSessionCommand
   onNavigate: (route: AppRoute) => void
   requestMonitorPeerLaunch: () => string
   session: OccSessionState
+  simulate: SimulateSession
   subscribeMonitorLaunch: (subscriber: (request: MonitorLaunchRequest) => void) => () => void
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
 }) {
   const [monitorLaunchStatus, setMonitorLaunchStatus] = useState('Peer monitors ready')
   const handledLaunchIdsRef = useRef(new Set<string>())
@@ -452,7 +409,7 @@ function LineMapScreen({
       session={session}
       title="Line Map Monitor"
     >
-      <MonitorCanvas onNavigate={onNavigate} session={session} updateSession={updateSession} />
+      <MonitorCanvas dispatch={dispatch} onNavigate={onNavigate} session={session} simulate={simulate} />
     </MonitorWorkspace>
   )
 }
@@ -1314,15 +1271,25 @@ function TrainInspectorPanel({
   )
 }
 
+// Monitor 02. Operator actions are commands to the server; train movement
+// (the simulation) is reported with simulate().
 function MonitorCanvas({
+  dispatch,
   onNavigate,
   session,
-  updateSession,
+  simulate,
 }: {
+  dispatch: DispatchSessionCommand
   onNavigate: (route: AppRoute) => void
   session: OccSessionState
-  updateSession: (updater: (current: OccSessionState) => OccSessionState) => void
+  simulate: SimulateSession
 }) {
+  const sessionRef = useRef(session)
+
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
+
   const [panX, setPanX] = useState<number>(DEFAULT_LINE_MAP_PAN)
   const [inspectorPanel, setInspectorPanel] = useState<{ page: InspectorPage; trainId: string } | null>(null)
   const [auxiliaryPanel, setAuxiliaryPanel] = useState<{ trainId: string; view: TrainAuxiliaryView } | null>(null)
@@ -1406,7 +1373,7 @@ function MonitorCanvas({
   }), [renderedLineMap, renderedTrains, session])
 
   useEffect(() => {
-    updateSession((current) => {
+    simulate((current) => {
       let changed = false
       const trains = current.trains.map((currentTrain) => {
         const currentRouteStep = getTrainRouteStepFromTrainOccupancyOrLineMap(
@@ -1444,7 +1411,7 @@ function MonitorCanvas({
           }
         : current
     })
-  }, [session.lineMap, updateSession])
+  }, [session.lineMap, simulate])
   const defineRouteSetLabels = defineRouteSignal
     ? getSignalRouteSetLabels(defineRouteSignal.label, renderedLineMap)
     : []
@@ -1467,7 +1434,7 @@ function MonitorCanvas({
     cancelTrainRouteAnimation,
     routeControlModes,
     session: effectiveLineMapSession,
-    updateSession,
+    updateSession: simulate,
   })
   const timetableClockNow = getTimetableClockNow(session.timetableClock, timetableDiagnosticsNow)
   const timetableRouteDiagnosticsSummary = createTimetableRouteDiagnosticsSummary(
@@ -1519,37 +1486,7 @@ function MonitorCanvas({
     setAuxiliaryPanel(null)
     setTrainMenu(null)
     setItamaTrainId(trainId)
-    submitBackendScenarioAction(session, updateSession, {
-      detail: getTrainingScenarioTrainActionDetail(session, trainId, `Train ${trainId} ITAMA opened`),
-      source: 'Monitor 02 Line Map',
-      trainId,
-      type: 'SELECT_TRAIN',
-    }, (current) => {
-      const selection = applyTrainingScenarioTrainSelection(current, 'Monitor 02 Line Map', trainId)
-
-      if (!selection.allowed) {
-        return selection.next
-      }
-
-      const selected = selection.next
-
-      return {
-        ...selected,
-        evidenceLog: appendScenarioEvidence(
-          selected.evidenceLog,
-          createScenarioEvidence(
-            'Monitor 02 Line Map',
-            'ITAMA opened',
-            'info',
-            `ITAMA status opened for Train ${trainId}.`,
-          ),
-        ),
-        scenarioNotice: isActiveScenarioTargetTrain(selected, trainId)
-          ? { text: `Train ${trainId} ITAMA status opened for ${selected.activeScenario.title}.`, tone: 'info' }
-          : { text: `ITAMA status opened for Train ${trainId}. Scenario target remains Train ${getActiveScenarioTargetTrainId(selected)}.`, tone: 'warning' },
-        selectedTrainId: trainId,
-      }
-    })
+    void dispatch({ trainId, type: 'SELECT_TRAIN', view: 'itama' })
   }
 
   const openTrainInspector = (trainId: string, page: InspectorPage) => {
@@ -1558,428 +1495,56 @@ function MonitorCanvas({
     setItamaTrainId('')
     setPendingCommand(null)
     setInspectorPanel({ trainId, page })
-    updateSession((current) => {
-      const selection = applyTrainingScenarioTrainSelection(current, 'Monitor 02 Line Map', trainId)
-
-      if (!selection.allowed) {
-        return selection.next
-      }
-
-      const selected = selection.next
-
-      return {
-        ...selected,
-        evidenceLog: appendScenarioEvidence(
-          selected.evidenceLog,
-          createScenarioEvidence(
-            'Monitor 02 Line Map',
-            `Inspector ${page} opened`,
-            'info',
-            `Inspecting page opened for Train ${trainId}.`,
-          ),
-        ),
-        scenarioNotice: isActiveScenarioTargetTrain(selected, trainId)
-          ? { text: `Train ${trainId} inspector ${page} page opened for ${selected.activeScenario.title}.`, tone: 'info' }
-          : { text: `Train ${trainId} inspector opened. Active scenario target remains Train ${getActiveScenarioTargetTrainId(selected)}.`, tone: 'warning' },
-        selectedTrainId: trainId,
-      }
-    })
+    void dispatch({ page, trainId, type: 'SELECT_TRAIN', view: 'inspector' })
   }
 
   const openTrainAuxiliary = (trainId: string, view: TrainAuxiliaryView) => {
-    const meta: Record<TrainAuxiliaryView, {
-      action: string
-      message: string
-      notice: string
-      noticeTone: ScenarioNoticeTone
-      summaryTone?: AlarmSummaryRow['tone']
-      tone: MonitorAlarmRow['tone']
-      value: string
-    }> = {
-      alarms: {
-        action: 'Train alarm list opened',
-        message: `Train ${trainId}: Active alarms opened`,
-        notice: `Train ${trainId} active alarm list opened from line map.`,
-        noticeTone: 'warning',
-        summaryTone: 'red',
-        tone: 'red',
-        value: 'ALARM LIST',
-      },
-      cctv: {
-        action: 'Restricted CCTV selected',
-        message: `Train ${trainId}: Restricted CCTV request`,
-        notice: `Restricted CCTV request opened for Train ${trainId}.`,
-        noticeTone: 'info',
-        tone: 'yellow',
-        value: 'CCTV',
-      },
-      details: {
-        action: 'Train details opened',
-        message: `Train ${trainId}: Details page opened`,
-        notice: `Train ${trainId} details page opened.`,
-        noticeTone: 'info',
-        tone: 'yellow',
-        value: 'DETAILS',
-      },
-      'pec-reset': {
-        action: 'PEC reset requested',
-        message: `Train ${trainId}: PEC Reset All request`,
-        notice: `PEC Reset All request prepared for Train ${trainId}. No reset applied.`,
-        noticeTone: 'warning',
-        summaryTone: 'yellow',
-        tone: 'orange',
-        value: 'PEC RESET',
-      },
-      pis: {
-        action: 'Restricted PIS selected',
-        message: `Train ${trainId}: Restricted PIS request`,
-        notice: `Restricted PIS request opened for Train ${trainId}.`,
-        noticeTone: 'info',
-        tone: 'yellow',
-        value: 'PIS',
-      },
-      regulation: {
-        action: 'Regulation parameters opened',
-        message: `Train ${trainId}: Regulation parameters opened`,
-        notice: `Train ${trainId} regulation parameters opened.`,
-        noticeTone: 'info',
-        tone: 'yellow',
-        value: 'REG PARAM',
-      },
-    }
-    const item = meta[view]
-
     setTrainMenu(null)
     setInspectorPanel(null)
     setItamaTrainId('')
     setPendingCommand(null)
     setAuxiliaryPanel({ trainId, view })
-    updateSession((current) => {
-      const event = createMonitorEvent(trainId, item.message, item.value, item.tone)
-      const selection = applyTrainingScenarioTrainSelection(current, 'Monitor 02 Line Map', trainId)
-
-      if (!selection.allowed) {
-        return selection.next
-      }
-
-      const selected = selection.next
-
-      return {
-        ...selected,
-        alarmSummaryRows: item.summaryTone
-          ? [createSummaryEvent(event, item.summaryTone), ...selected.alarmSummaryRows].slice(0, 12)
-          : selected.alarmSummaryRows,
-        eventRows: [event, ...selected.eventRows].slice(0, 4),
-        evidenceLog: appendScenarioEvidence(
-          selected.evidenceLog,
-          createScenarioEvidence('Monitor 02 Line Map', item.action, 'info', item.notice),
-        ),
-        scenarioNotice: {
-          text: item.notice,
-          tone: item.noticeTone,
-        },
-        selectedTrainId: trainId,
-      }
-    })
+    void dispatch({ trainId, type: 'OPEN_TRAIN_VIEW', view })
   }
 
   const confirmInspectorItamaAuthorisedPreparation = (trainId: string) => {
-    const eventRow = createMonitorEvent(
-      trainId,
-      `Train ${trainId}: ITAMA AM/CM Authorised Preparation`,
-      'OK',
-      'yellow',
-    )
-
-    updateSession((current) => ({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'Monitor 02 Line Map',
-          'ITAMA authorised preparation',
-          'accepted',
-          `Train ${trainId} ITAMA authorised preparation confirmed.`,
-        ),
-      ),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      scenarioNotice: {
-        text: `Train ${trainId} ITAMA authorised preparation successful.`,
-        tone: 'success',
-      },
-      selectedTrainId: trainId,
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              itamaAuthorisedPreparationConfirmed: true,
-              itamaNotAuthorisedPreparationConfirmed: false,
-            }
-          : train
-      )),
-    }))
+    void dispatch({ step: 'authorised-preparation', trainId, type: 'ITAMA_CONFIRM' })
   }
 
   const confirmInspectorItamaAuthorised = (trainId: string) => {
-    const eventRow = createMonitorEvent(
-      trainId,
-      `Train ${trainId}: ITAMA AM/CM Authorised Confirmation`,
-      'GRANTED',
-      'yellow',
-    )
-
     setTrainItamaStatusOverrides((current) => ({
       ...current,
       [trainId]: 'GRANTED',
     }))
-
-    updateSession((current) => ({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'Monitor 02 Line Map',
-          'ITAMA authorised confirmation',
-          'accepted',
-          `Train ${trainId} ITAMA status set to GRANTED.`,
-        ),
-      ),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      scenarioNotice: {
-        text: `Train ${trainId} ITAMA authorised confirmation successful.`,
-        tone: 'success',
-      },
-      selectedTrainId: trainId,
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              itamaAuthorisedPreparationConfirmed: false,
-              itamaGranted: true,
-              itamaNotAuthorisedPreparationConfirmed: false,
-              itamaStatus: 'GRANTED',
-            }
-          : train
-      )),
-    }))
+    void dispatch({ step: 'authorised', trainId, type: 'ITAMA_CONFIRM' })
   }
 
   const confirmInspectorItamaNotAuthorisedPreparation = (trainId: string) => {
-    const eventRow = createMonitorEvent(
-      trainId,
-      `Train ${trainId}: ITAMA AM/CM Not Authorised Preparation`,
-      'OK',
-      'yellow',
-    )
-
-    updateSession((current) => ({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'Monitor 02 Line Map',
-          'ITAMA not authorised preparation',
-          'accepted',
-          `Train ${trainId} ITAMA not authorised preparation confirmed.`,
-        ),
-      ),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      scenarioNotice: {
-        text: `Train ${trainId} ITAMA not authorised preparation successful.`,
-        tone: 'success',
-      },
-      selectedTrainId: trainId,
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              itamaAuthorisedPreparationConfirmed: false,
-              itamaNotAuthorisedPreparationConfirmed: true,
-            }
-          : train
-      )),
-    }))
+    void dispatch({ step: 'not-authorised-preparation', trainId, type: 'ITAMA_CONFIRM' })
   }
 
   const confirmInspectorItamaNotAuthorised = (trainId: string) => {
-    const eventRow = createMonitorEvent(
-      trainId,
-      `Train ${trainId}: ITAMA AM/CM Not Authorised Confirmation`,
-      'NOT GRANTED',
-      'yellow',
-    )
-
     setTrainItamaStatusOverrides((current) => ({
       ...current,
       [trainId]: 'NOT_GRANTED',
     }))
-
-    updateSession((current) => ({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'Monitor 02 Line Map',
-          'ITAMA not authorised confirmation',
-          'accepted',
-          `Train ${trainId} ITAMA status set to NOT GRANTED.`,
-        ),
-      ),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      scenarioNotice: {
-        text: `Train ${trainId} ITAMA not authorised confirmation successful.`,
-        tone: 'success',
-      },
-      selectedTrainId: trainId,
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              itamaAuthorisedPreparationConfirmed: false,
-              itamaGranted: false,
-              itamaNotAuthorisedPreparationConfirmed: false,
-              itamaStatus: 'NOT_GRANTED',
-              isMoving: false,
-              status: 'WAIT',
-            }
-          : train
-      )),
-    }))
+    void dispatch({ step: 'not-authorised', trainId, type: 'ITAMA_CONFIRM' })
   }
 
   const confirmInspectorReadiness = (trainId: string, command: string) => {
-    const readinessMode = getTrainReadinessModeFromCommand(command)
-    const eventRow: MonitorAlarmRow = {
-      level: 'S',
-      time: formatScenarioTime(),
-      asset: `EMU/${trainId}/TRN/OCC`,
-      message: `Train ${trainId}: Train Readiness Request`,
-      value: command,
-      tone: 'yellow',
-    }
-
     setTrainReadinessModeOverrides((current) => ({
       ...current,
-      [trainId]: readinessMode,
+      [trainId]: getTrainReadinessModeFromCommand(command),
     }))
-
-    updateSession((current) => ({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence(
-          'Monitor 02 Line Map',
-          'Train readiness request confirmed',
-          'accepted',
-          `Train ${trainId} readiness request set to ${command}.`,
-        ),
-      ),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      scenarioNotice: {
-        text: `Train ${trainId} readiness command successful: ${command}.`,
-        tone: 'success',
-      },
-      selectedTrainId: trainId,
-      trains: current.trains.map((train) => (
-        train.id === trainId
-          ? {
-              ...train,
-              readinessMode,
-              ...(readinessMode === 'MAINLINE_SERVICE'
-                ? {}
-                : {
-                    isMoving: false,
-                    status: 'WAIT' as const,
-                  }),
-            }
-          : train
-      )),
-    }))
+    void dispatch({ command, trainId, type: 'TRAIN_READINESS' })
   }
 
   const confirmInspectorDoorCommand = (trainId: string, command: TrainDoorCommand) => {
-    const doorFailureState = getTrainDoorStateAfterCommand(command)
-    const commandLabel = getTrainDoorCommandLabel(command)
-    const nextTrainStatus: TrainStatus = command === 'confirm-closed-locked' || command === 'authorize-move'
-      ? 'RUN'
-      : 'HOLD'
-    const eventRow = createMonitorEvent(
-      trainId,
-      `Train ${trainId}: ${commandLabel}`,
-      getTrainDoorSummaryStatus(doorFailureState),
-      command === 'withdraw-service' ? 'red' : 'yellow',
-    )
-
-    updateSession((current) => {
-      const commandState = {
-        ...current,
-        alarmSummaryRows: [
-          createSummaryEvent(eventRow, command === 'withdraw-service' ? 'red' : 'yellow'),
-          ...current.alarmSummaryRows,
-        ].slice(0, 12),
-        evidenceLog: appendScenarioEvidence(
-          current.evidenceLog,
-          createScenarioEvidence(
-            'Monitor 02 Line Map',
-            commandLabel,
-            'accepted',
-            `Train ${trainId} door failure state set to ${getTrainDoorSummaryStatus(doorFailureState)}.`,
-          ),
-        ),
-        eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-        scenarioNotice: {
-          text: `Train ${trainId} ${commandLabel.toLowerCase()} command successful.`,
-          tone: command === 'withdraw-service' ? 'warning' as const : 'success' as const,
-        },
-        selectedTrainId: trainId,
-        timetableRows: upsertTimetableRow(current.timetableRows, trainId, nextTrainStatus === 'HOLD' ? 'H>' : '>'),
-        trains: current.trains.map((train) => (
-          train.id === trainId
-            ? {
-                ...train,
-                doorFailureState,
-                status: nextTrainStatus,
-              }
-            : train
-        )),
-      }
-
-      return applyTrainingScenarioRuntimeEvent(commandState, {
-        commandLabel,
-        source: 'Monitor 02 Line Map',
-        summaryStatus: getTrainDoorSummaryStatus(doorFailureState),
-        trainId,
-        type: 'DOOR_COMMAND_CONFIRMED',
-      }).next
-    })
+    void dispatch({ command, trainId, type: 'TRAIN_DOOR_COMMAND' })
   }
 
   const confirmInspectorTrainHold = (trainId: string, detail: string) => {
-    const eventRow = createMonitorEvent(trainId, `Train ${trainId}: Train Hold`, 'APPLIED', 'yellow')
-
-    updateSession((current) => applyTrainingScenarioRuntimeEvent({
-      ...current,
-      alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-      evidenceLog: appendScenarioEvidence(
-        current.evidenceLog,
-        createScenarioEvidence('Monitor 02 Line Map', 'Train Hold', 'accepted', detail),
-      ),
-      eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-      selectedTrainId: trainId,
-      timetableRows: upsertTimetableRow(current.timetableRows, trainId, 'H>'),
-      trains: current.trains.map((train) => (
-        train.id === trainId ? { ...train, isMoving: false, status: 'HOLD' as const } : train
-      )),
-    }, {
-      source: 'Monitor 02 Line Map',
-      trainId,
-      type: 'TRAIN_HOLD_APPLIED',
-    }).next)
+    void dispatch({ detail, trainId, type: 'TRAIN_HOLD' })
   }
 
   const animateTrainDepartureRoute = useCallback((
@@ -1997,14 +1562,7 @@ function MonitorCanvas({
     })
 
     if (!plan.allowed) {
-      updateSession((current) => ({
-        ...current,
-        scenarioNotice: {
-          text: plan.reason,
-          tone: 'warning',
-        },
-        selectedTrainId: trainId,
-      }))
+      void dispatch({ text: plan.reason, tone: 'warning', type: 'SHOW_NOTICE' })
       return { accepted: false, message: plan.reason }
     }
 
@@ -2019,104 +1577,22 @@ function MonitorCanvas({
 
     const { authority, currentStepIndex, lastStepIndex } = plan
     const shouldHandoffLaunchToTimetable = isRt1LaunchToSkgAuthority(authority)
-    const eventRow = createMonitorEvent(
-      trainId,
-      `Train ${trainId}: Departure time set, stepping on ${authority.routeLabel}`,
-      'RUN',
-      'yellow',
-    )
 
-    updateSession((current) => {
-      const moving = {
-        ...applyManualTrainRouteStepState(current, trainId, authority, currentStepIndex),
-        alarmSummaryRows: [createSummaryEvent(eventRow), ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-        scenarioNotice: {
-          text: `Train ${trainId} departure confirmed. Stepping rail-by-rail on ${authority.routeLabel}.`,
-          tone: 'info' as const,
-        },
-        timetableRows: upsertTimetableRow(current.timetableRows, trainId, '>'),
-      }
-
-      if (!isActiveScenarioTargetTrain(current, trainId)) {
-        return moving
-      }
-
-      return applyTrainingScenarioRuntimeEvent(moving, {
-        routeLabel: authority.routeLabel,
-        source: 'Line Map Train Control',
-        trainId,
-        type: 'DEPARTURE_TIME_CONFIRMED',
-      }).next
-    })
+    simulate((current) => applyManualTrainRouteStepState(current, trainId, authority, currentStepIndex))
+    void dispatch({ routeLabel: authority.routeLabel, trainId, type: 'TRAIN_DEPARTURE' })
 
     const setTrainAtRouteStep = (stepIndex: number) => {
-      updateSession((current) => {
-        const stepped = applyManualTrainRouteStepState(current, trainId, authority, stepIndex)
+      simulate((current) => applyManualTrainRouteStepState(current, trainId, authority, stepIndex))
 
-        if (stepIndex < lastStepIndex || !isActiveScenarioTargetTrain(current, trainId)) {
-          return stepped
-        }
-
-        const activeScenarioKind = getTrainingScenarioDefinition(current.activeScenario.id).kind
-
-        if (activeScenarioKind === 'TRAIN_LAUNCH' && shouldHandoffLaunchToTimetable) {
-          return {
-            ...stepped,
-            scenarioNotice: {
-              text: `Train ${trainId} reached SKGN and returned to automatic timetable control.`,
-              tone: 'success' as const,
-            },
-            trains: stepped.trains.map((train) => (
-              train.id === trainId
-                ? {
-                    ...train,
-                    isMoving: false,
-                    readinessMode: 'MAINLINE_SERVICE' as const,
-                    status: 'WAIT' as const,
-                    timetablePlayback: true,
-                  }
-                : train
-            )),
-          }
-        }
-
-        if (activeScenarioKind === 'TRAIN_WITHDRAWAL' && !isDepotWithdrawalLeg) {
-          return stepped
-        }
-
-        const endpointEvent = createMonitorEvent(
-          trainId,
-          `Train ${trainId}: reached depot endpoint on ${authority.routeLabel}`,
-          'ENDPOINT',
-          'yellow',
-        )
-
-        const endpointState = {
-          ...stepped,
-          eventRows: [endpointEvent, ...stepped.eventRows].slice(0, 4),
-          evidenceLog: appendScenarioEvidence(
-            stepped.evidenceLog,
-            createScenarioEvidence(
-              'Monitor 02 Line Map',
-              'Depot endpoint reached',
-              'accepted',
-              `Train ${trainId} reached depot endpoint on ${authority.routeLabel}.`,
-            ),
-          ),
-          scenarioNotice: {
-            text: `Train ${trainId} reached depot endpoint on ${authority.routeLabel}.`,
-            tone: 'success' as const,
-          },
-        }
-
-        return applyTrainingScenarioRuntimeEvent(endpointState, {
+      if (stepIndex >= lastStepIndex && isActiveScenarioTargetTrain(sessionRef.current, trainId)) {
+        void dispatch({
+          depotLeg: isDepotWithdrawalLeg,
+          launchHandoff: shouldHandoffLaunchToTimetable,
           routeLabel: authority.routeLabel,
-          source: 'Monitor 02 Line Map',
           trainId,
-          type: 'DEPOT_ENDPOINT_REACHED',
-        }).next
-      })
+          type: 'MANUAL_ROUTE_COMPLETED',
+        })
+      }
     }
 
     startManualTrainRoutePlayback({
@@ -2152,7 +1628,7 @@ function MonitorCanvas({
     })
 
     return { accepted: true }
-  }, [cancelManualTrainRoutePlayback, renderedLineMap, renderedTrains, routeControlModes, setLineMapRouteSegmentOverrides, setManualMovementTrainIds, setTrainArrivalDestinations, startManualTrainRoutePlayback, trainArrivalDestinations, updateSession])
+  }, [cancelManualTrainRoutePlayback, dispatch, renderedLineMap, renderedTrains, routeControlModes, setLineMapRouteSegmentOverrides, setManualMovementTrainIds, setTrainArrivalDestinations, simulate, startManualTrainRoutePlayback, trainArrivalDestinations])
 
   const openTrainContextMenu = (trainId: string, x: number, y: number) => {
     setInspectorPanel(null)
@@ -2162,33 +1638,7 @@ function MonitorCanvas({
     setDefineRouteSignal(null)
     setSignalMenu(null)
     setTrainMenu({ trainId, x, y })
-    submitBackendScenarioAction(session, updateSession, {
-      detail: getTrainingScenarioTrainActionDetail(
-        session,
-        trainId,
-        `Train ${trainId} selected`,
-        'Select ITAMA, hold, route, or dispatch.',
-      ),
-      source: 'Monitor 02 Line Map',
-      trainId,
-      type: 'SELECT_TRAIN',
-    }, (current) => {
-      const selection = applyTrainingScenarioTrainSelection(current, 'Monitor 02 Line Map', trainId)
-
-      if (!selection.allowed) {
-        return selection.next
-      }
-
-      const selected = selection.next
-
-      return {
-        ...selected,
-        scenarioNotice: isActiveScenarioTargetTrain(selected, trainId)
-          ? { text: `Train ${trainId} command menu opened for ${selected.activeScenario.title}.`, tone: 'info' }
-          : { text: `Train ${trainId} command menu opened. Active scenario target remains Train ${getActiveScenarioTargetTrainId(selected)}.`, tone: 'warning' },
-        selectedTrainId: trainId,
-      }
-    })
+    void dispatch({ trainId, type: 'SELECT_TRAIN', view: 'menu' })
   }
 
   const openSignalContextMenu = (signal: LineMapSignalData, x: number, y: number) => {
@@ -2198,13 +1648,11 @@ function MonitorCanvas({
     setPendingCommand(null)
     setDefineRouteSignal(null)
     setSignalMenu({ signal, x, y })
-    updateSession((current) => ({
-      ...current,
-      scenarioNotice: {
-        text: `${getSignalEquipmentLabel(signal)} selected. Define Route is available from the signal menu.`,
-        tone: 'info',
-      },
-    }))
+    void dispatch({
+      text: `${getSignalEquipmentLabel(signal)} selected. Define Route is available from the signal menu.`,
+      tone: 'info',
+      type: 'SHOW_NOTICE',
+    })
   }
 
   const openSignalDefineRoute = (signal: LineMapSignalData) => {
@@ -2215,40 +1663,19 @@ function MonitorCanvas({
 
     setSignalMenu(null)
     setDefineRouteSignal(signal)
-    updateSession((current) => ({
-      ...current,
-      scenarioNotice: {
-        text: `${getSignalEquipmentLabel(signal)} route definition opened.`,
-        tone: 'info',
-      },
-    }))
+    void dispatch({ text: `${getSignalEquipmentLabel(signal)} route definition opened.`, tone: 'info', type: 'SHOW_NOTICE' })
   }
 
   const setRouteFromSignal = (signal: LineMapSignalData, routeLabel: string) => {
-    const visibleTargetTrain = getSignalRouteTargetTrainForSession(session)
-
     if (!hasSignalRouteCommand(signal, routeLabel)) {
       return
     }
 
-    const routeOwner = visibleTargetTrain ?? { id: '' }
+    const routeOwner = getSignalRouteTargetTrainForSession(session) ?? { id: '' }
 
+    // Shown at once on this map; the server's route state follows.
     setLineMapRouteSegmentOverrides((current) => createSignalRouteSetOverrideSegments(current, signal, routeLabel, routeOwner))
-    updateSession((current) => {
-      const routed = applySignalRouteSetSession(current, signal, routeLabel)
-      const routedTrain = getSignalRouteTargetTrainForSession(routed)
-
-      if (!routedTrain || !isActiveScenarioTargetTrain(routed, routedTrain.id)) {
-        return routed
-      }
-
-      return applyTrainingScenarioRuntimeEvent(routed, {
-        routeLabel,
-        source: 'Monitor 02 Line Map',
-        trainId: routedTrain.id,
-        type: 'ROUTE_SET',
-      }).next
-    })
+    void dispatch({ routeLabel, set: true, signalLabel: signal.label, type: 'SIGNAL_ROUTE' })
   }
 
   const unsetRouteFromSignal = (signal: LineMapSignalData, routeLabel: string) => {
@@ -2257,7 +1684,7 @@ function MonitorCanvas({
     }
 
     setLineMapRouteSegmentOverrides((current) => createSignalRouteUnsetOverrideSegments(current, signal, routeLabel))
-    updateSession((current) => applySignalRouteUnsetSession(current, signal, routeLabel))
+    void dispatch({ routeLabel, set: false, signalLabel: signal.label, type: 'SIGNAL_ROUTE' })
   }
 
   const requestTrainCommand = (command: TrainCommand) => {
@@ -2266,15 +1693,14 @@ function MonitorCanvas({
     setDefineRouteSignal(null)
     setAuxiliaryPanel(null)
     setPendingCommand(command)
-    updateSession((current) => ({
-      ...current,
-      scenarioNotice: {
-        text: `SCADA command request opened for Train ${current.selectedTrainId}: ${command}.`,
-        tone: 'info',
-      },
-    }))
+    void dispatch({
+      text: `SCADA command request opened for Train ${session.selectedTrainId}: ${command}.`,
+      tone: 'info',
+      type: 'SHOW_NOTICE',
+    })
   }
 
+  // Line-map SCADA commands (route, dispatch, hold) for the selected train.
   const applyTrainCommand = (command: TrainCommand) => {
     const targetTrain = session.trains.find((train) => train.id === session.selectedTrainId)
 
@@ -2282,88 +1708,7 @@ function MonitorCanvas({
       return
     }
 
-    const nextStatus: TrainStatus = command === 'DISPATCH' ? 'RUN' : command === 'HOLD' ? 'HOLD' : 'WAIT'
-    const backendAction: OccSessionAction['type'] = command === 'DISPATCH'
-      ? 'DISPATCH_TRAIN'
-      : command === 'ROUTE'
-        ? 'SET_ROUTE'
-        : 'SELECT_TRAIN'
-
-    const message =
-      command === 'DISPATCH'
-        ? `Train ${targetTrain.id}: Dispatch command executed`
-        : command === 'HOLD'
-          ? `Train ${targetTrain.id}: Train Hold`
-          : `Train ${targetTrain.id}: Route command selected`
-    const tone = command === 'HOLD' ? 'orange' : 'yellow'
-    const eventRow: MonitorAlarmRow = {
-      level: 'S',
-      time: formatScenarioTime(),
-      asset: `EMU/${targetTrain.id}/TRN/OCC`,
-      message,
-      value: nextStatus,
-      tone,
-    }
-    const summaryRow: AlarmSummaryRow = {
-      ack: 'Y',
-      avl: '',
-      mms: 'S',
-      timestamp: formatAlarmSummaryTimestamp(eventRow.time),
-      asset: eventRow.asset,
-      description: message,
-      value: nextStatus,
-      tone: tone === 'orange' ? 'yellow' : 'yellow',
-    }
-
-    // Line-map train commands are the main backend-scored operator actions.
-    submitBackendScenarioAction(session, updateSession, {
-      detail: `${message} accepted.`,
-      source: 'Monitor 02 Line Map',
-      trainId: targetTrain.id,
-      type: backendAction,
-    }, (current) => {
-      const guard = command === 'DISPATCH'
-        ? applyTrainingScenarioRuntimeEvent(current, {
-            source: 'Monitor 02 Line Map',
-            trainId: targetTrain.id,
-            type: 'DEPARTURE_TIME_CONFIRMED',
-          })
-        : command === 'ROUTE'
-          ? applyTrainingScenarioRuntimeEvent(current, {
-              routeLabel: 'Line Map route command',
-              source: 'Monitor 02 Line Map',
-              trainId: targetTrain.id,
-              type: 'ROUTE_SET',
-            })
-          : applyTrainingScenarioTrainSelection(current, 'Monitor 02 Line Map', targetTrain.id)
-
-      if (!guard.allowed) {
-        return guard.next
-      }
-
-      const scenarioNext = command === 'HOLD'
-        ? applyTrainingScenarioRuntimeEvent(guard.next, {
-            source: 'Monitor 02 Line Map',
-            trainId: targetTrain.id,
-            type: 'TRAIN_HOLD_APPLIED',
-          }).next
-        : guard.next
-
-      return {
-        ...scenarioNext,
-        alarmSummaryRows: [summaryRow, ...current.alarmSummaryRows].slice(0, 12),
-        eventRows: [eventRow, ...current.eventRows].slice(0, 4),
-        lineMap: updateLineMapRouteState(
-          current.lineMap,
-          targetTrain,
-          command === 'DISPATCH' ? 'DISPATCHED' : command === 'HOLD' ? 'HELD' : 'SET',
-        ),
-        timetableRows: upsertTimetableRow(current.timetableRows, targetTrain.id, command === 'HOLD' ? 'H>' : command === 'DISPATCH' ? '>' : 'R'),
-        trains: current.trains.map((train) => (
-          train.id === targetTrain.id ? { ...train, status: nextStatus } : train
-        )),
-      }
-    })
+    void dispatch({ command, trainId: targetTrain.id, type: 'SCADA_TRAIN_COMMAND' })
   }
 
   const getSvgUnitsPerPixel = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2517,7 +1862,7 @@ function MonitorCanvas({
           <CommsDialog
             channel={commsChannel}
             onClose={() => setCommsChannel(null)}
-            onSend={(request) => updateSession((current) => applyCommsRequest(current, request))}
+            onSend={(request) => void dispatch({ request, type: 'LOG_CALL' })}
             selectedTrainId={session.selectedTrainId}
             trainIds={session.trains.map((train) => train.id)}
           />
@@ -2597,29 +1942,7 @@ function MonitorCanvas({
         )}
         {itamaTrain && (
           <ItamaStatusPanel
-            onAcknowledge={() => {
-              const trainId = itamaTrain.id
-              const event = createMonitorEvent(trainId, `Train ${trainId}: Train ITAMA Status`, 'ACK', 'yellow')
-
-              updateSession((current) => ({
-                ...current,
-                alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
-                evidenceLog: appendScenarioEvidence(
-                  current.evidenceLog,
-                  createScenarioEvidence(
-                    'Monitor 02 Line Map',
-                    'ITAMA acknowledged',
-                    'accepted',
-                    `ITAMA status acknowledged for Train ${trainId}.`,
-                  ),
-                ),
-                eventRows: [event, ...current.eventRows].slice(0, 4),
-                scenarioNotice: {
-                  text: `ITAMA status acknowledged for Train ${trainId}.`,
-                  tone: 'info',
-                },
-              }))
-            }}
+            onAcknowledge={() => void dispatch({ trainId: itamaTrain.id, type: 'ITAMA_ACK' })}
             onClose={() => setItamaTrainId('')}
             train={itamaTrain}
           />
@@ -2647,57 +1970,12 @@ function MonitorCanvas({
                 [inspectorTrain.id]: true,
               }))
             }
-            updateSession((current) => {
-              const markerDirection = getTrainMarkerDirectionForTimeSelection(
-                scenarioArrivalDestination,
-                inspectorTrain.direction,
-              )
-              const directionState = {
-                ...current,
-                trains: current.trains.map((train) => (
-                  train.id === inspectorTrain.id
-                    ? { ...train, direction: markerDirection }
-                    : train
-                )),
-              }
-
-              if (!isActiveScenarioTargetTrain(current, inspectorTrain.id)) {
-                return directionState
-              }
-
-              const event = createMonitorEvent(
-                inspectorTrain.id,
-                `Set arrival time destination ${scenarioArrivalDestination.station} ${scenarioArrivalDestination.platformSiding}`,
-                'ARRIVAL TIME',
-                'yellow',
-              )
-
-              const arrivalState = {
-                ...directionState,
-                eventRows: [event, ...directionState.eventRows].slice(0, 4),
-                evidenceLog: appendScenarioEvidence(
-                  directionState.evidenceLog,
-                  createScenarioEvidence(
-                    'Line Map Train Control',
-                    'Arrival time destination set',
-                    'accepted',
-                    `Arrival time destination set for Train ${inspectorTrain.id}: ${scenarioArrivalDestination.station} / ${scenarioArrivalDestination.platformSiding}.`,
-                  ),
-                ),
-                scenarioNotice: {
-                  text: `Arrival Time set for Train ${inspectorTrain.id}: ${scenarioArrivalDestination.station} / ${scenarioArrivalDestination.platformSiding}.`,
-                  tone: 'info' as const,
-                },
-                selectedTrainId: inspectorTrain.id,
-              }
-
-              return applyTrainingScenarioRuntimeEvent(arrivalState, {
-                platformSiding: scenarioArrivalDestination.platformSiding,
-                source: 'Line Map Train Control',
-                station: scenarioArrivalDestination.station,
-                trainId: inspectorTrain.id,
-                type: 'ARRIVAL_DESTINATION_SET',
-              }).next
+            void dispatch({
+              direction: getTrainMarkerDirectionForTimeSelection(scenarioArrivalDestination, inspectorTrain.direction),
+              platformSiding: scenarioArrivalDestination.platformSiding,
+              station: scenarioArrivalDestination.station,
+              trainId: inspectorTrain.id,
+              type: 'ARRIVAL_DESTINATION',
             })
           }}
           onConfirmDepartureTime={(selection) => {
@@ -2736,63 +2014,14 @@ function MonitorCanvas({
               return { accepted: true }
             }
 
-            updateSession((current) => {
-              const markerDirection = getTrainMarkerDirectionForTimeSelection(directionSelection, inspectorTrain.direction)
-              const directionState = {
-                ...current,
-                trains: current.trains.map((train) => (
-                  train.id === inspectorTrain.id
-                    ? { ...train, direction: markerDirection }
-                    : train
-                )),
-              }
-
-              if (!isActiveScenarioTargetTrain(current, inspectorTrain.id)) {
-                return directionState
-              }
-
-              let scenarioState = directionState
-
-              const destinationTaskId = isRt2DepotDestinationSelection(manualDestination)
-                ? 'declare-depot-destination'
-                : 'declare-last-station-destination'
-
-              if (
-                manualDestination
-                && !isTrainingScenarioDefinitionTaskComplete(current, destinationTaskId)
-              ) {
-                const event = createMonitorEvent(
-                  inspectorTrain.id,
-                  `Set arrival time destination ${scenarioArrivalDestination.station} ${scenarioArrivalDestination.platformSiding}`,
-                  'ARRIVAL TIME',
-                  'yellow',
-                )
-
-                const destinationState = {
-                  ...scenarioState,
-                  eventRows: [event, ...scenarioState.eventRows].slice(0, 4),
-                  evidenceLog: appendScenarioEvidence(
-                    scenarioState.evidenceLog,
-                    createScenarioEvidence(
-                      'Line Map Train Control',
-                      'Arrival time destination set',
-                      'accepted',
-                      `Arrival time destination set for Train ${inspectorTrain.id}: ${scenarioArrivalDestination.station} / ${scenarioArrivalDestination.platformSiding}.`,
-                    ),
-                  ),
-                  selectedTrainId: inspectorTrain.id,
-                }
-
-                scenarioState = applyTrainingScenarioRuntimeEvent(destinationState, {
-                  platformSiding: scenarioArrivalDestination.platformSiding,
-                  source: 'Line Map Train Control',
-                  station: scenarioArrivalDestination.station,
-                  trainId: inspectorTrain.id,
-                  type: 'ARRIVAL_DESTINATION_SET',
-                }).next
-              }
-
-              return scenarioState
+            // A manual destination given with the departure counts as declaring it.
+            void dispatch({
+              direction: getTrainMarkerDirectionForTimeSelection(directionSelection, inspectorTrain.direction),
+              fromDeparture: true,
+              platformSiding: scenarioArrivalDestination.platformSiding,
+              station: scenarioArrivalDestination.station,
+              trainId: inspectorTrain.id,
+              type: 'ARRIVAL_DESTINATION',
             })
             return animateTrainDepartureRoute(inspectorTrain.id, arrivalDestinationsForDeparture)
           }}

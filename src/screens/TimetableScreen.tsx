@@ -5,7 +5,7 @@ import type { MonitorScreenProps } from './monitorScreenTypes'
 export default function TimetableScreen({
   onNavigate,
   session,
-  updateSession,
+  dispatch,
 }: MonitorScreenProps) {
   return (
     <MonitorWorkspace
@@ -15,7 +15,7 @@ export default function TimetableScreen({
       session={session}
       title="Traffic Timetable Monitor"
     >
-      <TimetableMonitorContent onNavigate={onNavigate} session={session} updateSession={updateSession} />
+      <TimetableMonitorContent onNavigate={onNavigate} session={session} dispatch={dispatch} />
     </MonitorWorkspace>
   )
 }

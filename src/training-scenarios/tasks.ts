@@ -1,4 +1,4 @@
-import { completeScenarioTask, updateScenarioTask } from '../scenarioWorkflow'
+import { completeScenarioTask, getScenarioTaskEvidenceLabel, updateScenarioTask } from '../scenarioWorkflow'
 import { updateSessionLifecycle } from '../sessionState'
 import type { OccSessionState, ScenarioTaskId } from '../types'
 import { getTrainingScenarioCompletionBlockers } from './assessment'
@@ -35,7 +35,7 @@ export function completeTrainingScenarioTask(
   return {
     allowed: true,
     next: {
-      ...appendTrainingScenarioEvidence(current, source, `Scenario task ${taskId}`, successText),
+      ...appendTrainingScenarioEvidence(current, source, getScenarioTaskEvidenceLabel(taskId), successText),
       scenarioMode: taskId === 'completeScenario' ? 'COMPLETE' as const : current.scenarioMode === 'COMPLETE' ? 'COMPLETE' as const : 'RUNNING' as const,
       scenarioNotice: {
         text: successText,
