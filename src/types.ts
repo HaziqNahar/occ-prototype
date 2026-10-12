@@ -226,6 +226,16 @@ export type SessionTransportEvent = {
   type: SessionTransportEventType
 }
 
+// The one Line Map window that runs the train simulation for a session.
+// Other Line Map windows only display; the server refuses their train movement.
+export type SimulationOwner = {
+  label: string
+  // Server time of the owner's last heartbeat; 45 s of silence frees the clock.
+  lastSeenAt: string
+  since: string
+  sourceId: string
+}
+
 // Session metadata is backend-owned. It is what proves to reviewers that the
 // three monitor routes joined one shared OCC session instead of independent tabs.
 export type OccSessionMeta = {
@@ -233,6 +243,7 @@ export type OccSessionMeta = {
   completedAt?: string
   createdAt: string
   lastMonitorLaunch?: SessionMonitorLaunch
+  simulationOwner?: SimulationOwner
   lifecycle: SessionLifecycle
   screens: Partial<Record<SessionScreenRole, SessionScreenJoin>>
   startedAt?: string

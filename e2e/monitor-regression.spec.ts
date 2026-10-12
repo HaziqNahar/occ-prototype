@@ -229,4 +229,24 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(page.getByText(/PSD/)).toHaveCount(0)
     expect(errors).toEqual([])
   })
+
+  test('only one Line Map window runs the trains, and the clock passes on when it closes', async ({ context, page }) => {
+    await clearRuntime(page)
+    await page.goto('/screen/line-map')
+    await expect(page.locator('.line-map-dom-root')).toBeVisible()
+
+    const second = await context.newPage()
+
+    await second.goto('/screen/line-map')
+    await expect(second.getByTestId('line-map-view-only')).toBeVisible()
+    await expect(page.getByTestId('line-map-view-only')).toHaveCount(0)
+
+    // Taking control moves the clock; closing that window hands it back.
+    await second.getByRole('button', { name: 'Take control' }).click()
+    await expect(second.getByTestId('line-map-view-only')).toHaveCount(0)
+    await expect(page.getByTestId('line-map-view-only')).toBeVisible()
+
+    await second.close()
+    await expect(page.getByTestId('line-map-view-only')).toHaveCount(0)
+  })
 })

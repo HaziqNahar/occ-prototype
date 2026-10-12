@@ -199,7 +199,7 @@ const screenRegistrationByRoute: Partial<Record<AppRoute, ScreenRegistration>> =
   '/ios/modules': { label: 'Trainer Console', role: 'IOS', route: '/ios/modules' },
   '/report': { label: 'Post-Session Report', role: 'REPORT', route: '/report' },
   '/screen/alarms': { label: 'Monitor 01 - Alarms', role: 'ALARM', route: '/screen/alarms' },
-  '/screen/line-map': { label: 'Monitor 02 - Line Map', role: 'LINE_MAP', route: '/screen/line-map' },
+  '/screen/line-map': { label: 'Monitor 02 - Line Map', role: 'LINE_MAP', route: '/screen/line-map', wantsSimulation: true },
   '/screen/timetable': { label: 'Monitor 03 - Timetable', role: 'TIMETABLE', route: '/screen/timetable' },
   '/session/join': { label: 'Trainee', role: 'LOBBY', route: '/session/join' },
 }
@@ -208,7 +208,9 @@ function App() {
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute)
   const getActor = useCallback(() => getActorForRoute(route), [route])
   const {
+    claimSimulation,
     dispatch,
+    isSimulationOwner,
     registerScreen,
     requestMonitorPeerLaunch,
     session,
@@ -246,7 +248,9 @@ function App() {
       <LineMapScreen
         onNavigate={navigate}
         requestMonitorPeerLaunch={requestMonitorPeerLaunch}
+        claimSimulation={claimSimulation}
         dispatch={dispatch}
+        isSimulationOwner={isSimulationOwner}
         session={session}
         simulate={simulate}
         subscribeMonitorLaunch={subscribeMonitorLaunch}
@@ -299,14 +303,18 @@ function App() {
 }
 
 function LineMapScreen({
+  claimSimulation,
   dispatch,
+  isSimulationOwner,
   onNavigate,
   requestMonitorPeerLaunch,
   session,
   simulate,
   subscribeMonitorLaunch,
 }: {
+  claimSimulation: (label: string, takeover?: boolean) => Promise<boolean>
   dispatch: DispatchSessionCommand
+  isSimulationOwner: boolean
   onNavigate: (route: AppRoute) => void
   requestMonitorPeerLaunch: () => string
   session: OccSessionState
@@ -314,6 +322,14 @@ function LineMapScreen({
   subscribeMonitorLaunch: (subscriber: (request: MonitorLaunchRequest) => void) => () => void
 }) {
   const [monitorLaunchStatus, setMonitorLaunchStatus] = useState('Peer monitors ready')
+  const simulationOwner = session.sessionMeta.simulationOwner
+
+  // One Line Map per session runs the trains; a free clock is taken at once.
+  useEffect(() => {
+    if (!simulationOwner) {
+      void claimSimulation('Monitor 02 - Line Map')
+    }
+  }, [claimSimulation, simulationOwner])
   const handledLaunchIdsRef = useRef(new Set<string>())
   const requestedLaunchRef = useRef(false)
 
@@ -409,7 +425,14 @@ function LineMapScreen({
       session={session}
       title="Line Map Monitor"
     >
-      <MonitorCanvas dispatch={dispatch} onNavigate={onNavigate} session={session} simulate={simulate} />
+      <MonitorCanvas
+        dispatch={dispatch}
+        isSimulationOwner={isSimulationOwner}
+        onNavigate={onNavigate}
+        onTakeSimulation={() => void claimSimulation('Monitor 02 - Line Map', true)}
+        session={session}
+        simulate={simulate}
+      />
     </MonitorWorkspace>
   )
 }
@@ -1275,12 +1298,16 @@ function TrainInspectorPanel({
 // (the simulation) is reported with simulate().
 function MonitorCanvas({
   dispatch,
+  isSimulationOwner,
   onNavigate,
+  onTakeSimulation,
   session,
   simulate,
 }: {
   dispatch: DispatchSessionCommand
+  isSimulationOwner: boolean
   onNavigate: (route: AppRoute) => void
+  onTakeSimulation: () => void
   session: OccSessionState
   simulate: SimulateSession
 }) {
@@ -1566,6 +1593,11 @@ function MonitorCanvas({
       return { accepted: false, message: plan.reason }
     }
 
+    // Moving a train is simulation, which runs on one Line Map window only.
+    if (!isSimulationOwner) {
+      return { accepted: false, message: 'This Line Map is view only. Use Take control to move trains from here.' }
+    }
+
     cancelManualTrainRoutePlayback(trainId)
     setManualMovementTrainIds((current) => ({
       ...current,
@@ -1628,7 +1660,7 @@ function MonitorCanvas({
     })
 
     return { accepted: true }
-  }, [cancelManualTrainRoutePlayback, dispatch, renderedLineMap, renderedTrains, routeControlModes, setLineMapRouteSegmentOverrides, setManualMovementTrainIds, setTrainArrivalDestinations, simulate, startManualTrainRoutePlayback, trainArrivalDestinations])
+  }, [cancelManualTrainRoutePlayback, dispatch, isSimulationOwner, renderedLineMap, renderedTrains, routeControlModes, setLineMapRouteSegmentOverrides, setManualMovementTrainIds, setTrainArrivalDestinations, simulate, startManualTrainRoutePlayback, trainArrivalDestinations])
 
   const openTrainContextMenu = (trainId: string, x: number, y: number) => {
     setInspectorPanel(null)
@@ -1820,6 +1852,12 @@ function MonitorCanvas({
 
   return (
     <div className="occ-monitor-canvas">
+      {!isSimulationOwner && (
+        <div className="line-map-view-only" data-testid="line-map-view-only" role="status">
+          <span>View only: trains run on another Line Map window.</span>
+          <button type="button" onClick={onTakeSimulation}>Take control</button>
+        </div>
+      )}
       <LineMapMonitorDom
         alarmNotAcknowledged={alarmNotAcknowledged}
         alarmTotal={alarmTotal}

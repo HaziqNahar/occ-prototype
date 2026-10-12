@@ -108,6 +108,7 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
       route,
       sourceId: optionalString(body.sourceId),
       transport: body.transport as SessionTransportSnapshot | undefined,
+      wantsSimulation: body.wantsSimulation === true,
     })
 
     sendJson(response, 200, { ok: true, screen, sessionId: managed.id, version: managed.version })
@@ -155,6 +156,17 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
     })
     store.realtime.broadcastMonitorLaunch(launchRequest)
     sendJson(response, 202, { ok: true, request: launchRequest })
+  }
+
+  // A Line Map window asks for the session's train simulation; takeover forces it.
+  async function handleSimulationClaim(request: IncomingMessage, response: ServerResponse, managed: ManagedSession) {
+    const body = await readJsonBody(request)
+    const owner = store.claimSimulation(managed, optionalString(body.sourceId), {
+      label: optionalString(body.label) ?? 'Line Map',
+      takeover: body.takeover === true,
+    })
+
+    sendJson(response, 200, { ok: true, owner, simulationOwner: managed.session.sessionMeta.simulationOwner ?? null })
   }
 
   async function handleClearRuntime(request: IncomingMessage, response: ServerResponse) {
@@ -235,10 +247,12 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
           return
         case 'GET /api/session/events': {
           const subscribed = sessionParam ? managed : null
+          const sourceId = url.searchParams.get('sourceId')
 
           store.realtime.open(request, response, {
+            onClose: sourceId ? () => store.releaseSimulation(sourceId) : undefined,
             snapshot: store.snapshot(subscribed ?? store.current()),
-            sourceId: url.searchParams.get('sourceId') ?? 'browser',
+            sourceId: sourceId ?? 'browser',
             subscribedSessionId: subscribed?.id ?? null,
           })
           return
@@ -254,6 +268,9 @@ export function createRoutes(db: OccDatabase, store: SessionStore = new SessionS
           return
         case 'POST /api/session/screens':
           await handleScreenJoin(request, response, managed ?? store.current())
+          return
+        case 'POST /api/session/simulation':
+          await handleSimulationClaim(request, response, managed ?? store.current())
           return
         case 'POST /api/session/monitor-launches':
           await handleMonitorLaunch(request, response, managed ?? store.current())

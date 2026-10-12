@@ -13593,3 +13593,28 @@
     gap: 12px 20px;
   }
 }
+
+/* Shown on a Line Map window that does not run the train simulation. */
+.line-map-view-only {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 4px 3px 8px;
+  transform: translateX(-50%);
+  border: 1px solid #000;
+  background: #ffff80;
+  color: #000;
+  font: 12px Arial, sans-serif;
+}
+
+.line-map-view-only button {
+  padding: 1px 8px;
+  border: 2px outset #fff;
+  background: #c0c0c0;
+  color: #000;
+  font: inherit;
+}

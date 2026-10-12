@@ -75,6 +75,7 @@ export class RealtimeHub {
   }
 
   open(request: IncomingMessage, response: ServerResponse, options: {
+    onClose?: () => void
     snapshot: SessionSnapshotMessage
     sourceId: string
     subscribedSessionId: string | null
@@ -100,6 +101,7 @@ export class RealtimeHub {
     request.on('close', () => {
       clearInterval(heartbeat)
       this.clients.delete(client)
+      options.onClose?.()
       recordTransportEvent('sse_disconnected', { detail: 'Browser closed backend event stream.', sourceId: options.sourceId, transport: 'backend' })
     })
   }

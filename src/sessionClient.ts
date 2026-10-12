@@ -44,6 +44,8 @@ export type ScreenRegistration = {
   label: string
   role: SessionScreenRole
   route: AppRoute
+  // Line Map windows offer to run the train simulation.
+  wantsSimulation?: boolean
 }
 
 export type CommandSendResult =
@@ -54,11 +56,13 @@ type SessionClientOptions = {
   onMonitorLaunchRequest?: (request: MonitorLaunchRequest) => void
   onSnapshot: (message: SessionSnapshotMessage) => void
   onUpdate: (message: SessionUpdateMessage) => void
+  // This window's id; the server names the simulation owner by it.
+  sourceId: string
 }
 
 export type OccSessionClient = ReturnType<typeof createSessionClient>
 
-function createSourceId() {
+export function createSourceId() {
   if ('crypto' in window && typeof window.crypto.randomUUID === 'function') {
     return window.crypto.randomUUID()
   }
@@ -79,8 +83,7 @@ function isMonitorLaunchMessage(message: { type?: string }): message is MonitorL
   return message.type === 'monitor-launch:request'
 }
 
-export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpdate }: SessionClientOptions) {
-  const sourceId = createSourceId()
+export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpdate, sourceId }: SessionClientOptions) {
   const backendBaseUrl = getOccBackendBaseUrl()
   const requestedSession = getRequestedSession()
   let channel: BroadcastChannel | null = null
@@ -272,6 +275,16 @@ export function createSessionClient({ onMonitorLaunchRequest, onSnapshot, onUpda
       void postJson('/api/session/screens', { ...screen, sourceId, transport: getTransportSnapshot() }).catch(() => {
         // Presence is informational; the next heartbeat retries.
       })
+    },
+    // Asks for the session's train simulation (takeover: even if another window has it).
+    claimSimulation: async (label: string, takeover = false) => {
+      if (backendBaseUrl === null) {
+        return true
+      }
+
+      const response = await postJson('/api/session/simulation', { label, sourceId, takeover })
+
+      return response.ok && (await response.json() as { owner: boolean }).owner
     },
     // Monitor 02 asks for Monitor 01 and 03 over every available path; the
     // receiver de-duplicates by launchId.

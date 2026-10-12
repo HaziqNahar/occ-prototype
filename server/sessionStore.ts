@@ -32,10 +32,28 @@ export type ScreenRegistration = {
   route: SessionScreenJoin['route']
   sourceId?: string
   transport?: SessionTransportSnapshot
+  // A Line Map window offering to run the train simulation.
+  wantsSimulation?: boolean
 }
 
 // Train movement and presence change often; they are saved at most once a second.
 const SAVE_DELAY_MS = 1000
+// Screens heartbeat every 15 s, so three missed beats free the simulation clock.
+const SIMULATION_OWNER_STALE_MS = 45_000
+
+export const SIMULATION_REFUSED = 'Another Line Map window runs the train simulation for this session.'
+
+function withoutSimulationOwner(session: OccSessionState): OccSessionState {
+  if (!session.sessionMeta.simulationOwner) {
+    return session
+  }
+
+  const sessionMeta = { ...session.sessionMeta }
+
+  delete sessionMeta.simulationOwner
+
+  return { ...session, sessionMeta }
+}
 
 export class SessionStore {
   readonly realtime: RealtimeHub
@@ -48,7 +66,7 @@ export class SessionStore {
     this.db = db
 
     const stored = db.loadCurrentSession()
-    const managed = this.add(stored ? restoreSession(stored) : createInitialSession())
+    const managed = this.add(stored ? withoutSimulationOwner(restoreSession(stored)) : createInitialSession())
 
     this.currentId = managed.id
     this.realtime = new RealtimeHub(() => this.currentId)
@@ -83,6 +101,11 @@ export class SessionStore {
     actor: SessionActor,
     meta: { commandId?: string; sourceId?: string } = {},
   ): CommandOutcome {
+    // Only the session's clock owner moves trains; a window may take a free clock by moving them.
+    if (command.type === 'SIM_UPDATE' && !this.claimSimulation(managed, meta.sourceId, { label: 'Line Map' })) {
+      return { managed, result: { accepted: false, reason: SIMULATION_REFUSED, session: managed.session }, update: null }
+    }
+
     const before = managed.session
     const result = applySessionCommand(before, command, { actor })
     let target = managed
@@ -128,10 +151,13 @@ export class SessionStore {
     const session = managed.session
     const existing = session.sessionMeta.screens[screen.role]
     const isNewJoin = !existing || existing.sourceId !== screen.sourceId
+    const owner = session.sessionMeta.simulationOwner
     const next: OccSessionState = {
       ...session,
       sessionMeta: {
         ...session.sessionMeta,
+        // The owner's heartbeat keeps its clock.
+        ...(owner && owner.sourceId === screen.sourceId ? { simulationOwner: { ...owner, lastSeenAt: now } } : {}),
         screens: {
           ...session.sessionMeta.screens,
           [screen.role]: {
@@ -149,6 +175,10 @@ export class SessionStore {
     }
 
     this.commit(managed, next, { sourceId: screen.sourceId }, 'later')
+
+    if (screen.wantsSimulation) {
+      this.claimSimulation(managed, screen.sourceId, { label: screen.label })
+    }
 
     if (isNewJoin) {
       recordTransportEvent('screen_joined', {
@@ -168,6 +198,53 @@ export class SessionStore {
     }
 
     return next.sessionMeta.screens[screen.role]
+  }
+
+  // Gives the session's train simulation to this window when the clock is free
+  // (no owner, or the owner fell silent) or on an explicit take-over. Returns
+  // whether the window owns it now.
+  claimSimulation(managed: ManagedSession, sourceId: string | undefined, options: { label: string; takeover?: boolean }) {
+    if (!sourceId) {
+      return false
+    }
+
+    const owner = managed.session.sessionMeta.simulationOwner
+
+    if (owner?.sourceId === sourceId) {
+      return true
+    }
+
+    if (owner && !options.takeover && Date.now() - Date.parse(owner.lastSeenAt) <= SIMULATION_OWNER_STALE_MS) {
+      return false
+    }
+
+    const now = getIsoNow()
+
+    this.commit(managed, {
+      ...managed.session,
+      sessionMeta: {
+        ...managed.session.sessionMeta,
+        simulationOwner: { label: options.label, lastSeenAt: now, since: now, sourceId },
+      },
+    }, { sourceId }, 'now')
+    this.db.logAction({
+      actor: sourceId,
+      detail: owner ? `${options.takeover ? 'Taken over' : 'Taken'} from ${owner.sourceId}` : options.label,
+      kind: 'simulation.owner',
+      sessionId: managed.id,
+    })
+
+    return true
+  }
+
+  // A closed window gives up the clock at once, so another Line Map can take it.
+  releaseSimulation(sourceId: string) {
+    this.sessions.forEach((managed) => {
+      if (managed.session.sessionMeta.simulationOwner?.sourceId === sourceId) {
+        this.commit(managed, withoutSimulationOwner(managed.session), { sourceId }, 'now')
+        this.db.logAction({ actor: sourceId, detail: 'Window closed', kind: 'simulation.released', sessionId: managed.id })
+      }
+    })
   }
 
   // Keeps the latest monitor launch with the session for the console's diagnostics.

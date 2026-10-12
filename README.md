@@ -115,6 +115,12 @@ session rules in `src/` with the app (see `docs/production-plan.md`). It runs at
   server's version arrives.
 - The Line Map's train movement is sent as `SIM_UPDATE`; it can move trains and
   routes but cannot change door faults, ITAMA, the checklist or evidence.
+- One Line Map window per session runs the train simulation (the clock owner,
+  `sessionMeta.simulationOwner`). The first Line Map to open takes it; any other
+  Line Map shows **View only** with a **Take control** button, and the server
+  refuses its train movement. The clock passes on when the owner window closes,
+  or after 45 s without its heartbeat. Keep the owner window visible: browsers
+  slow down timers in hidden tabs.
 - Loading, completing and resetting scenarios are trainer-only commands.
 - Each page acts as the trainer (Trainer Console, Report) or as the trainee who
   joined on that PC (trainee page, monitors). Sign-in replaces this in phase 4.
@@ -144,6 +150,7 @@ backend data (stop the backend first).
 | `GET /api/session/events` | Live stream: a snapshot, then `session:update` deltas |
 | `GET /api/session/status` | Session code, lifecycle and joined screens |
 | `POST /api/session/screens` | Register or heartbeat a page |
+| `POST /api/session/simulation` | A Line Map window claims the train simulation: `{ sourceId, takeover }` |
 | `GET /api/session/actions` | Action log of the current session (or `?sessionId=`) |
 | `POST /api/session/runtime` | Start a fresh session in place of the current one |
 | `GET /api/reports/latest` | Report summary of the current run, built by the server |
@@ -175,7 +182,5 @@ This is a prototype for demos and practice runs, not yet for formal assessment:
 
 - There is no sign-in. Anyone with the address can open the Trainer Console,
   and a page's trainer or trainee role is taken on trust.
-- Every open Line Map window runs the train simulation (phase 3 makes one
-  window the clock owner).
 - One backend runs one session at a time.
 - The 12-car rescue SOP is not modelled yet.

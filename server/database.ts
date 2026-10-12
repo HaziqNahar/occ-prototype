@@ -16,6 +16,8 @@ export type ActionLogKind =
   | 'screen.joined'
   | 'session.cleared'
   | 'session.created'
+  | 'simulation.owner'
+  | 'simulation.released'
   // Kinds written before phase 2; kept so older logs still read back.
   | 'scenario.action'
   | 'session.published'

@@ -4,7 +4,8 @@ import type { SessionSnapshotMessage, SessionUpdateMessage } from './session-com
 import { applySessionDelta } from './session-commands/sessionDelta'
 import { createSimPatch } from './session-commands/simPatch'
 import type { SessionActor, SessionCommand, SessionCommandType, SimScenarioEvent } from './session-commands/types'
-import { createSessionClient } from './sessionClient'
+import { getOccBackendBaseUrl } from './backendClient'
+import { createSessionClient, createSourceId } from './sessionClient'
 import type { MonitorLaunchRequest, OccSessionClient, ScreenRegistration } from './sessionClient'
 import { createInitialSession } from './sessionState'
 import type { OccSessionState } from './types'
@@ -50,6 +51,8 @@ function createCommandId() {
 
 export function useOccSession(getActor: () => SessionActor) {
   const [session, setSession] = useState<OccSessionState>(createInitialSession)
+  const [sourceId] = useState(createSourceId)
+  const [backendEnabled] = useState(() => getOccBackendBaseUrl() !== null)
   const serverRef = useRef<ServerState>({ session, sessionId: null, version: 0 })
   const pendingRef = useRef<PendingCommand[]>([])
   const displayRef = useRef(session)
@@ -119,13 +122,14 @@ export function useOccSession(getActor: () => SessionActor) {
       },
       onSnapshot: applySnapshot,
       onUpdate: applyUpdate,
+      sourceId,
     })
 
     return () => {
       clientRef.current?.close()
       clientRef.current = null
     }
-  }, [applySnapshot, applyUpdate])
+  }, [applySnapshot, applyUpdate, sourceId])
 
   // Without a backend (or when it cannot be reached) commands apply in this window only.
   const applyLocally = useCallback((command: SessionCommand, actor: SessionActor): CommandOutcome => {
@@ -203,7 +207,14 @@ export function useOccSession(getActor: () => SessionActor) {
     }
   }, [applyLocally, applySnapshot, applyUpdate, render])
 
+  // Only the session's clock owner runs the train simulation (phase 3).
+  const isSimulationOwner = !backendEnabled || session.sessionMeta.simulationOwner?.sourceId === sourceId
+
   const simulate = useCallback<SimulateSession>((updater, getEvents) => {
+    if (backendEnabled && serverRef.current.session.sessionMeta.simulationOwner?.sourceId !== sourceId) {
+      return
+    }
+
     const current = displayRef.current
     const next = updater(current)
 
@@ -219,7 +230,11 @@ export function useOccSession(getActor: () => SessionActor) {
     }
 
     void dispatch({ ...(events.length > 0 ? { events } : {}), patch: patch ?? {}, type: 'SIM_UPDATE' })
-  }, [dispatch])
+  }, [backendEnabled, dispatch, sourceId])
+
+  const claimSimulation = useCallback(async (label: string, takeover = false) => (
+    await clientRef.current?.claimSimulation(label, takeover).catch(() => false) ?? false
+  ), [])
 
   const requestMonitorPeerLaunch = useCallback(() => (
     clientRef.current?.requestMonitorPeerLaunch() ?? ''
@@ -237,5 +252,14 @@ export function useOccSession(getActor: () => SessionActor) {
     }
   }, [])
 
-  return { dispatch, registerScreen, requestMonitorPeerLaunch, session, simulate, subscribeMonitorLaunch }
+  return {
+    claimSimulation,
+    dispatch,
+    isSimulationOwner,
+    registerScreen,
+    requestMonitorPeerLaunch,
+    session,
+    simulate,
+    subscribeMonitorLaunch,
+  }
 }

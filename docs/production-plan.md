@@ -95,4 +95,5 @@ would need the train simulation on the server and per-role scoring: about
 | --- | --- |
 | 1 | Done (12 Oct 2026): shared core (`src/sessionState.ts` is React-free; hook in `src/useOccSession.ts`), TypeScript backend in `server/`, SQLite database with action log, legacy data migration. |
 | 2 | Done (12 Oct 2026): every page action is a typed command (`src/session-commands/`) applied, scored and logged by the server; pages receive versioned deltas over SSE; the Line Map's train movement is a whitelisted `SIM_UPDATE`; trainer-only commands; action log and evidence record who acted; reports are built by the server and only notes come from the browser; sessions kept in a map keyed by session id. |
-| 3–7 | Not started |
+| 3 | Done (12 Oct 2026): the server gives each session's train simulation to one Line Map window (`sessionMeta.simulationOwner`) and refuses train movement from others; other Line Maps show View only with Take control; the clock passes on when the owner's live stream closes or its heartbeat stops for 45 s; ownership changes are in the action log. |
+| 4–7 | Not started |

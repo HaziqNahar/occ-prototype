@@ -44,8 +44,8 @@ export type TimetableTripAction =
   | 'Trip modification'
   | 'Creation of additional trips'
 
-// Train simulation output from the Line Map window (phase 3 makes one window the
-// clock owner). It may move trains and routes, never tasks, evidence or score.
+// Train simulation output from the session's clock-owner Line Map window
+// (sessionMeta.simulationOwner); the server refuses it from any other window. It may move trains and routes, never tasks, evidence or score.
 export type SimTrainPatch = Pick<TrainState, 'id'> & Partial<Pick<
   TrainState,
   | 'direction'
