@@ -6,7 +6,7 @@ what the automated rehearsal (`npm run test:lan`) cannot: real PCs, monitors,
 the firewall and the network.
 
 **People and PCs:** host PC (can be the trainer PC), trainer PC, two trainee PCs
-with three monitors each. Allow about 45 minutes. Note the result of each step;
+with three monitors each. Allow about 75 minutes. Note the result of each step;
 anything that fails goes to the troubleshooting table in
 [lan-setup.md](lan-setup.md).
 
@@ -62,11 +62,28 @@ Date: ____________  Host address: ____________  Tester: ____________
 | --- | --- | --- | --- |
 | F1 | Each column: **Report**, add a note, save | "Saved as …" | |
 | F2 | **History** | Both runs, each with the right trainee and every action | |
+| F2a | History: open a run, **Export CSV**, then **Print / PDF** | CSV opens in Excel with the checklist and actions; the print preview is black on white | |
 | F3 | **Progress** for each trainee | One run each | |
 | F4 | People → **Back up now** | "Latest: <now>" | |
 | F5 | Close the server window, wait, start it again, reload the console | Both exercises and the history are still there | |
 
-## G. Clean up
+## G. The other scenarios
+
+One run of each, so every scenario has been tried on the real PCs. Use both
+exercises side by side to save time.
+
+| # | Step | Expected | OK? |
+| --- | --- | --- | --- |
+| G1 | Trainer loads **Train Loop & Shuttle Service → Dual train loop with shuttle** in Exercise 1 | Trainee sees the loops, shuttle, bridging buses and intermediate terminals; console shows "line-wide" and no train is held | |
+| G2 | Trainee 1 makes the calls from the Calls tab: **Broadcast to all Stations & Trains**, Station Staff (FRP or HGN), CoC disruption PA, shuttle PA and disruption notice | Each call ticks its checklist step; trainer reviews and completes: PASS | |
+| G3 | Trainer loads **Unscheduled Train Withdrawal** in Exercise 2 | Trainee sees "CC has decided to withdraw Train … at …"; that train is held at that platform on Monitor 02 | |
+| G4 | Trainee 2 selects the train and calls the driver, station staff, CoC and DTC; trainer ticks **Close all train doors & PSDs**; trainee logs Train Clear, sets a route and moves the train off | Checklist complete; trainer completes: PASS | |
+| G5 | Trainer loads **Train Withdrawal** in either exercise | Checklist includes the CoC PA, DTC alert, doors & PSDs closed and Train Clear before the route | |
+| G6 | Trainee withdraws the train to the RT2 depot without the CoC / DTC / Train Clear calls; trainer clicks **Complete** | Refused: "Cannot complete yet. Open: …" lists those steps | |
+| G7 | Trainee makes the missing calls, trainer ticks doors & PSDs, then completes | PASS | |
+| G8 | Trainer loads **Train Launch** in either exercise and the trainee launches a train from the depot | Train enters SKG mainline service; trainer completes: PASS | |
+
+## H. Clean up
 
 - Switch off the two test trainee accounts on the People page.
 - Copy `server\data\backups` to the backup location.
