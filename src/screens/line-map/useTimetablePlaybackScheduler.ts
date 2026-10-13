@@ -132,6 +132,9 @@ export default function useTimetablePlaybackScheduler({
     pruneInactiveTimetablePlaybackPlanSchedules({
       activePlanKeys,
       clearTimeout: (timeoutId) => window.clearTimeout(timeoutId),
+      isTripUnderway: (trainId) => latestSessionRef.current.trains.some((train) => (
+        train.id === trainId && train.timetablePlayback === true && train.lineMapVisible === true
+      )),
       planTimeouts: planTimeoutsRef.current,
       scheduledPlanKeys: scheduledPlanKeysRef.current,
     })
@@ -169,7 +172,10 @@ export default function useTimetablePlaybackScheduler({
         return
       }
 
-      const timeoutIds = scheduleTimetablePlaybackPlans({
+      // A trip schedules its steps one after another, so each timeout is
+      // recorded as it is created.
+      scheduledPlanKeysRef.current.add(planKey)
+      scheduleTimetablePlaybackPlans({
         plans: [plan],
         scheduleTimeout: (callback, delayMs) => {
           let timeoutId = 0
@@ -189,13 +195,12 @@ export default function useTimetablePlaybackScheduler({
             }
           }, delayMs)
 
+          planTimeoutsRef.current.set(planKey, [...(planTimeoutsRef.current.get(planKey) ?? []), timeoutId])
+
           return timeoutId
         },
         updateSession,
       })
-
-      scheduledPlanKeysRef.current.add(planKey)
-      planTimeoutsRef.current.set(planKey, timeoutIds)
     })
   }, [
     blockedTrainIds,

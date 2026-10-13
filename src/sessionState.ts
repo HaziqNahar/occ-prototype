@@ -340,16 +340,14 @@ export function clearInactiveTimetablePlaybackTrains(
 ): OccSessionState {
   const timetablePlaybackTrainIds = new Set(getTimetablePlaybackTrainIds(current.timetableRows))
   const scenarioTargetTrainId = current.activeScenario.targetTrainId
-  // Scenario playback can briefly publish no active plans while it is being
-  // rebuilt. Keep trains that are already on the map visible through that
-  // hand-off instead of flashing the line map empty.
-  const preserveScenarioVisibleTrains = current.scenarioMode === 'RUNNING'
+  // A train whose trip is still under way is active (its plan is scheduled);
+  // anything else left over is cleared, even during a scenario, so finished
+  // trips cannot pile up on the map.
   const inactiveTrainIds = current.trains
     .filter((train) => (
       (train.timetablePlayback || timetablePlaybackTrainIds.has(train.id))
       && !activeTrainIds.has(train.id)
       && train.id !== scenarioTargetTrainId
-      && !(preserveScenarioVisibleTrains && train.lineMapVisible)
     ))
     .map((train) => train.id)
 

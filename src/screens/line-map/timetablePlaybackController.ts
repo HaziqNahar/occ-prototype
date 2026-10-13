@@ -21,10 +21,7 @@ import {
   getTrainReadinessMode,
   isTrainItamaGranted,
 } from './model'
-import {
-  createTimetablePlaybackSchedule,
-  scheduleTimetablePlaybackEntries,
-} from './timetablePlaybackScheduler'
+import { createTimetablePlaybackSchedule } from './timetablePlaybackScheduler'
 import type {
   TimetablePlaybackScheduleEntry,
   TimetablePlaybackScheduler,
@@ -135,19 +132,30 @@ export function getActiveTimetableMovementAuthorityTrainIds(authorities: readonl
   return new Set(authorities.map((authority) => authority.trainId))
 }
 
+// A trip's last steps run after its timetable end (platform stops add dwell),
+// so a trip that is still under way keeps its remaining steps: otherwise the
+// train freezes short of the platform and never leaves the map.
 export function pruneInactiveTimetablePlaybackPlanSchedules({
   activePlanKeys,
   clearTimeout,
+  isTripUnderway = () => false,
   planTimeouts,
   scheduledPlanKeys,
 }: {
   activePlanKeys: ReadonlySet<string>
   clearTimeout: (timeoutId: number) => void
+  isTripUnderway?: (trainId: string) => boolean
   planTimeouts: Map<string, number[]>
   scheduledPlanKeys: Set<string>
 }) {
   scheduledPlanKeys.forEach((planKey) => {
     if (activePlanKeys.has(planKey)) {
+      return
+    }
+
+    const [trainId = ''] = planKey.split('|')
+
+    if ((planTimeouts.get(planKey)?.length ?? 0) > 0 && isTripUnderway(trainId)) {
       return
     }
 
@@ -355,25 +363,99 @@ export function scheduleTimetablePlaybackRun({
   })
 }
 
+// One train per block: a timetable train does not move onto a step where
+// another train already stands (a held train, or the train ahead waiting).
+// Steps are about 35 px apart, so the follower waits one step behind.
+const TIMETABLE_BLOCK_RADIUS = 25
+const TIMETABLE_LANE_RADIUS = 100
+export const TIMETABLE_BLOCKED_RETRY_MS = 2000
+
+export function isTimetableStepBlockedByTrainAhead(
+  current: OccSessionState,
+  plan: TimetablePlaybackPlan,
+  stepIndex: number,
+) {
+  const step = plan.steps[stepIndex]
+
+  return Boolean(step && current.trains.some((train) => (
+    train.id !== plan.trainId
+    && train.lineMapVisible === true
+    && Math.abs(train.x - step.point.x) <= TIMETABLE_BLOCK_RADIUS
+    && Math.abs(train.y - step.point.y) <= TIMETABLE_LANE_RADIUS
+  )))
+}
+
+function waitForBlockAhead(current: OccSessionState, trainId: string): OccSessionState {
+  return {
+    ...current,
+    trains: current.trains.map((train) => (
+      train.id === trainId && (train.isMoving || train.status !== 'WAIT')
+        ? { ...train, isMoving: false, status: 'WAIT' as const }
+        : train
+    )),
+  }
+}
+
+// Each trip's steps run in order. A step whose block is occupied waits and
+// tries again, and the rest of the trip runs that much later, so following
+// trains queue one block apart and run late, as on the real line.
 export function scheduleTimetablePlaybackPlans({
+  now = () => Date.now(),
   plans,
   scheduleTimeout,
   updateSession,
 }: {
+  now?: () => number
   plans: readonly TimetablePlaybackPlan[]
   scheduleTimeout: TimetablePlaybackScheduler
   updateSession: TimetablePlaybackSessionUpdater
 }) {
-  const playbackSchedule = createTimetablePlaybackSchedule(plans)
+  const startedAt = now()
 
-  return scheduleTimetablePlaybackEntries({
-    runEntry: (entry) => {
-      updateSession(
-        (current) => applyTimetablePlaybackScheduleEntrySession(current, entry),
-        (current) => getTimetablePlaybackScenarioEvents(current, entry),
-      )
-    },
-    schedule: playbackSchedule,
-    scheduleTimeout,
+  return plans.flatMap((plan) => {
+    const entries = createTimetablePlaybackSchedule([plan])
+      .map((entry, order) => ({ entry, order }))
+      .sort((left, right) => left.entry.delayMs - right.entry.delayMs || left.order - right.order)
+      .map(({ entry }) => entry)
+    let lateMs = 0
+
+    const scheduleEntry = (index: number): number | undefined => {
+      const entry = entries[index]
+
+      if (!entry) {
+        return undefined
+      }
+
+      return scheduleTimeout(() => {
+        let blocked = false
+
+        updateSession(
+          (current) => {
+            const isStep = !entry.completeRoute && !entry.platformDoorPhase
+
+            if (isStep && isTimetableStepBlockedByTrainAhead(current, entry.plan, entry.stepIndex)) {
+              blocked = true
+
+              return waitForBlockAhead(current, entry.plan.trainId)
+            }
+
+            return applyTimetablePlaybackScheduleEntrySession(current, entry)
+          },
+          (current) => (blocked ? [] : getTimetablePlaybackScenarioEvents(current, entry)),
+        )
+
+        if (blocked) {
+          lateMs = Math.max(lateMs, now() - startedAt - entry.delayMs) + TIMETABLE_BLOCKED_RETRY_MS
+          scheduleEntry(index)
+          return
+        }
+
+        scheduleEntry(index + 1)
+      }, Math.max(0, startedAt + entry.delayMs + lateMs - now()))
+    }
+
+    const firstTimeoutId = scheduleEntry(0)
+
+    return firstTimeoutId === undefined ? [] : [firstTimeoutId]
   })
 }

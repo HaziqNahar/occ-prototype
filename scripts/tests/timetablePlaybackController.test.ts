@@ -15,6 +15,7 @@ import {
   pruneInactiveTimetablePlaybackPlanSchedules,
   scheduleTimetablePlaybackPlans,
   scheduleTimetablePlaybackRun,
+  TIMETABLE_BLOCKED_RETRY_MS,
 } from '../../src/screens/line-map/timetablePlaybackController'
 import {
   SKG_TIMETABLE_LAUNCH_PLATFORM_STEP_INDEX,
@@ -410,6 +411,31 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.equal(planTimeouts.has('inactive-plan'), false)
 }
 
+// Past its timetable end, a trip still under way keeps its last steps, so the
+// train reaches the platform and leaves the map instead of freezing.
+{
+  const scheduledPlanKeys = new Set(['339|1012|route|100|200', '342|1014|route|100|200'])
+  const planTimeouts = new Map<string, number[]>([
+    ['339|1012|route|100|200', [301]],
+    ['342|1014|route|100|200', [401]],
+  ])
+  const clearedTimeoutIds: number[] = []
+
+  pruneInactiveTimetablePlaybackPlanSchedules({
+    activePlanKeys: new Set(),
+    clearTimeout: (timeoutId) => {
+      clearedTimeoutIds.push(timeoutId)
+    },
+    isTripUnderway: (trainId) => trainId === '339',
+    planTimeouts,
+    scheduledPlanKeys,
+  })
+
+  assert.deepEqual([...scheduledPlanKeys], ['339|1012|route|100|200'])
+  assert.deepEqual(planTimeouts.get('339|1012|route|100|200'), [301])
+  assert.deepEqual(clearedTimeoutIds, [401])
+}
+
 {
   const baseSession = sessionWithRows([timetableRow({
       destinationPoint: 'PGC',
@@ -521,4 +547,60 @@ function sessionWithRows(rows: TimetableRow[]): OccSessionState {
   assert.equal(cleanedTrain?.timetablePlayback, false)
   assert.deepEqual(cleaned.lineMap.platformDoorStates, {})
   assert.equal(cleaned.lineMap.routeSegments['rail-1109'], undefined)
+}
+
+// One train per block: a step where another train stands waits and retries;
+// the rest of the trip runs later instead of jumping past the blockage.
+{
+  const baseSession = sessionWithRows([timetableRow()])
+  const plan = createAutomaticTimetablePlaybackPlans(baseSession, {}, new Date(2026, 0, 1, 10, 6, 0))[0]
+
+  assert.ok(plan)
+
+  const nextIndex = plan.firstStepIndex + 1
+  const blockingPoint = plan.steps[nextIndex].point
+  let session: OccSessionState = {
+    ...baseSession,
+    trains: baseSession.trains.map((train) => (
+      train.id === '350' ? { ...train, lineMapVisible: true, status: 'HOLD' as const, x: blockingPoint.x, y: blockingPoint.y } : train
+    )),
+  }
+  let clock = 0
+  const pending: Array<{ at: number; callback: () => void }> = []
+  const runNext = () => {
+    pending.sort((left, right) => left.at - right.at)
+    const next = pending.shift()!
+
+    clock = Math.max(clock, next.at)
+    next.callback()
+  }
+
+  scheduleTimetablePlaybackPlans({
+    now: () => clock,
+    plans: [plan],
+    scheduleTimeout: (callback, delayMs) => {
+      pending.push({ at: clock + delayMs, callback })
+
+      return pending.length
+    },
+    updateSession: (updater) => {
+      session = updater(session)
+    },
+  })
+
+  const train312 = () => session.trains.find((train) => train.id === '312')!
+
+  // The first step runs; the next one is blocked, so 312 waits where it is.
+  runNext()
+  const firstPosition = { x: train312().x, y: train312().y }
+  runNext()
+  assert.deepEqual({ x: train312().x, y: train312().y }, firstPosition)
+  assert.equal(train312().status, 'WAIT')
+  assert.equal(pending.length, 1)
+  assert.equal(pending[0].at, clock + TIMETABLE_BLOCKED_RETRY_MS)
+
+  // Once the block is clear, it moves on to that step.
+  session = { ...session, trains: session.trains.map((train) => (train.id === '350' ? { ...train, lineMapVisible: false } : train)) }
+  runNext()
+  assert.deepEqual({ x: train312().x, y: train312().y }, blockingPoint)
 }
