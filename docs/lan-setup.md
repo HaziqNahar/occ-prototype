@@ -5,6 +5,9 @@ the training server; the **trainer PC** and up to two **trainee PCs** (each with
 three monitors) open it in a browser. No internet connection is needed once it
 is installed.
 
+For day-to-day use, print the one-page
+[host quick start](host-quick-start.html) and keep it next to the host PC.
+
 ## 1. What you need
 
 | PC | Needs |

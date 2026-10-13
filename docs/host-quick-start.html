@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCC Host Quick Start</title>
+<style>
+  @page { size: A4; margin: 11mm 12mm; }
+  :root { --ink: #111827; --muted: #4b5563; --line: #d1d5db; --accent: #b91c1c; --soft: #f3f4f6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: #ffffff; font: 9.6pt/1.38 "Segoe UI", Arial, sans-serif; }
+  main { max-width: 186mm; margin: 0 auto; padding: 8mm 0; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 2.5px solid var(--accent); padding-bottom: 5px; margin-bottom: 8px; }
+  h1 { margin: 0; font-size: 17pt; line-height: 1.1; }
+  header p { margin: 2px 0 0; color: var(--muted); }
+  .fill { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 14px; margin: 0 0 9px; }
+  .fill div { border-bottom: 1px solid var(--line); padding: 3px 0 1px; color: var(--muted); font-size: 8.5pt; min-height: 20px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; }
+  section { break-inside: avoid; }
+  h2 { margin: 0 0 4px; font-size: 10.5pt; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+  ol, ul { margin: 0; padding-left: 17px; }
+  li { margin: 0 0 2.5px; }
+  code { font: 8.6pt Consolas, "Courier New", monospace; background: var(--soft); border-radius: 3px; padding: 0 3px; white-space: nowrap; }
+  pre { margin: 4px 0; padding: 5px 7px; background: var(--soft); border-left: 3px solid var(--line); font: 8.4pt/1.35 Consolas, "Courier New", monospace; white-space: pre-wrap; }
+  .key { border: 1.5px solid var(--accent); border-radius: 6px; padding: 6px 9px; margin-bottom: 9px; }
+  .key strong { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 8.8pt; }
+  th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 3px 5px 3px 0; }
+  th { font-size: 8pt; color: var(--muted); text-transform: uppercase; }
+  .wide { grid-column: 1 / -1; }
+  footer { margin-top: 8px; color: var(--muted); font-size: 8pt; border-top: 1px solid var(--line); padding-top: 4px; }
+  @media print { main { padding: 0; } a { color: inherit; text-decoration: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>OCC Training Simulator: Host PC Quick Start</h1>
+      <p>Keep this sheet next to the host PC. Full guide: <code>docs\lan-setup.md</code></p>
+    </div>
+    <p>North East Line OCC training</p>
+  </header>
+
+  <div class="fill">
+    <div>Host address: http://</div>
+    <div>Project folder:</div>
+    <div>Admin trainer username:</div>
+    <div>IT / network contact:</div>
+    <div>Backup copy location (USB / share):</div>
+    <div>Last on-site rehearsal (date):</div>
+  </div>
+
+  <div class="key">
+    <strong>The server runs while its window is open.</strong> Closing the black server window stops training on every PC.
+    If the server stops on its own, the window starts it again after 10 seconds.
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>1. Start the server</h2>
+      <ol>
+        <li>Double-click <code>scripts\start-occ-host.cmd</code> in the project folder.</li>
+        <li>Wait for the window to show:
+<pre>OCC training server listening on http://0.0.0.0:8787/
+  Open on the other PCs: http://&lt;host-ip&gt;:8787/</pre></li>
+        <li>Check on the host: open <code>http://localhost:8787/api/health</code> &rarr; shows <code>"status": "ok"</code>.</li>
+        <li>Leave the window open (minimise it if you like).</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>2. Before each class</h2>
+      <ol>
+        <li>Server window is open (step 1).</li>
+        <li><strong>Trainer PC:</strong> open <code>http://&lt;host&gt;:8787/</code> and sign in.</li>
+        <li><strong>Each trainee PC:</strong> open the same address, sign in, click <strong>Open my monitors</strong>.</li>
+        <li>Drag the windows: Alarms &rarr; Monitor 01, Line Map &rarr; 02, Timetable &rarr; 03. Press <code>F11</code> on each.</li>
+        <li>Keep the <strong>Line Map</strong> window visible; it runs that exercise's trains.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>3. Stop the server</h2>
+      <ul>
+        <li>After training, close the server window.</li>
+        <li>To start it automatically at sign-in: <code>Win + R</code> &rarr; <code>shell:startup</code> &rarr; add a shortcut to <code>scripts\start-occ-host.cmd</code>.</li>
+        <li>Only one server at a time: "Port 8787 is already in use" means one is already running.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Backups</h2>
+      <ul>
+        <li>Automatic every day to <code>server\data\backups</code> (newest 14 kept).</li>
+        <li>Back up now: <strong>People</strong> page &rarr; <strong>Back up now</strong>, or <code>npm.cmd run backup</code>.</li>
+        <li><strong>Weekly:</strong> copy <code>server\data\backups</code> to the USB drive / network share above.</li>
+        <li>Restore: close the server, run <code>npm.cmd run restore</code> to list backups, then <code>npm.cmd run restore -- &lt;file&gt;</code>, start the server.</li>
+      </ul>
+    </section>
+
+    <section class="wide">
+      <h2>5. If something goes wrong</h2>
+      <table>
+        <thead><tr><th style="width:34%">Problem</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>Other PCs cannot open the page</td><td>Server window open? On that PC open <code>http://&lt;host&gt;:8787/api/health</code>. Check the firewall rule for port 8787 and that the host's network is <strong>Private</strong>, not Public.</td></tr>
+          <tr><td>"Port 8787 is already in use"</td><td>A server is already running (another window or the startup shortcut). Close the extra window.</td></tr>
+          <tr><td>Only one monitor window opened</td><td>Allow pop-ups for the host address (address bar &rarr; pop-up icon &rarr; Always allow), then <strong>Open my monitors</strong> again.</td></tr>
+          <tr><td>Monitor says "View only"</td><td>Another Line Map window is open for that exercise. Close it, or click <strong>Take control</strong> on the trainee's Line Map.</td></tr>
+          <tr><td>Trains move in jumps or stop</td><td>The Line Map window is minimised or hidden. Keep it on screen.</td></tr>
+          <tr><td>"The app is not built"</td><td>In the project folder run <code>npm.cmd run host:build</code>, then start the server again.</td></tr>
+          <tr><td>Admin password lost or account locked</td><td>On the host: <code>npm.cmd run reset:password -- &lt;username&gt; &lt;new password&gt;</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <footer>
+    Commands run in a Command Prompt opened in the project folder. Updating the simulator, first-time install and the firewall rule:
+    see <code>docs\lan-setup.md</code> sections 2 and 9. On-site test: <code>docs\lan-test-checklist.md</code>.
+  </footer>
+</main>
+</body>
+</html>
