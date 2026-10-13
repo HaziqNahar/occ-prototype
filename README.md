@@ -59,6 +59,8 @@ npm.cmd run reset:password -- <username> <new password>
 | `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
 | `/report` | Trainer | Post-session report: score, checklist, timeline, evidence log, trainer notes. |
 | `/admin` | Admin trainer | **People**: add trainers and trainees, reset passwords, switch accounts off, make admins. |
+| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run with its score, checklist, trainer notes and, from the action log, each action with who did it and when. |
+| `/progress` | Trainer (trainee: own) | **Trainee progress**: runs, completed, passed, average score, and best / average / latest result per scenario. |
 
 `/ios`, `/ios/scenarios` and `/ios/assessment` are old addresses; they open the
 Trainer Console.
@@ -196,9 +198,14 @@ backend data (stop the backend first).
 | `GET /api/trainees` | Trainer: trainee accounts that can be assigned |
 | `POST /api/class/join` | Trainee: join the exercise with `{ code }` |
 | `POST /api/class/assign` | Trainer: put a trainee in an exercise, `{ traineeId, sessionId }` |
+| `GET /api/history`, `GET /api/history/<run id>` | Past runs (`?trainee=` to filter), and one run with its checklist and actions. Trainees get their own only |
+| `GET /api/progress?trainee=<id>` | A trainee's progress (a trainee gets their own) |
 | `GET /api/reports/latest` | Report summary of the current run, built by the server |
 | `GET /api/reports` | Archived reports |
 | `POST /api/reports` | Save trainer notes with the current run's report (the server scores it) |
+
+A run is archived (and appears in the history) when it is completed, or when
+the trainer saves notes on its report; runs stopped without either are not kept.
 
 Session requests take an optional `?session=<code or id>`; without it a trainee
 gets their own exercise and everyone else Exercise 1. Completed runs are archived automatically.

@@ -13,6 +13,8 @@ export type AppRoute =
   | '/session/join'
   | '/report'
   | '/admin'
+  | '/history'
+  | '/progress'
 
 export type ScreenRole = {
   number: string

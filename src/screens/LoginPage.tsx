@@ -48,6 +48,13 @@ function LoginPage({ onNavigate, onSignOut, user }: LoginPageProps) {
               <span>Enter the session code from your trainer, then work on the OCC monitors.</span>
             </button>
           )}
+          {user && (
+            <button type="button" className={`start-role ${isTrainer ? 'is-trainer' : 'is-trainee'}`} onClick={() => onNavigate('/progress')}>
+              <span className="start-role-tag">History</span>
+              <strong>{isTrainer ? 'Runs and progress' : 'My progress'}</strong>
+              <span>{isTrainer ? 'Past runs with every action, and each trainee’s progress.' : 'Your past runs and scores, scenario by scenario.'}</span>
+            </button>
+          )}
           {user?.admin && (
             <button type="button" className="start-role is-trainer" onClick={() => onNavigate('/admin')}>
               <span className="start-role-tag">Admin</span>

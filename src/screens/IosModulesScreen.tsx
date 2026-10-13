@@ -82,6 +82,8 @@ function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token,
           {user && panels.length === 1 && (
             <button type="button" onClick={() => run(exerciseApi.add)}>Add Exercise 2</button>
           )}
+          {user && <button type="button" onClick={() => onNavigate('/history')}>History</button>}
+          {user && <button type="button" onClick={() => onNavigate('/progress')}>Progress</button>}
           {user?.admin && <button type="button" onClick={() => onNavigate('/admin')}>People</button>}
           {user
             ? <button type="button" className="is-quiet" onClick={onSignOut}>Sign out</button>

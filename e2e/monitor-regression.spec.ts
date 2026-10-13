@@ -365,6 +365,55 @@ test.describe.serial('OCC monitor regressions', () => {
     expect(errors).toEqual([])
   })
 
+  test('the trainer reviews a past run and the trainee sees their progress', async ({ browser, page, request }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+
+    const traineeToken = await signInToken(request, TRAINEE.username)
+    const traineeHeaders = { authorization: `Bearer ${traineeToken}` }
+    const code = (await getSession(page)).sessionMeta.code
+
+    await request.post('/api/class/join', { data: { code }, headers: traineeHeaders })
+    await page.goto('/ios/modules')
+    await page.getByRole('radio', { name: /PSD Fault/ }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Scenario status' }).getByText('RUNNING', { exact: true })).toBeVisible()
+
+    // The trainee acts on their monitors; the trainer saves notes, which archives the run.
+    const incident = (await getSession(page)).alarmSummaryRows.find((row: { scenarioAlarm?: boolean }) => row.scenarioAlarm)
+
+    await request.post('/api/session/commands', {
+      data: { command: { rowKeys: [`${incident.timestamp}|${incident.asset}|${incident.description}`], type: 'ACK_ALARMS' }, sourceId: 'e2e' },
+      headers: traineeHeaders,
+    })
+    await request.post('/api/reports', { data: { notes: 'E2E history check' }, headers: trainerHeaders() })
+
+    await page.getByRole('button', { name: 'History' }).click()
+    await expect(page.getByRole('heading', { name: 'Run history' })).toBeVisible()
+    await page.getByRole('button', { name: /PSD Obstructed/ }).first().click()
+    await expect(page.getByText('E2E history check')).toBeVisible()
+
+    const actions = page.locator('.history-actions')
+
+    await expect(actions.getByRole('row', { name: /Aisyah \(trainee\).*Acknowledged alarms/ })).toBeVisible()
+    await expect(actions.getByRole('row', { name: /Loaded the scenario/ })).toBeVisible()
+
+    // The trainee's own progress.
+    const traineeContext = await browser.newContext()
+
+    await signInBrowser(traineeContext, traineeToken)
+
+    const trainee = await traineeContext.newPage()
+
+    await trainee.goto('/progress')
+    await expect(trainee.getByRole('heading', { name: 'My progress' })).toBeVisible()
+    await expect(trainee.getByRole('region', { name: 'Totals' })).toContainText(TRAINEE.name)
+    await expect(trainee.getByRole('button', { name: /PSD Obstructed/ }).first()).toBeVisible()
+    await traineeContext.close()
+    expect(errors).toEqual([])
+  })
+
   test('without signing in, every page asks for a sign-in', async ({ browser }) => {
     const context = await browser.newContext()
     const page = await context.newPage()

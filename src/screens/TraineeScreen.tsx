@@ -11,6 +11,8 @@ import { openOccMonitors } from '../occMonitors'
 
 type TraineeScreenProps = {
   dispatch: DispatchSessionCommand
+  // Opens the trainee's own progress (only with accounts).
+  onOpenProgress?: () => void
   // Joins the exercise whose code was typed (the server finds it); without a
   // server, the code is checked against this page's session.
   onJoin?: (code: string) => Promise<{ accepted: boolean; reason: string | null }>
@@ -21,7 +23,7 @@ type TraineeScreenProps = {
 
 // Trainee view: join the trainer's session, then work on the three OCC monitors.
 // It never reveals the incident, because finding it is part of the exercise.
-function TraineeScreen({ dispatch, onJoin, onSignOut, session, user }: TraineeScreenProps) {
+function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, user }: TraineeScreenProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [now, setNow] = useState(() => Date.now())
@@ -131,6 +133,7 @@ function TraineeScreen({ dispatch, onJoin, onSignOut, session, user }: TraineeSc
             <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>
           </div>
         )}
+        {onOpenProgress && <button type="button" className="trainee-leave" onClick={onOpenProgress}>My progress</button>}
         <button type="button" className="trainee-leave" onClick={onSignOut}>Sign out</button>
       </section>
     </main>

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { AuthService } from './auth'
 import type { OccDatabase } from './database'
+import { getRunDetail, getTraineeProgress, listRuns } from './history'
 import { createId, readJsonBody, RequestError, sendJson, setCorsHeaders } from './http'
 import { getTransportEvents, recordTransportEvent } from './realtime'
 import { SessionStore } from './sessionStore'
@@ -384,6 +385,52 @@ export function createRoutes(
     return false
   }
 
+  // Past runs and progress. Trainers see everyone; a trainee sees only their own.
+  function handleHistoryRoute(response: ServerResponse, method: string, url: URL, user: PublicUser) {
+    const isTrainer = user.role === 'trainer'
+    const traineeId = isTrainer ? url.searchParams.get('trainee') : user.id
+
+    if (method !== 'GET') {
+      return false
+    }
+
+    if (url.pathname === '/api/history') {
+      const runs = listRuns(db).filter((run) => !traineeId || run.trainees.some((trainee) => trainee.id === traineeId))
+
+      sendJson(response, 200, { runs })
+      return true
+    }
+
+    if (url.pathname.startsWith('/api/history/')) {
+      const run = getRunDetail(db, decodeURIComponent(url.pathname.slice('/api/history/'.length)))
+
+      if (!run || (!isTrainer && !run.trainees.some((trainee) => trainee.id === user.id))) {
+        throw new RequestError('No such run.', 404)
+      }
+
+      sendJson(response, 200, { run })
+      return true
+    }
+
+    if (url.pathname === '/api/progress') {
+      if (!traineeId) {
+        throw new RequestError('Choose a trainee.')
+      }
+
+      const account = auth.listUsers().find((item) => item.id === traineeId)
+      const name = account?.name ?? listRuns(db).flatMap((run) => run.trainees).find((trainee) => trainee.id === traineeId)?.name
+
+      if (!name) {
+        throw new RequestError('No such trainee.', 404)
+      }
+
+      sendJson(response, 200, { progress: getTraineeProgress(db, { id: traineeId, name }) })
+      return true
+    }
+
+    return false
+  }
+
   return async function routeRequest(request: IncomingMessage, response: ServerResponse) {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     const method = request.method ?? 'GET'
@@ -409,6 +456,10 @@ export function createRoutes(
       }
 
       if (await handleExerciseRoute(request, response, method, url.pathname, user)) {
+        return
+      }
+
+      if (user && handleHistoryRoute(response, method, url, user)) {
         return
       }
 

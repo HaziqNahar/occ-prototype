@@ -380,6 +380,8 @@ export class SessionStore {
 
     return {
       ...buildScenarioReport(session).archiveSummary,
+      completedAt: session.sessionMeta.completedAt,
+      exercise: managed.exercise,
       generatedAt: getIsoNow(),
       lifecycle: session.sessionMeta.lifecycle,
       mode: session.trainingMode,

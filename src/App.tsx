@@ -135,6 +135,8 @@ const IosModulesScreen = lazy(() => import('./screens/IosModulesScreen'))
 const ReportScreen = lazy(() => import('./screens/ReportScreen'))
 const TraineeScreen = lazy(() => import('./screens/TraineeScreen'))
 const PeopleScreen = lazy(() => import('./screens/PeopleScreen'))
+const HistoryScreen = lazy(() => import('./screens/HistoryScreen'))
+const ProgressScreen = lazy(() => import('./screens/ProgressScreen'))
 
 if (import.meta.env.DEV) {
   warnLineMapRouteValidationIssues()
@@ -192,7 +194,9 @@ function getCurrentRoute(): AppRoute {
     path === '/ios/assessment' ||
     path === '/session/join' ||
     path === '/report' ||
-    path === '/admin'
+    path === '/admin' ||
+    path === '/history' ||
+    path === '/progress'
   ) {
     return path
   }
@@ -316,6 +320,21 @@ function App() {
         : <LoginPage onNavigate={navigate} onSignOut={signOut} user={null} />
   }
 
+  // History and progress need accounts; trainees see only their own (the server enforces it).
+  if (route === '/history' || route === '/progress') {
+    if (!user) {
+      return <LoginPage onNavigate={navigate} onSignOut={signOut} user={null} />
+    }
+
+    return (
+      <Suspense fallback={null}>
+        {route === '/history'
+          ? <HistoryScreen onNavigate={navigate} user={user} />
+          : <ProgressScreen onNavigate={navigate} user={user} />}
+      </Suspense>
+    )
+  }
+
   if (route === '/session/join' && user?.role === 'trainer') {
     return <AccessNotice onNavigate={navigate} onSignOut={signOut} text="Trainees join here with their own account. Sign out, then sign in as the trainee." user={user} />
   }
@@ -366,6 +385,7 @@ function App() {
         <TraineeScreen
           dispatch={dispatch}
           onJoin={user ? exerciseApi.join : undefined}
+          onOpenProgress={user ? () => navigate('/progress') : undefined}
           onSignOut={signOut}
           session={session}
           user={user ?? LOCAL_TRAINEE}
