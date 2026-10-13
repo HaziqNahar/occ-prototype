@@ -1,3 +1,4 @@
+import { prependAlarmRows } from '../alarmAcknowledgement'
 import { createMonitorEvent, createSummaryEvent } from '../scenarioWorkflow'
 import {
   RT1_S655_TO_SKG_LAUNCH_ROUTE_STEPS,
@@ -122,7 +123,7 @@ export function applyTrainingScenarioWorkflowAction(
     message: workflow.message,
     next: {
       ...workflowState,
-      alarmSummaryRows: [createSummaryEvent(event, workflow.summaryTone ?? 'yellow'), ...workflowState.alarmSummaryRows].slice(0, 12),
+      alarmSummaryRows: prependAlarmRows([createSummaryEvent(event, workflow.summaryTone ?? 'yellow')], workflowState.alarmSummaryRows),
       eventRows: [event, ...workflowState.eventRows].slice(0, 4),
       scenarioNotice: {
         text: workflow.message,

@@ -1,6 +1,7 @@
 import type { OccDatabase, StoredReport } from './database'
 import { getIsoNow } from './http'
 import { RealtimeHub, recordTransportEvent } from './realtime'
+import { addBackgroundAlarm, getNextBackgroundAlarmDelayMs } from '../src/backgroundAlarms'
 import type { SessionSnapshotMessage, SessionUpdateMessage } from '../src/session-commands/protocol'
 import { buildScenarioReport } from '../src/scenarioReport'
 import { applySessionCommand } from '../src/session-commands/applySessionCommand'
@@ -64,6 +65,7 @@ export class SessionStore {
   private readonly db: OccDatabase
   private readonly sessions = new Map<string, ManagedSession>()
   private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly nextBackgroundAlarmAt = new Map<string, number>()
   private currentId: string
 
   constructor(db: OccDatabase) {
@@ -91,6 +93,23 @@ export class SessionStore {
     if (!stored) {
       db.logAction({ detail: managed.session.sessionMeta.code, kind: 'session.created', sessionId: managed.id })
     }
+  }
+
+  // Routine alarms arrive during a running exercise (src/backgroundAlarms.ts);
+  // the first comes a while after the run starts.
+  addBackgroundAlarms(now = Date.now()) {
+    this.exercises().forEach((managed) => {
+      const due = this.nextBackgroundAlarmAt.get(managed.id)
+
+      if (managed.session.scenarioMode !== 'RUNNING') {
+        this.nextBackgroundAlarmAt.delete(managed.id)
+      } else if (due === undefined) {
+        this.nextBackgroundAlarmAt.set(managed.id, now + getNextBackgroundAlarmDelayMs())
+      } else if (now >= due) {
+        this.commit(managed, addBackgroundAlarm(managed.session), {}, 'later')
+        this.nextBackgroundAlarmAt.set(managed.id, now + getNextBackgroundAlarmDelayMs())
+      }
+    })
   }
 
   // The trainer's exercises in order.

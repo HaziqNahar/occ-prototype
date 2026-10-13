@@ -3,6 +3,22 @@ import type { AlarmSummaryRow } from './types'
 // Fault scenarios raise one alarm that the trainee must find and acknowledge.
 // Acknowledging any other row clears that row but earns no scenario credit.
 
+// The alarm list keeps the newest rows. An incident alarm still waiting to be
+// acknowledged is never pushed off, so the trainee can always find it.
+export const ALARM_SUMMARY_ROW_LIMIT = 12
+
+export function prependAlarmRows(newRows: readonly AlarmSummaryRow[], rows: readonly AlarmSummaryRow[]): AlarmSummaryRow[] {
+  const combined = [...newRows, ...rows]
+
+  if (combined.length <= ALARM_SUMMARY_ROW_LIMIT) {
+    return combined
+  }
+
+  const pending = combined.slice(ALARM_SUMMARY_ROW_LIMIT).filter((row) => row.scenarioAlarm && !row.acknowledgedAt)
+
+  return [...combined.slice(0, ALARM_SUMMARY_ROW_LIMIT - pending.length), ...pending]
+}
+
 export function hasScenarioAlarm(rows: readonly AlarmSummaryRow[]) {
   return rows.some((row) => row.scenarioAlarm)
 }

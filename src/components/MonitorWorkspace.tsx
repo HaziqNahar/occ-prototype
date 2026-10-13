@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
+import { MONITOR_HEIGHT, MONITOR_WIDTH } from '../screens/line-map/model'
 import type { AppRoute, OccSessionState } from '../types'
 
 type MonitorWorkspaceProps = {
@@ -16,16 +17,31 @@ type MonitorWorkspaceProps = {
 const SCADA_WINDOW_WIDTH = 1293
 const SCADA_WINDOW_HEIGHT = 1111
 
-function getScadaWindowScale() {
+// Full screen (F11) on a monitor PC: the real SCADA screens have no window
+// title, menu or status rows.
+function isBrowserFullScreen() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return window.matchMedia('(display-mode: fullscreen)').matches
+    || Boolean(document.fullscreenElement)
+    || (window.innerWidth >= window.screen.width && window.innerHeight >= window.screen.height)
+}
+
+function getScadaWindowScale(fullScreen: boolean) {
   if (typeof window === 'undefined') {
     return 1
   }
 
-  return Math.min(
-    1,
-    window.innerWidth / SCADA_WINDOW_WIDTH,
-    window.innerHeight / SCADA_WINDOW_HEIGHT,
-  )
+  // Full screen fills the monitor; in a window, the SCADA window never grows past its native size.
+  return fullScreen
+    ? Math.min(window.innerWidth / MONITOR_WIDTH, window.innerHeight / MONITOR_HEIGHT)
+    : Math.min(
+        1,
+        window.innerWidth / SCADA_WINDOW_WIDTH,
+        window.innerHeight / SCADA_WINDOW_HEIGHT,
+      )
 }
 
 function MonitorWorkspace({
@@ -40,8 +56,9 @@ function MonitorWorkspace({
   const [isMaximized, setIsMaximized] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [windowNote, setWindowNote] = useState('SCADA window ready')
+  const [fullScreen, setFullScreen] = useState(() => fitsScadaViewport && isBrowserFullScreen())
   const [scadaWindowScale, setScadaWindowScale] = useState(() => (
-    fitsScadaViewport ? getScadaWindowScale() : 1
+    fitsScadaViewport ? getScadaWindowScale(isBrowserFullScreen()) : 1
   ))
   const menuItems = ['File', 'View', 'Command', 'Power', 'ECS', 'Traffic', 'Comms', 'Admin', 'Help']
 
@@ -50,17 +67,29 @@ function MonitorWorkspace({
       return undefined
     }
 
-    const fitWindowToViewport = () => setScadaWindowScale(getScadaWindowScale())
+    const fullScreenQuery = window.matchMedia('(display-mode: fullscreen)')
+    const fitWindowToViewport = () => {
+      const nextFullScreen = isBrowserFullScreen()
+
+      setFullScreen(nextFullScreen)
+      setScadaWindowScale(getScadaWindowScale(nextFullScreen))
+    }
     fitWindowToViewport()
     window.addEventListener('resize', fitWindowToViewport)
+    fullScreenQuery.addEventListener('change', fitWindowToViewport)
 
-    return () => window.removeEventListener('resize', fitWindowToViewport)
+    return () => {
+      window.removeEventListener('resize', fitWindowToViewport)
+      fullScreenQuery.removeEventListener('change', fitWindowToViewport)
+    }
   }, [fitsScadaViewport])
 
+  const scadaFrameWidth = fullScreen ? MONITOR_WIDTH : SCADA_WINDOW_WIDTH
+  const scadaFrameHeight = fullScreen ? MONITOR_HEIGHT : SCADA_WINDOW_HEIGHT
   const scadaFrameStyle = fitsScadaViewport
     ? {
-        '--scada-frame-height': `${SCADA_WINDOW_HEIGHT * scadaWindowScale}px`,
-        '--scada-frame-width': `${SCADA_WINDOW_WIDTH * scadaWindowScale}px`,
+        '--scada-frame-height': `${scadaFrameHeight * scadaWindowScale}px`,
+        '--scada-frame-width': `${scadaFrameWidth * scadaWindowScale}px`,
       } as CSSProperties
     : undefined
 
@@ -72,7 +101,7 @@ function MonitorWorkspace({
     : undefined
 
   return (
-    <main className={`occ-workspace ${scadaFirst ? 'occ-workspace--scada-first occ-workspace--scada-fit' : ''}`}>
+    <main className={`occ-workspace ${scadaFirst ? 'occ-workspace--scada-first occ-workspace--scada-fit' : ''} ${fullScreen ? 'occ-workspace--full-screen' : ''}`}>
       <header className="occ-workspace-header">
         <div className="occ-workspace-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />

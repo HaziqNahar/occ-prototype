@@ -1,3 +1,4 @@
+import { prependAlarmRows } from '../alarmAcknowledgement'
 import { normalizeNelTimetableName } from '../data/nelTimetable'
 import type { NelTimetableName } from '../data/nelTimetable'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
@@ -68,7 +69,7 @@ function createConsoleEvent(message: string, value: string, tone: MonitorAlarmRo
 function prependConsoleEvent(session: OccSessionState, event: MonitorAlarmRow): OccSessionState {
   return {
     ...session,
-    alarmSummaryRows: [createSummaryEvent(event, 'yellow'), ...session.alarmSummaryRows].slice(0, 12),
+    alarmSummaryRows: prependAlarmRows([createSummaryEvent(event, 'yellow')], session.alarmSummaryRows),
     eventRows: [event, ...session.eventRows].slice(0, 4),
   }
 }

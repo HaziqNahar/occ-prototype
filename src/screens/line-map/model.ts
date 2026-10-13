@@ -2857,8 +2857,8 @@ export const lowerSignals = [
   signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1102', track: 'lower', side: 'above', label: 'S1103', tone: 'red' }),
   signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-1108', edgeOffset: 4, label: 'S1102', tone: 'red' }),
   signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1108', track: 'lower', side: 'above', label: 'S1109', tone: 'red' }),
-  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1112', edgeOffset: 2, track: 'lower', side: 'above', label: 'S1111', tone: 'red' }),
-  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1113', inset: 5, track: 'upper', side: 'above', label: 'S1110', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1112', edgeOffset: 2, track: 'lower', side: 'above', label: 'S1117', tone: 'red' }),
+  signalAtRailEdge({ anchorEdge: 'right', anchorRailId: 'rail-1113', inset: 5, track: 'upper', side: 'above', label: 'S1111', tone: 'red' }),
   signalAtRailEdge({ anchorEdge: 'left', anchorRailId: 'rail-1112', label: 'S1106', tone: 'red' }),
 ] as const
 

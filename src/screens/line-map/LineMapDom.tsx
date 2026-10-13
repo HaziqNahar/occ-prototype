@@ -93,6 +93,8 @@ type LineMapMonitorDomProps = {
   alarmTotal: number
   callLog?: readonly CommsLogEntry[]
   children?: ReactNode
+  // Trains the operator has put on hold (timetable state H>).
+  heldTrainIds?: ReadonlySet<string>
   psdFaultPlatform?: { station: string; track: 'NB' | 'SB' }
   lineMap: LineMapRuntimeState
   onCommand: (command: TrainCommand) => void
@@ -386,6 +388,7 @@ export default function LineMapMonitorDom({
   alarmTotal,
   callLog,
   children,
+  heldTrainIds,
   psdFaultPlatform,
   lineMap,
   onCommand,
@@ -508,6 +511,7 @@ export default function LineMapMonitorDom({
         <div className="line-map-body-viewport">
           <div className="line-map-body-world">
             <LineMapSchematicBase
+              heldTrainIds={heldTrainIds}
               lineMap={lineMap}
               psdFaultPlatform={psdFaultPlatform}
               onCommand={onCommand}
@@ -583,6 +587,7 @@ function LineMapHeaderDom({
 }
 
 function LineMapSchematicBase({
+  heldTrainIds,
   lineMap,
   psdFaultPlatform,
   onCommand,
@@ -593,6 +598,7 @@ function LineMapSchematicBase({
   onSetRouteControlMode,
   trains,
 }: {
+  heldTrainIds?: ReadonlySet<string>
   lineMap: LineMapRuntimeState
   psdFaultPlatform?: { station: string; track: 'NB' | 'SB' }
   onCommand: (command: TrainCommand) => void
@@ -717,6 +723,7 @@ function LineMapSchematicBase({
       {platformData.map((platform) => (
         <PlatformPanel
           faultTrack={psdFaultPlatform?.station === platform.code ? psdFaultPlatform.track : undefined}
+          heldTracks={getHeldPlatformTracks(platform, trains, heldTrainIds)}
           key={platform.code}
           lineMap={lineMap}
           platform={platform}
@@ -1930,12 +1937,39 @@ function getPlatformGreenClassName(status?: LineMapRuntimeState['platformDoorSta
   ].filter(Boolean).join(' ')
 }
 
+// A train is at a platform when its tag is within the platform box; the upper
+// track is northbound.
+const PLATFORM_TRAIN_RADIUS = 40
+
+function getHeldPlatformTracks(
+  platform: (typeof platformData)[number],
+  trains: readonly TrainState[],
+  heldTrainIds: ReadonlySet<string> | undefined,
+) {
+  const tracks = new Set<'NB' | 'SB'>()
+
+  if (!heldTrainIds?.size) {
+    return tracks
+  }
+
+  trains.forEach((train) => {
+    if (heldTrainIds.has(train.id) && Math.abs(train.x - platform.x) <= PLATFORM_TRAIN_RADIUS) {
+      tracks.add(getTrainMapArrowLane(train) === 'upper' ? 'NB' : 'SB')
+    }
+  })
+
+  return tracks
+}
+
 function PlatformPanel({
   faultTrack,
+  heldTracks,
   lineMap,
   platform,
 }: {
   faultTrack?: 'NB' | 'SB'
+  // Platform hold (PH) lights while a held train is at that platform.
+  heldTracks: ReadonlySet<'NB' | 'SB'>
   lineMap: LineMapRuntimeState
   platform: (typeof platformData)[number]
 }) {
@@ -1948,7 +1982,7 @@ function PlatformPanel({
       <div className={getPlatformGreenClassName(northDoorStatus)} />
       <div className="line-map-platform-grid line-map-platform-grid--north">
         <span className={faultTrack === 'NB' ? 'is-psd-fault' : undefined}>PSD</span>
-        <span>PH</span>
+        <span className={heldTracks.has('NB') ? 'is-platform-hold' : undefined}>PH</span>
         <span>SPKS</span>
         <span>{showCdLabel ? 'CD' : ''}</span>
         <span>ESB</span>
@@ -1961,7 +1995,7 @@ function PlatformPanel({
         <span>SPKS</span>
         <span>{showCdLabel ? 'CD' : ''}</span>
         <span className={faultTrack === 'SB' ? 'is-psd-fault' : undefined}>PSD</span>
-        <span>PH</span>
+        <span className={heldTracks.has('SB') ? 'is-platform-hold' : undefined}>PH</span>
       </div>
       <div className={getPlatformGreenClassName(southDoorStatus)} />
     </div>

@@ -1,3 +1,4 @@
+import { prependAlarmRows } from './alarmAcknowledgement'
 import { appendScenarioEvidence, createScenarioEvidence } from './scenario'
 import {
   initialScenarioNotice,
@@ -397,7 +398,7 @@ export function applyScenarioStep(
   return {
     ...current,
     alarmSummaryRows: shouldAddEvent
-      ? [createSummaryEvent(event, summaryTone), ...current.alarmSummaryRows].slice(0, 12)
+      ? prependAlarmRows([createSummaryEvent(event, summaryTone)], current.alarmSummaryRows)
       : current.alarmSummaryRows,
     cycleMode,
     eventRows: shouldAddEvent ? [event, ...current.eventRows].slice(0, 4) : current.eventRows,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import footerAdminIcon from '../assets/toolbar-icons/admin.png'
 import footerCardIcon from '../assets/toolbar-icons/card.png'
@@ -21,6 +21,7 @@ import footerTrafficIcon from '../assets/toolbar-icons/traffic.png'
 import footerUtilityIcon from '../assets/toolbar-icons/utility.png'
 import footerWindowPairIcon from '../assets/toolbar-icons/window_pair.png'
 import footerWindowPanelIcon from '../assets/toolbar-icons/window_panel.png'
+import { OperatorNameContext } from './operatorName'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -92,6 +93,7 @@ export default function ScadaFooter({
 }: ScadaFooterProps) {
   const [activeTool, setActiveTool] = useState<string | null>(null)
   const [activeMode, setActiveMode] = useState<string | null>(null)
+  const operatorName = useContext(OperatorNameContext)
   const primaryButtons = [
     { icon: footerLayoutIcon, label: 'LAYOUT', tool: 'LAYOUT', width: 108, x: 1 },
     { icon: footerCommandIcon, label: 'COMMAND', tool: 'COMMAND', width: 108, x: 129 },
@@ -219,7 +221,7 @@ export default function ScadaFooter({
         <img alt="" draggable={false} src={footerPrinterIcon} />
       </button>
       <div className="scada-dom-footer-status">
-        <span aria-hidden="true">&nbsp;</span>
+        <span className="scada-dom-footer-operator">{operatorName.toUpperCase() || ' '}</span>
         <span>[ TSR1 ] @ OCC</span>
       </div>
       <FooterClock />

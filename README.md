@@ -117,6 +117,11 @@ The console's **Open monitors** opens an exercise's monitors on the trainer's PC
 - Each fault run picks a random train, station and bound. The train is placed
   and held at that platform, and the alarm text names the location.
 - Only acknowledging the scenario's own incident alarm counts towards the score.
+  While a run is in progress, routine alarms (train holds, emergency brakes,
+  routes abandoned and similar, for SKG-PGC) arrive every 1.5-3 minutes, as in
+  a real shift; they are not scored (`src/backgroundAlarms.ts`).
+- A train runs late for as long as it is held, which shows on the Timetable's
+  regulation graphs; PH lights on the platform where a held train stands.
 - Steps are scored from live actions: alarm acknowledgement, train selection,
   holds, door commands, routes, dispatch, and calls logged from the Calls panel
   (`src/comms/commsCatalog.ts`). Critical steps are marked with ★.

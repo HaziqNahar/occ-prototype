@@ -47,6 +47,12 @@ export function getLineMapBaseRailVisualState(segmentId: string) {
   return status ? createBaseRailVisualState(segmentId, status) : undefined
 }
 
+// A main line block nobody has routed or occupied yet. In normal service the
+// SCADA shows these white; sidings and depot links stay yellow.
+export function isIdleMainlineRailVisualState(state: LineMapRuntimeState['routeSegments'][string] | undefined) {
+  return Boolean(state && BASE_ACTIVE_STRAIGHT_RAIL_IDS.has(state.segmentId) && isLineMapBaseRailVisualState(state))
+}
+
 export function isLineMapBaseRailVisualState(state: LineMapRuntimeState['routeSegments'][string] | undefined) {
   const baseState = state ? getLineMapBaseRailVisualState(state.segmentId) : undefined
 

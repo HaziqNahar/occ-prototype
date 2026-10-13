@@ -80,6 +80,9 @@ export type TrainState = {
   itamaNotAuthorisedPreparationConfirmed?: boolean
   itamaStatus?: TrainItamaStatus
   doorFailureState?: TrainDoorFailureState
+  // When the current hold started (epoch ms), and lateness from earlier holds.
+  heldSince?: number
+  lateSeconds?: number
 }
 
 export type AlarmSummaryRow = {

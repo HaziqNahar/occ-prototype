@@ -8356,7 +8356,6 @@
 }
 
 .scada-dom-footer-status > span:first-child {
-  visibility: hidden;
   min-height: 14px;
 }
 
@@ -13995,4 +13994,37 @@
 
 .trainer-console-status-panel strong {
   font-size: 18px;
+}
+
+/* Full screen (F11) on a monitor PC: like the real SCADA, no window title,
+   menu or status rows, and the monitor fills the screen. */
+.occ-workspace--scada-first.occ-workspace--full-screen {
+  align-content: center;
+  background: #000000;
+}
+
+.occ-workspace--full-screen .win98-titlebar,
+.occ-workspace--full-screen .win98-menu,
+.occ-workspace--full-screen .win98-status-line {
+  display: none !important;
+}
+
+.occ-workspace--scada-first.occ-workspace--full-screen .occ-monitor-frame .win98-window {
+  width: 1275px !important;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.occ-workspace--full-screen .win98-client {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+/* Platform hold (PH) applied to a train at the platform. */
+.line-map-platform-grid span.is-platform-hold {
+  color: #000000;
+  background: #ffff00;
 }

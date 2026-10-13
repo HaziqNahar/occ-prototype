@@ -130,7 +130,7 @@ test.describe.serial('OCC monitor regressions', () => {
         scrollHeight: 720,
         scrollWidth: 1280,
       })
-      await expect(page.locator('.scada-dom-footer-status')).toHaveText('[ TSR1 ] @ OCC')
+      await expect(page.locator('.scada-dom-footer-status')).toHaveText('E2E.TRAINER[ TSR1 ] @ OCC')
 
       if (monitor.hasStationRibbon) {
         const ribbon = page.locator('.line-map-station-ribbon')
@@ -185,7 +185,7 @@ test.describe.serial('OCC monitor regressions', () => {
 
     await expect(page.locator('.scada-dom-root--alarms')).toBeVisible()
     await expect(page.locator('.line-map-station-ribbon')).toHaveCount(1)
-    await expect(page.locator('.scada-dom-footer-status')).toHaveText('[ TSR1 ] @ OCC')
+    await expect(page.locator('.scada-dom-footer-status')).toHaveText('E2E.TRAINER[ TSR1 ] @ OCC')
     expect(errors).toEqual([])
   })
 

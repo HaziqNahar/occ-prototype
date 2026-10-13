@@ -17,6 +17,9 @@ db.migrateLegacyFiles()
 const store = new SessionStore(db)
 const server = createServer(createRoutes(db, store, new AuthService(db)))
 const stopBackups = scheduleDailyBackups(db, (error) => console.error('Daily backup failed:', error))
+const backgroundAlarmTimer = setInterval(() => store.addBackgroundAlarms(), 15_000)
+
+backgroundAlarmTimer.unref()
 
 // The addresses other PCs on the LAN can open.
 function getLanAddresses() {
@@ -46,6 +49,7 @@ server.listen(PORT, HOST, () => {
 
 const shutdown = () => {
   stopBackups()
+  clearInterval(backgroundAlarmTimer)
   server.close()
   store.flush()
   db.close()

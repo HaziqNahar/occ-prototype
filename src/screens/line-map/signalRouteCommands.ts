@@ -1,3 +1,4 @@
+import { prependAlarmRows } from '../../alarmAcknowledgement'
 import type { LineMapRuntimeState, OccSessionState, TrainState } from '../../types'
 import {
   createMonitorEvent,
@@ -104,7 +105,7 @@ export function applySignalRouteSetSession(
     ...current,
     ...(event
       ? {
-          alarmSummaryRows: [createSummaryEvent(event), ...current.alarmSummaryRows].slice(0, 12),
+          alarmSummaryRows: prependAlarmRows([createSummaryEvent(event)], current.alarmSummaryRows),
           eventRows: [event, ...current.eventRows].slice(0, 4),
         }
       : {}),

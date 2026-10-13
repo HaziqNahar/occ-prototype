@@ -1,5 +1,5 @@
 import type { LineMapRuntimeState } from '../../types'
-import { getLineMapBaseRailVisualState } from './lineMapBaseRailVisualState'
+import { getLineMapBaseRailVisualState, isIdleMainlineRailVisualState } from './lineMapBaseRailVisualState'
 import { EXCLUSIVE_LINE_MAP_ROUTE_SEGMENT_GROUPS, routeSegmentData } from './model'
 import { getRouteSegmentRailId } from './railIds'
 
@@ -187,7 +187,7 @@ export function getRouteSegmentPaint(state?: RailRuntimeState) {
     return { color: '#ff0000', opacity: 1 }
   }
 
-  if (state?.status === 'UNSET') {
+  if (state?.status === 'UNSET' && !isIdleMainlineRailVisualState(state)) {
     return { color: '#eedc7f', opacity: 1 }
   }
 

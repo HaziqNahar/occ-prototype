@@ -16,7 +16,17 @@ type RegulationSlot = {
   trainId: string
 }
 
-function getInServiceSlots(rows: readonly TimetableRow[], run: 'NB' | 'SB', nowSeconds: number): RegulationSlot[] {
+export type TrainDelay = {
+  run: 'NB' | 'SB'
+  seconds: number
+}
+
+function getInServiceSlots(
+  rows: readonly TimetableRow[],
+  run: 'NB' | 'SB',
+  nowSeconds: number,
+  delays: ReadonlyMap<string, TrainDelay>,
+): RegulationSlot[] {
   const inService = rows
     .filter((row) => row.run === run)
     .map((row) => ({
@@ -31,12 +41,21 @@ function getInServiceSlots(rows: readonly TimetableRow[], run: 'NB' | 'SB', nowS
     .filter(({ end, start }) => [nowSeconds, nowSeconds + 86400].some((now) => start <= now && now <= end))
     .sort((left, right) => right.start - left.start)
 
-  const slots = inService.slice(0, SLOT_COUNT).map(({ row }) => ({
-    // Timetable playback keeps trains on schedule, so deviation is zero until
-    // a scenario introduces delays.
-    deviationSeconds: 0,
-    trainId: row.train,
-  }))
+  const inServiceTrainIds = new Set(inService.map(({ row }) => row.train))
+  // A late train is in service even when its timetable trip is not (a
+  // scenario's own train), so it leads the strip.
+  const lateSlots = [...delays.entries()]
+    .filter(([trainId, delay]) => delay.run === run && delay.seconds > 0 && !inServiceTrainIds.has(trainId))
+    .map(([trainId, delay]) => ({ deviationSeconds: delay.seconds, trainId }))
+  const slots = [
+    ...lateSlots,
+    ...inService.map(({ row }) => ({
+      // Timetable playback keeps trains on schedule; a train is late only while
+      // and after the operator holds it (see trainDelay.ts).
+      deviationSeconds: delays.get(row.train)?.seconds ?? 0,
+      trainId: row.train,
+    })),
+  ].slice(0, SLOT_COUNT)
 
   return [...slots, ...Array.from({ length: SLOT_COUNT - slots.length }, () => ({ deviationSeconds: 0, trainId: '0' }))]
 }
@@ -93,7 +112,16 @@ function RegulationStrip({ slots, top }: { slots: RegulationSlot[]; top: number 
   )
 }
 
-export default function TimetableRegulationGraph({ now, rows }: { now: Date; rows: readonly TimetableRow[] }) {
+export default function TimetableRegulationGraph({
+  delays = new Map(),
+  now,
+  rows,
+}: {
+  // How late each train is, by train number.
+  delays?: ReadonlyMap<string, TrainDelay>
+  now: Date
+  rows: readonly TimetableRow[]
+}) {
   const nowSeconds = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds()
 
   return (
@@ -105,10 +133,10 @@ export default function TimetableRegulationGraph({ now, rows }: { now: Date; row
       viewBox={`0 0 ${GRAPH_WIDTH} 366`}
       width={GRAPH_WIDTH}
     >
-      <RegulationStrip slots={getInServiceSlots(rows, 'NB', nowSeconds)} top={4} />
+      <RegulationStrip slots={getInServiceSlots(rows, 'NB', nowSeconds, delays)} top={4} />
       <text className="regulation-direction" x={GRAPH_WIDTH - 4} y={190}>SOUTH BOUND DIRECTION</text>
       <path className="regulation-direction-arrow" d={`M ${GRAPH_WIDTH - 200} 186 h 34 M ${GRAPH_WIDTH - 200} 186 l 7 -4 M ${GRAPH_WIDTH - 200} 186 l 7 4`} />
-      <RegulationStrip slots={getInServiceSlots(rows, 'SB', nowSeconds)} top={206} />
+      <RegulationStrip slots={getInServiceSlots(rows, 'SB', nowSeconds, delays)} top={206} />
     </svg>
   )
 }

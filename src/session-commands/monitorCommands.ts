@@ -1,8 +1,9 @@
-import { acknowledgeAlarmRows, acknowledgesScenarioAlarm } from '../alarmAcknowledgement'
+import { acknowledgeAlarmRows, acknowledgesScenarioAlarm, prependAlarmRows } from '../alarmAcknowledgement'
 import { applyCommsRequest } from '../comms/commsCatalog'
 import type { CommsRequest } from '../comms/commsCatalog'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import { completeScenarioTask, createMonitorEvent, createSummaryEvent } from '../scenarioWorkflow'
+import { updateTrainDelay } from '../trainDelay'
 import { getLineMapRouteStatus, updateLineMapRouteState } from '../screens/line-map/lineMapRouteState'
 import { sessionCodesMatch } from '../sessionCode'
 import { applyTrainingScenarioRuntimeEvent, getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
@@ -87,14 +88,14 @@ export function applyTimetableTripAction(
 
   return accepted({
     ...guard.next,
-    alarmSummaryRows: [createSummaryEvent(event, meta.tone === 'red' ? 'red' : 'yellow'), ...current.alarmSummaryRows].slice(0, 12),
+    alarmSummaryRows: prependAlarmRows([createSummaryEvent(event, meta.tone === 'red' ? 'red' : 'yellow')], current.alarmSummaryRows),
     eventRows: [event, ...current.eventRows].slice(0, 4),
     lineMap: updateLineMapRouteState(current.lineMap, { id: trainId }, getLineMapRouteStatus(meta.status)),
     selectedTrainId: trainId,
     timetableRows: current.timetableRows.map((row) => (
       row.train === trainId && row.sched === sched ? { ...row, state: meta.state } : row
     )),
-    trains: current.trains.map((train) => (train.id === trainId ? { ...train, status: meta.status } : train)),
+    trains: current.trains.map((train) => (train.id === trainId ? { ...updateTrainDelay(train, meta.status), status: meta.status } : train)),
   })
 }
 

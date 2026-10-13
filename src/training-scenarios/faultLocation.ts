@@ -55,7 +55,10 @@ export function placeFaultTrain(trains: TrainState[], location: FaultLocation): 
       ? {
           ...train,
           direction: location.track === 'NB' ? 'right' as const : 'left' as const,
+          // The fault stops the train at the platform: it runs late from now.
+          heldSince: Date.now(),
           isMoving: false,
+          lateSeconds: undefined,
           lineMapVisible: true,
           occupancySegmentId: undefined,
           service: location.track,

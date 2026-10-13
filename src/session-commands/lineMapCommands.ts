@@ -1,3 +1,4 @@
+import { prependAlarmRows } from '../alarmAcknowledgement'
 import type { InspectorPage, TrainAuxiliaryView } from '../components/train-control/trainControlTypes'
 import {
   getTrainDoorCommandLabel,
@@ -8,6 +9,7 @@ import {
 import type { TrainDoorCommand } from '../components/train-control/trainCommandState'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import { createMonitorEvent, createSummaryEvent, upsertTimetableRow } from '../scenarioWorkflow'
+import { updateTrainDelay } from '../trainDelay'
 import { updateLineMapRouteState } from '../screens/line-map/lineMapRouteState'
 import { lowerSignals, upperSignals } from '../screens/line-map/model'
 import type { LineMapSignalData } from '../screens/line-map/model'
@@ -53,7 +55,7 @@ function prependEvent(current: OccSessionState, event: MonitorAlarmRow, summaryT
   return {
     alarmSummaryRows: summaryTone === null
       ? current.alarmSummaryRows
-      : [createSummaryEvent(event, summaryTone), ...current.alarmSummaryRows].slice(0, 12),
+      : prependAlarmRows([createSummaryEvent(event, summaryTone)], current.alarmSummaryRows),
     eventRows: [event, ...current.eventRows].slice(0, 4),
   }
 }
@@ -353,7 +355,7 @@ export function confirmDoorCommand(current: OccSessionState, trainId: string, co
     selectedTrainId: trainId,
     timetableRows: upsertTimetableRow(current.timetableRows, trainId, nextTrainStatus === 'HOLD' ? 'H>' : '>'),
     trains: current.trains.map((train) => (
-      train.id === trainId ? { ...train, doorFailureState, status: nextTrainStatus } : train
+      train.id === trainId ? { ...updateTrainDelay(train, nextTrainStatus), doorFailureState, status: nextTrainStatus } : train
     )),
   }
   const result = applyTrainingScenarioRuntimeEvent(commandState, {
@@ -376,7 +378,7 @@ export function applyTrainHold(current: OccSessionState, trainId: string, detail
     selectedTrainId: trainId,
     timetableRows: upsertTimetableRow(current.timetableRows, trainId, 'H>'),
     trains: current.trains.map((train) => (
-      train.id === trainId ? { ...train, isMoving: false, status: 'HOLD' as const } : train
+      train.id === trainId ? { ...updateTrainDelay(train, 'HOLD'), isMoving: false, status: 'HOLD' as const } : train
     )),
   }, {
     source: LINE_MAP,
@@ -419,7 +421,7 @@ export function applyScadaTrainCommand(current: OccSessionState, trainId: string
       command === 'DISPATCH' ? 'DISPATCHED' : command === 'HOLD' ? 'HELD' : 'SET',
     ),
     timetableRows: upsertTimetableRow(current.timetableRows, trainId, command === 'HOLD' ? 'H>' : command === 'DISPATCH' ? '>' : 'R'),
-    trains: current.trains.map((train) => (train.id === trainId ? { ...train, status: nextStatus } : train)),
+    trains: current.trains.map((train) => (train.id === trainId ? { ...updateTrainDelay(train, nextStatus), status: nextStatus } : train)),
   })
 }
 

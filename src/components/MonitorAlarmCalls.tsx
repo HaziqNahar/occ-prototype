@@ -68,8 +68,8 @@ export function AlarmCallsHeaderDom({
           role="tabpanel"
         >
           <div className="line-map-call-controls" aria-label="Call controls">
-            <span className="line-map-call-control line-map-call-control--active line-map-call-control--spaced">PECO</span>
-            <button className="line-map-call-control line-map-call-control--inactive" type="button">RATS 0</button>
+            <span className="line-map-call-control line-map-call-control--active line-map-call-control--spaced">PEC 0</span>
+            <span className="line-map-call-control line-map-call-control--active">RATIS 0</span>
             <button
               className={`line-map-call-control ${onOpenComms ? 'line-map-call-control--button' : 'line-map-call-control--inactive'}`}
               disabled={!onOpenComms}
@@ -87,7 +87,7 @@ export function AlarmCallsHeaderDom({
               Radio {radioCount}
             </button>
             <span className="line-map-call-control line-map-call-control--active">Author. 0</span>
-            <span className="line-map-call-control line-map-call-control--active line-map-call-control--spaced">PCPO</span>
+            <span className="line-map-call-control line-map-call-control--active line-map-call-control--spaced">PCP 0</span>
           </div>
           <span className="line-map-call-indicator" aria-hidden="true" />
           <div className="line-map-call-list-shell">

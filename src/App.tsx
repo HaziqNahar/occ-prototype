@@ -5,6 +5,7 @@ import controlTabIcon from './assets/control-tab-icon.png'
 import { getCommsLog } from './comms/commsCatalog'
 import type { CommsChannel } from './comms/commsCatalog'
 import MonitorWorkspace from './components/MonitorWorkspace'
+import { OperatorNameContext } from './components/operatorName'
 import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
 import CommsDialog from './components/CommsDialog'
 import ChangeEndsDialog from './components/train-control/ChangeEndsDialog'
@@ -342,25 +343,35 @@ function App() {
 
   if (route === '/screen/line-map') {
     return (
-      <LineMapScreen
-        onNavigate={navigate}
-        requestMonitorPeerLaunch={requestMonitorPeerLaunch}
-        claimSimulation={claimSimulation}
-        dispatch={dispatch}
-        isSimulationOwner={isSimulationOwner}
-        session={session}
-        simulate={simulate}
-        subscribeMonitorLaunch={subscribeMonitorLaunch}
-      />
+      <OperatorNameContext.Provider value={user?.id ?? ''}>
+        <LineMapScreen
+          onNavigate={navigate}
+          requestMonitorPeerLaunch={requestMonitorPeerLaunch}
+          claimSimulation={claimSimulation}
+          dispatch={dispatch}
+          isSimulationOwner={isSimulationOwner}
+          session={session}
+          simulate={simulate}
+          subscribeMonitorLaunch={subscribeMonitorLaunch}
+        />
+      </OperatorNameContext.Provider>
     )
   }
 
   if (route === '/screen/alarms') {
-    return <AlarmsScreen dispatch={dispatch} onNavigate={navigate} session={session} />
+    return (
+      <OperatorNameContext.Provider value={user?.id ?? ''}>
+        <AlarmsScreen dispatch={dispatch} onNavigate={navigate} session={session} />
+      </OperatorNameContext.Provider>
+    )
   }
 
   if (route === '/screen/timetable') {
-    return <TimetableScreen dispatch={dispatch} onNavigate={navigate} session={session} />
+    return (
+      <OperatorNameContext.Provider value={user?.id ?? ''}>
+        <TimetableScreen dispatch={dispatch} onNavigate={navigate} session={session} />
+      </OperatorNameContext.Provider>
+    )
   }
 
   // The Trainer Console replaced the IOS window, Scenario setup and the rubric page;
@@ -1953,6 +1964,9 @@ function MonitorCanvas({
 
 
   const { notAcknowledged: alarmNotAcknowledged, total: alarmTotal } = getAlarmSummaryCounts(session.alarmSummaryRows)
+  const heldTrainIds = useMemo(() => new Set(
+    session.timetableRows.filter((row) => row.state.startsWith('H')).map((row) => row.train),
+  ), [session.timetableRows])
 
   return (
     <div className="occ-monitor-canvas">
@@ -1967,6 +1981,7 @@ function MonitorCanvas({
         alarmNotAcknowledged={alarmNotAcknowledged}
         alarmTotal={alarmTotal}
         callLog={callLog}
+        heldTrainIds={heldTrainIds}
         lineMap={renderedLineMap}
         psdFaultPlatform={session.scenarioMode === 'RUNNING'
           && getTrainingScenarioDefinition(session.activeScenario.id).fault?.psdIndicator
