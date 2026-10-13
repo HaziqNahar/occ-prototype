@@ -5,6 +5,7 @@ node_modules/
 dist/
 dist-ssr/
 dist-server/
+dist.zip
 
 # Runtime state
 server/data/
