@@ -13,6 +13,7 @@ server/data/
 tmp/
 outputs/
 .playwright-data/
+.playwright-lan-data/
 playwright-report/
 test-results/
 

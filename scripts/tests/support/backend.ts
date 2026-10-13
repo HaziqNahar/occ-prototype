@@ -33,11 +33,11 @@ async function getAvailablePort() {
 
 export type TestBackend = Awaited<ReturnType<typeof startBackend>>
 
-export async function startBackend(dataDir: string) {
+export async function startBackend(dataDir: string, env: Record<string, string> = {}) {
   const port = await getAvailablePort()
   const baseUrl = `http://127.0.0.1:${port}`
   const backend: ChildProcess = spawn(process.execPath, [path.resolve('server/server.mjs')], {
-    env: { ...process.env, OCC_BACKEND_DATA_DIR: dataDir, OCC_BACKEND_HOST: '127.0.0.1', OCC_BACKEND_PORT: String(port) },
+    env: { ...process.env, OCC_BACKEND_DATA_DIR: dataDir, OCC_BACKEND_HOST: '127.0.0.1', OCC_BACKEND_PORT: String(port), ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let stderr = ''

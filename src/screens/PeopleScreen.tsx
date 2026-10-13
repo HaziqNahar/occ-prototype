@@ -4,8 +4,10 @@ import { getDisplayNameProblem, getPasswordProblem, getUsernameProblem, PASSWORD
 import type { PublicUser, UserRole } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
-import { authApi } from '../authClient'
+import { apiRequest, authApi } from '../authClient'
 import type { AppRoute } from '../types'
+
+type BackupFile = { bytes: number; createdAt: string; name: string }
 
 type PeopleScreenProps = {
   onNavigate: (route: AppRoute) => void
@@ -19,6 +21,7 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [form, setForm] = useState({ admin: false, name: '', password: '', role: 'trainee' as UserRole, username: '' })
+  const [backups, setBackups] = useState<BackupFile[]>([])
 
   const refresh = useCallback(() => {
     void authApi.listUsers()
@@ -27,6 +30,14 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
   }, [])
 
   useEffect(refresh, [refresh])
+
+  useEffect(() => {
+    void apiRequest<{ backups: BackupFile[] }>('/api/admin/backups').then((result) => setBackups(result.backups)).catch(() => undefined)
+  }, [])
+
+  const backUpNow = () => void run(async () => {
+    setBackups((await apiRequest<{ backups: BackupFile[] }>('/api/admin/backups', { body: {} })).backups)
+  }, 'Backup made.')
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setError('')
@@ -168,6 +179,20 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
           {note && <p className="sign-in-note" role="status">{note}</p>}
           <button type="submit">Add person</button>
         </form>
+
+        <section className="trainee-join people-add" aria-labelledby="people-backups-heading">
+          <h2 id="people-backups-heading">Data backups</h2>
+          <p className="sign-in-note">
+            The server copies its data once a day and keeps the most recent copies on the host PC
+            (server\data\backups). Back up before a big change, and copy that folder to a USB drive now and then.
+          </p>
+          <p className="sign-in-note" data-testid="latest-backup">
+            {backups[0]
+              ? `Latest: ${new Date(backups[0].createdAt).toLocaleString()} (${Math.max(1, Math.round(backups[0].bytes / 1024))} KB)`
+              : 'No backup yet.'}
+          </p>
+          <button type="button" onClick={backUpNow}>Back up now</button>
+        </section>
 
         <button type="button" className="trainee-leave" onClick={() => onNavigate('/ios/modules')}>Back to the Trainer Console</button>
       </section>

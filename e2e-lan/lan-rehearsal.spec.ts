@@ -1,0 +1,190 @@
+import { expect, test } from '@playwright/test'
+import type { BrowserContext, Page } from '@playwright/test'
+import { findTrainingScenarioDefinition } from '../src/trainingScenarios'
+
+// LAN rehearsal against the production build on the bundled server: one trainer
+// and two trainees, each in their own browser profile (as on separate PCs),
+// running both exercises at once from sign-in to history. The on-site check with
+// real PCs is docs/lan-test-checklist.md.
+
+const PASSWORD = 'lan-rehearsal-1'
+const TRAINER = { name: 'Lan Trainer', username: 'lan.trainer' }
+const TRAINEES = [
+  { name: 'Amir Hassan', username: 'amir' },
+  { name: 'Bea Ong', username: 'bea' },
+]
+const TOKEN_KEY = 'occ.auth.token.v1'
+
+function watchErrors(context: BrowserContext, errors: string[]) {
+  const watch = (page: Page) => {
+    page.on('pageerror', (error) => errors.push(`${page.url()}: ${error.message}`))
+    page.on('console', (message) => {
+      if (message.type() === 'error') {
+        errors.push(`${page.url()}: ${message.text()}`)
+      }
+    })
+  }
+
+  context.pages().forEach(watch)
+  context.on('page', watch)
+}
+
+async function signIn(page: Page, username: string) {
+  await page.goto('/')
+  await page.getByLabel('Username').fill(username)
+  await page.getByLabel('Password').fill(PASSWORD)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+}
+
+test('one trainer and two trainees run separate exercises on the LAN build', async ({ browser, request }) => {
+  const errors: string[] = []
+
+  // The host is new: the first trainer is set up, then the trainees are added.
+  const setup = await request.post('/api/auth/setup', { data: { ...TRAINER, password: PASSWORD } })
+
+  expect(setup.status()).toBe(201)
+
+  const adminToken = (await setup.json() as { token: string }).token
+
+  for (const trainee of TRAINEES) {
+    const created = await request.post('/api/users', {
+      data: { ...trainee, password: PASSWORD, role: 'trainee' },
+      headers: { authorization: `Bearer ${adminToken}` },
+    })
+
+    expect(created.status()).toBe(201)
+  }
+
+  // Trainer PC: sign in, open Exercise 2.
+  const trainerPc = await browser.newContext()
+
+  watchErrors(trainerPc, errors)
+
+  const consolePage = await trainerPc.newPage()
+
+  await signIn(consolePage, TRAINER.username)
+  await expect(consolePage).toHaveURL(/\/ios\/modules$/)
+  await consolePage.getByRole('button', { name: 'Add Exercise 2' }).click()
+
+  const exercises = [1, 2].map((number) => consolePage.getByRole('region', { name: `Exercise ${number}` }))
+  const codes: string[] = []
+
+  for (const exercise of exercises) {
+    const code = exercise.locator('.trainer-console-code')
+
+    await expect(code).toHaveText(/^[A-Z2-9]{4}$/)
+    codes.push((await code.textContent())!.trim())
+  }
+
+  expect(codes[0]).not.toBe(codes[1])
+
+  // Trainee PCs: sign in, join with their exercise's code, open the three monitors.
+  const trainees = []
+
+  for (const [index, trainee] of TRAINEES.entries()) {
+    const pc = await browser.newContext()
+
+    watchErrors(pc, errors)
+
+    const lobby = await pc.newPage()
+
+    await signIn(lobby, trainee.username)
+    await expect(lobby).toHaveURL(/\/session\/join$/)
+    await lobby.getByLabel('Session code').fill(codes[index])
+    await lobby.getByRole('button', { name: 'Join session' }).click()
+    await expect(lobby.getByRole('status')).toContainText('Waiting for trainer')
+    await expect(lobby.locator('.trainee-facts')).toContainText(codes[index])
+
+    await lobby.getByRole('button', { name: 'Open my monitors' }).click()
+    await expect.poll(() => pc.pages().length).toBe(4)
+
+    const monitor = (route: string) => pc.pages().find((page) => page.url().includes(route))!
+
+    await expect.poll(() => Boolean(monitor('/screen/alarms') && monitor('/screen/line-map') && monitor('/screen/timetable'))).toBe(true)
+
+    const token = await lobby.evaluate((key) => window.localStorage.getItem(key), TOKEN_KEY)
+
+    trainees.push({ ...trainee, alarms: monitor('/screen/alarms'), lineMap: monitor('/screen/line-map'), lobby, pc, token: token! })
+    await expect(exercises[index].getByLabel('Session').getByText(trainee.name)).toBeVisible()
+  }
+
+  // The trainer loads the same incident into both exercises.
+  for (const exercise of exercises) {
+    await exercise.getByRole('radio', { name: /PSD Fault/ }).click()
+    await exercise.getByRole('button', { name: 'Load scenario', exact: true }).click()
+    await expect(exercise.getByRole('region', { name: 'Scenario status' }).getByText('RUNNING', { exact: true })).toBeVisible()
+  }
+
+  const definition = findTrainingScenarioDefinition('PSD_FAULT', 'PSD obstructed')
+
+  for (const trainee of trainees) {
+    await expect(trainee.lobby.getByRole('status')).toContainText('Exercise running')
+
+    // Each Line Map runs its own exercise's trains.
+    await expect(trainee.lineMap.locator('.line-map-dom-root')).toBeVisible()
+    await expect(trainee.lineMap.getByTestId('line-map-view-only')).toHaveCount(0)
+
+    // The incident alarm is acknowledged on Monitor 01 itself.
+    const incident = trainee.alarms.locator('.alarm-dom-row--data', { hasText: /PSD: [A-Z]{3} (NB|SB) Door 07 Obstructed/ })
+
+    await expect(incident).toHaveCount(1)
+    await incident.click()
+    await trainee.alarms.getByRole('button', { name: 'Ack. selection' }).click()
+    await expect(trainee.alarms.locator('.alarm-dom-status')).toContainText('Acknowledged selected alarm')
+
+    // The rest of the SOP as the trainee's commands (the monitors' own clicks are
+    // covered by npm run test:ui).
+    const headers = { authorization: `Bearer ${trainee.token}` }
+    const session = (await (await request.get('/api/session', { headers })).json()).session as {
+      activeScenario: { faultLocation: { station: string }; targetTrainId: string }
+    }
+    const trainId = session.activeScenario.targetTrainId
+    const send = async (command: Record<string, unknown>) => {
+      const response = await request.post('/api/session/commands', { data: { command, sourceId: 'lan-rehearsal' }, headers })
+
+      expect((await response.json() as { accepted: boolean }).accepted).toBe(true)
+    }
+
+    await send({ trainId, type: 'SELECT_TRAIN', view: 'menu' })
+    await send({ detail: 'Platform hold', trainId, type: 'TRAIN_HOLD' })
+
+    for (const messageId of definition.tasks.flatMap((task) => task.commsMessageIds ?? [])) {
+      await send({ request: { messageId, station: session.activeScenario.faultLocation.station, trainId }, type: 'LOG_CALL' })
+    }
+
+    await send({ command: 'DISPATCH', trainId, type: 'SCADA_TRAIN_COMMAND' })
+  }
+
+  // The console follows both exercises live; the trainer completes each.
+  for (const exercise of exercises) {
+    await expect(exercise.locator('.trainer-console-checklist .trainer-console-panel-head span')).toHaveText(/^7 of 8$/)
+    await exercise.getByRole('button', { name: 'Complete', exact: true }).click()
+    await expect(exercise.getByRole('region', { name: 'Scenario status' }).getByText('COMPLETE', { exact: true })).toBeVisible()
+  }
+
+  for (const trainee of trainees) {
+    await expect(trainee.lobby.getByRole('status')).toContainText('Exercise complete')
+  }
+
+  // Both runs are in the history under the right trainee.
+  await consolePage.getByRole('button', { name: 'History' }).click()
+
+  const runs = consolePage.locator('.history-runs')
+
+  for (const trainee of TRAINEES) {
+    await expect(runs.getByRole('button', { name: new RegExp(`Pass · 100%.*${trainee.name}`) })).toHaveCount(1)
+  }
+
+  // A trainee's progress shows only their own run.
+  await trainees[1].lobby.getByRole('button', { name: 'My progress' }).click()
+  await expect(trainees[1].lobby.getByRole('region', { name: 'Totals' })).toContainText('1 run on record')
+
+  // The admin makes a backup from the People page.
+  await consolePage.goto('/admin')
+  await consolePage.getByRole('button', { name: 'Back up now' }).click()
+  await expect(consolePage.getByText('Backup made.')).toBeVisible()
+  await expect(consolePage.getByTestId('latest-backup')).toContainText('Latest:')
+
+  await Promise.all([trainerPc.close(), ...trainees.map((trainee) => trainee.pc.close())])
+  expect(errors).toEqual([])
+})

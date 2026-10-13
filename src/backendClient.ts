@@ -60,6 +60,12 @@ export function getOccBackendBaseUrl() {
     return stripTrailingSlash(trimmed)
   }
 
+  // A production build is served by the training server itself (one port).
+  if (import.meta.env.PROD) {
+    return ''
+  }
+
+  // Development: the Vite app on its own port talks to the backend on 8787.
   if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
     const host = window.location.hostname || '127.0.0.1'
     return `${window.location.protocol}//${host}:${OCC_BACKEND_PORT}`

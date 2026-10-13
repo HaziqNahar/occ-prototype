@@ -13,6 +13,7 @@ import type { OccSessionState } from '../src/types'
 export type ActionLogKind =
   | 'account.created'
   | 'account.updated'
+  | 'backup.created'
   | 'command'
   | 'report.archived'
   | 'report.notes'
@@ -369,6 +370,11 @@ export class OccDatabase {
 
   deleteExpiredTokens() {
     this.db.prepare('delete from auth_tokens where expires_at <= ?').run(getIsoNow())
+  }
+
+  // A consistent copy of the whole database, safe while the server is running.
+  backupTo(file: string) {
+    this.db.exec(`vacuum into '${file.replace(/'/g, "''")}'`)
   }
 
   close() {

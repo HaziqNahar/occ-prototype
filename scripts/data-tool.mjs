@@ -1,5 +1,7 @@
-// Resets an account's password on the host PC (see server/resetPassword.ts).
-// Usage: npm.cmd run reset:password -- <username> <new password>
+// Host PC data tools (see server/dataTools.ts):
+//   npm.cmd run backup
+//   npm.cmd run restore -- <backup file>
+//   npm.cmd run reset:password -- <username> <new password>
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
@@ -14,9 +16,9 @@ const vite = await createServer({
 })
 
 try {
-  const { resetPassword } = await vite.ssrLoadModule('/server/resetPassword.ts')
+  const { runDataTool } = await vite.ssrLoadModule('/server/dataTools.ts')
 
-  console.log(await resetPassword(process.argv.slice(2)))
+  console.log(await runDataTool(process.argv.slice(2)))
 } catch (error) {
   console.error(error instanceof Error ? error.message : error)
   process.exitCode = 1

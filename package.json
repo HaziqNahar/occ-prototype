@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "backend": "node server/server.mjs",
     "backend:lan": "set OCC_BACKEND_HOST=0.0.0.0&& node server/server.mjs",
@@ -11,14 +14,19 @@
     "build": "tsc -b && vite build",
     "build:server": "vite build -c vite.server.config.ts",
     "start:server": "node dist-server/main.js",
+    "host:build": "npm run build && npm run build:server",
+    "host:start": "set OCC_BACKEND_HOST=0.0.0.0&& node dist-server/main.js",
     "lint": "eslint .",
     "audit:routes": "node scripts/audit-routes.mjs",
     "audit:timetable": "node scripts/audit-timetable-routes.mjs",
     "test": "node scripts/run-tests.mjs",
     "test:all": "npm test && npm run test:ui",
     "test:ui": "playwright test",
+    "test:lan": "playwright test -c playwright.lan.config.ts",
     "reset:runtime": "node scripts/reset-runtime-state.mjs",
-    "reset:password": "node scripts/reset-password.mjs",
+    "backup": "node scripts/data-tool.mjs backup",
+    "restore": "node scripts/data-tool.mjs restore",
+    "reset:password": "node scripts/data-tool.mjs reset-password",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { AuthService } from './auth'
+import { createBackup, listBackups } from './backup'
 import type { OccDatabase } from './database'
 import { getRunDetail, getTraineeProgress, listRuns } from './history'
 import { createId, readJsonBody, RequestError, sendJson, setCorsHeaders } from './http'
 import { getTransportEvents, recordTransportEvent } from './realtime'
 import { SessionStore } from './sessionStore'
 import type { ManagedSession } from './sessionStore'
+import { serveStatic } from './static'
 import type { PublicUser } from '../src/accounts'
 import type { SessionActor, SessionCommand } from '../src/session-commands/types'
 import type {
@@ -443,6 +445,16 @@ export function createRoutes(
       return
     }
 
+    // Everything outside /api is the app itself.
+    if (!url.pathname.startsWith('/api/')) {
+      if (!serveStatic(request, response, url.pathname)) {
+        response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+        response.end('Not found')
+      }
+
+      return
+    }
+
     try {
       const user = auth.authenticate(readToken(request, url))
 
@@ -460,6 +472,22 @@ export function createRoutes(
       }
 
       if (user && handleHistoryRoute(response, method, url, user)) {
+        return
+      }
+
+      // Database backups, for an admin trainer (the server also makes one daily).
+      if (url.pathname === '/api/admin/backups') {
+        requireAdmin(user)
+
+        if (method === 'POST') {
+          const backup = createBackup(db)
+
+          db.logAction({ actor: toActor(user!), detail: backup.name, kind: 'backup.created' })
+          sendJson(response, 201, { backup, backups: listBackups() })
+        } else {
+          sendJson(response, 200, { backups: listBackups() })
+        }
+
         return
       }
 
@@ -561,6 +589,10 @@ export function createRoutes(
       }
     } catch (error) {
       const statusCode = error instanceof RequestError ? error.statusCode : 500
+
+      if (statusCode === 500) {
+        console.error(`${new Date().toISOString()} ${method} ${url.pathname} failed:`, error)
+      }
 
       sendJson(response, statusCode, {
         error: statusCode === 500 ? 'server_error' : statusCode === 401 ? 'signed_out' : 'request_error',

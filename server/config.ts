@@ -15,5 +15,18 @@ export const DATABASE_FILE = path.join(DATA_DIR, 'occ-training.sqlite')
 export const LEGACY_SESSION_FILE = path.join(DATA_DIR, 'session.json')
 export const LEGACY_REPORTS_FILE = path.join(DATA_DIR, 'reports.ndjson')
 
+// The built app (npm run build). The LAN host serves it on the same port as the
+// API, so the PCs need one address and the firewall one port.
+export const STATIC_DIR = process.env.OCC_STATIC_DIR
+  ? path.resolve(process.env.OCC_STATIC_DIR)
+  : path.resolve(process.cwd(), 'dist')
+
+// Daily copies of the database; the newest BACKUP_KEEP are kept.
+export const BACKUP_DIR = process.env.OCC_BACKUP_DIR
+  ? path.resolve(process.env.OCC_BACKUP_DIR)
+  : path.join(DATA_DIR, 'backups')
+export const BACKUP_KEEP = Math.max(1, Number(process.env.OCC_BACKUP_KEEP ?? 14) || 14)
+export const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000
+
 export const MAX_TRANSPORT_EVENTS = 80
 export const SSE_HEARTBEAT_MS = 25_000

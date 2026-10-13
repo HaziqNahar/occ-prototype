@@ -16,17 +16,21 @@ npm.cmd run dev
 Keep the backend running in one terminal and the Vite app in another, then open
 `http://localhost:5173/`.
 
-### Across several PCs (trainer PC + trainee monitor PCs)
+### On the training LAN (host PC + trainer and trainee PCs)
 
-On the host PC:
+**[docs/lan-setup.md](docs/lan-setup.md)** is the install and start-up guide.
+In short, on the host PC:
 
 ```powershell
-npm.cmd run backend:lan
-npm.cmd run dev:lan
+npm.cmd ci
+npm.cmd run host:build
+scripts\start-occ-host.cmd
 ```
 
-Other PCs open `http://<host-ip>:5173/`. Each page talks to the backend on the
-same host at port 8787, so allow ports 5173 and 8787 through the host firewall.
+The host serves the app and the API on one port: the other PCs open
+`http://<host>:8787/`, and only port 8787 needs to be open in the firewall. The
+start script restarts the server if it stops. Before first real use, run the
+on-site rehearsal in [docs/lan-test-checklist.md](docs/lan-test-checklist.md).
 
 ### Accounts
 
@@ -167,12 +171,20 @@ session rules in `src/` with the app (see `docs/production-plan.md`). It runs at
 | `npm.cmd run backend` | Development: runs `server/main.ts` through Vite, no build step |
 | `npm.cmd run backend:lan` | Development, reachable from other PCs |
 | `npm.cmd run build:server` | Bundles the backend into `dist-server/main.js` |
-| `npm.cmd run start:server` | Runs the bundled backend (use this on the LAN host) |
+| `npm.cmd run start:server` | Runs the bundled backend on this PC only |
+| `npm.cmd run host:build` | Builds the app and the backend for the LAN host |
+| `npm.cmd run host:start` | Runs the LAN host: app and API on port 8787, reachable from other PCs |
+| `scripts\start-occ-host.cmd` | As `host:start`, builds first if needed and restarts the server if it stops |
+| `npm.cmd run backup` | Copies the database into `server/data/backups` |
+| `npm.cmd run restore -- <file>` | Puts a backup back (server stopped); keeps the replaced data |
+| `npm.cmd run reset:password -- <user> <password>` | Sets a password and switches the account on |
 
 Data is kept in one SQLite file, `server/data/occ-training.sqlite` (ignored by
 Git), using the SQLite built into Node 24: the sessions, an action log (every
 command with its sender and result, screen joins, new sessions, report
-archives) and archived reports. Train movement is not logged.
+archives) and archived reports. Train movement is not logged. The server copies
+the database daily into `server/data/backups` (newest 14 kept; `OCC_BACKUP_DIR`,
+`OCC_BACKUP_KEEP`).
 On first start it imports `session.json` / `reports.ndjson` from the old
 backend and renames them `*.migrated`. `npm.cmd run reset:runtime` deletes all
 backend data (stop the backend first).
@@ -200,6 +212,10 @@ backend data (stop the backend first).
 | `POST /api/class/assign` | Trainer: put a trainee in an exercise, `{ traineeId, sessionId }` |
 | `GET /api/history`, `GET /api/history/<run id>` | Past runs (`?trainee=` to filter), and one run with its checklist and actions. Trainees get their own only |
 | `GET /api/progress?trainee=<id>` | A trainee's progress (a trainee gets their own) |
+| `GET /api/admin/backups`, `POST /api/admin/backups` | Admin: list backups, make one now |
+
+Any other address is the app itself, served from `dist/` (`OCC_STATIC_DIR`); a
+production build talks to the server it was loaded from.
 | `GET /api/reports/latest` | Report summary of the current run, built by the server |
 | `GET /api/reports` | Archived reports |
 | `POST /api/reports` | Save trainer notes with the current run's report (the server scores it) |
@@ -225,6 +241,10 @@ npm.cmd run build:server
 - `npm.cmd run test:ui` runs the Playwright browser tests in `e2e/`. They start
   their own backend (port 8797) and app (port 5183), so they do not touch a
   running session.
+- `npm.cmd run test:lan` is the LAN rehearsal: it builds the production app,
+  runs the bundled server on port 8799 with fresh data, and takes one trainer
+  and two trainees (separate browser profiles) through both exercises, from
+  sign-in to history and a backup.
 
 ## Known Limits
 
