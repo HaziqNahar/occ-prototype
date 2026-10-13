@@ -46,6 +46,8 @@ export const scenarioTemplates: ScenarioTemplate[] = [
     duration: '07:00',
     expectedSteps: [
       'Select a live timetable train to withdraw',
+      'Alert CoC to play PA and DTC that the train is returning to depot',
+      'Close train doors & PSDs for train clear and receive Train Clear',
       'Set the route to the last-station hold path',
       'Declare SKG / SKGS in Arrival Time',
       'Apply Departure Time to move to the S608 hold',

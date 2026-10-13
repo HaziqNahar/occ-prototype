@@ -221,7 +221,8 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
   const score = scoreTrainingScenario(selected)
 
   assert.equal(score.completedTasks, 1)
-  assert.equal(score.score, 10)
+  // 10 of the 140 weight.
+  assert.equal(score.score, 7)
   assert.equal(score.taskResults.find((task) => task.id === 'select-withdrawal-train')?.complete, true)
   assert.equal(score.taskResults.find((task) => task.id === 'declare-depot-destination')?.complete, false)
   assert.equal(score.taskResults.find((task) => task.id === 'trigger-withdrawal-movement')?.complete, false)
@@ -344,6 +345,7 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
     trainId: '342',
     type: 'TRAIN_SELECTED',
   }).next
+  session = withWithdrawalSopSteps(session)
   session = applyTrainingScenarioRuntimeEvent(session, {
     routeLabel: 'Route R608_803',
     source: 'Monitor 02 Line Map',
@@ -745,11 +747,11 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
     )),
   }, 'TRAIN_WITHDRAWAL')
   const rejectedBeforeSelection = applyTrainingScenarioWorkflowAction(current, 'DECLARE_WITHDRAWAL_DESTINATION')
-  const selected = applyTrainingScenarioRuntimeEvent(current, {
+  const selected = withWithdrawalSopSteps(applyTrainingScenarioRuntimeEvent(current, {
     source: 'Monitor 02 Line Map',
     trainId: '342',
     type: 'TRAIN_SELECTED',
-  }).next
+  }).next)
   const routeSet = applyTrainingScenarioRuntimeEvent(selected, {
     routeLabel: 'Route R608_803',
     source: 'Monitor 02 Line Map',
@@ -1164,4 +1166,16 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
 
 function withCalls(session: ReturnType<typeof createInitialSession>, messageIds: readonly string[]) {
   return messageIds.reduce((current, messageId) => applyCommsRequest(current, { messageId }), session)
+}
+
+// The scheduled withdrawal SOP steps outside the line map: calls, and doors & PSDs closed for train clear.
+function withWithdrawalSopSteps(session: OccSessionState) {
+  const closed = completeTrainingScenarioDefinitionTask(
+    withCalls(session, ['coc-withdrawal-pa', 'dtc-withdrawal-return', 'driver-train-clear-received']),
+    'close-doors-scheduled-withdrawal',
+    'IOS Scenario Runtime',
+  )
+
+  assert.equal(closed.allowed, true, closed.next.scenarioNotice.text)
+  return closed.next
 }

@@ -153,6 +153,18 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
         monitor: 'Monitor 03 Timetable',
         weight: 10,
       },
+      // Scheduled withdrawal at the terminal station (NEL/OPS/TRA/OP/OCC/03.001.9, section 7.1).
+      callTask('coc-scheduled-withdrawal', 'Alert CoC to play PA on the withdrawal train', ['coc-withdrawal-pa'], { critical: true }),
+      {
+        critical: true,
+        evidenceKeywords: ['doors and psds closed for train clear'],
+        id: 'close-doors-scheduled-withdrawal',
+        label: 'Close all train doors & PSDs for train clear',
+        monitor: 'Trainer confirms',
+        weight: 10,
+      },
+      callTask('dtc-scheduled-withdrawal', 'Alert DTC: withdrawal train returning to depot', ['dtc-withdrawal-return'], { critical: true }),
+      callTask('train-clear-scheduled-withdrawal', 'Receive Train Clear from the driver before routing', ['driver-train-clear-received'], { critical: true }),
       {
         critical: true,
         evidenceKeywords: ['route'],

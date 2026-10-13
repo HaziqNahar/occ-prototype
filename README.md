@@ -108,6 +108,9 @@ The console's **Open monitors** opens an exercise's monitors on the trainer's PC
 - Train Loop & Shuttle Service follows the OCC actions in
   NEL/OPS/TRA/OP/DEG/14.001.46 (one incident per service pattern in section 7);
   it is line-wide, with no scenario train, and is scored on the calls logged.
+- Train Withdrawal adds the scheduled withdrawal steps from section 7.1 of
+  NEL/OPS/TRA/OP/OCC/03.001.9: CoC PA, DTC alert, doors and PSDs closed for
+  train clear (trainer confirms) and Train Clear received before routing.
 - Unscheduled Train Withdrawal follows section 7.2 of NEL/OPS/TRA/OP/OCC/03.001.9.
   Like a fault run, the train is placed and held at a random platform. Closing
   the train doors and PSDs for train clear is confirmed by the trainer.
