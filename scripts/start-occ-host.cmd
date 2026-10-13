@@ -3,8 +3,10 @@ rem Starts the OCC training server on this PC for the training LAN, and starts i
 rem again if it stops. Close this window to stop the server. See docs\lan-setup.md.
 cd /d "%~dp0.."
 
-if not exist "dist\index.html" goto build
-if not exist "dist-server\main.js" goto build
+rem Build when the app or server is missing or older than the simulator files,
+rem so the app and server never come from different versions.
+node scripts\needs-build.mjs
+if errorlevel 1 goto build
 goto start
 
 :build

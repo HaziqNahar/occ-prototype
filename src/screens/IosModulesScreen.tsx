@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { PublicUser } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
+import { AuthRequestError } from '../authClient'
 import { exerciseApi } from '../exerciseClient'
 import type { ExerciseSummary, TraineeAccount } from '../exerciseClient'
 import type { SessionActor } from '../session-commands/types'
@@ -28,15 +29,31 @@ function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token,
   const [exercises, setExercises] = useState<ExerciseSummary[] | null>(null)
   const [trainees, setTrainees] = useState<TraineeAccount[]>([])
   const [message, setMessage] = useState('')
+  // Why the exercise list could not be loaded; shown instead of an empty console.
+  const [loadError, setLoadError] = useState('')
 
   const refresh = useCallback(() => {
     if (!user) {
       return
     }
 
-    void exerciseApi.list().then((result) => setExercises(result.sessions)).catch(() => undefined)
+    void exerciseApi.list()
+      .then((result) => {
+        setExercises(result.sessions)
+        setLoadError('')
+      })
+      .catch((error: unknown) => {
+        if (error instanceof AuthRequestError && error.status === 401) {
+          onSignedOut()
+          return
+        }
+
+        setLoadError(error instanceof AuthRequestError
+          ? error.message
+          : 'Cannot reach the training server. Check that the server window on the host PC is open.')
+      })
     void exerciseApi.trainees().then((result) => setTrainees(result.trainees)).catch(() => undefined)
-  }, [user])
+  }, [onSignedOut, user])
 
   useEffect(() => {
     refresh()
@@ -90,6 +107,13 @@ function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token,
             : <button type="button" className="is-quiet" onClick={() => onNavigate('/')}>Exit</button>}
         </nav>
       </header>
+
+      {user && exercises === null && (
+        <section className="trainer-console-panel trainer-console-empty trainer-console-status-panel" role="status">
+          <strong>{loadError ? 'Training server not available' : 'Loading exercises…'}</strong>
+          {loadError && <span>{loadError} Retrying every few seconds.</span>}
+        </section>
+      )}
 
       <div className="trainer-console-exercises">
         {panels.map((exercise) => (

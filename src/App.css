@@ -13978,3 +13978,13 @@
     break-inside: avoid;
   }
 }
+
+/* Trainer Console before its exercises load, or while the server is unreachable. */
+.trainer-console-status-panel {
+  min-height: 220px;
+  padding: 24px;
+}
+
+.trainer-console-status-panel strong {
+  font-size: 18px;
+}
