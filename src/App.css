@@ -13897,3 +13897,84 @@
     grid-template-columns: 1fr;
   }
 }
+
+.history-export-row {
+  display: flex;
+  gap: 8px;
+}
+
+.history-export {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: var(--ink);
+  background: rgba(8, 18, 32, 0.8);
+  font-size: 12px;
+}
+
+.history-export:hover:not(:disabled) {
+  border-color: #60a5fa;
+}
+
+/* Run history and progress print as plain records (Print / PDF). */
+@media print {
+  body:has(.history-page),
+  body:has(.history-page) #root {
+    background: #ffffff;
+  }
+
+  .history-page {
+    min-height: auto;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  /* A record on paper: black on white throughout. */
+  .history-page,
+  .history-page * {
+    color: #000000 !important;
+  }
+
+  .history-page small,
+  .history-page .trainer-console-figures dt,
+  .history-page .trainer-console-figures em,
+  .history-page .people-table th {
+    color: #444444 !important;
+  }
+
+  .history-page .trainer-console-header,
+  .history-page .trainer-console-panel,
+  .history-page .trainer-console-status,
+  .history-page .trainer-console-tasks li,
+  .history-page .history-runs button {
+    border-color: #999999;
+    background: #ffffff;
+    box-shadow: none;
+  }
+
+  .history-page .trainer-console-header nav,
+  .history-page .history-export,
+  .history-page .history-export-row,
+  .history-page .history-choose,
+  .history-page .trainer-console-message {
+    display: none;
+  }
+
+  /* History prints the chosen run only. */
+  .history-page .history-grid:has(.history-detail h3) > .trainer-console-panel:first-child {
+    display: none;
+  }
+
+  .history-page .history-grid {
+    display: block;
+  }
+
+  .history-page .history-grid > .trainer-console-panel {
+    margin-bottom: 12px;
+  }
+
+  .history-page .trainer-console-tasks li,
+  .history-page .history-actions tr {
+    break-inside: avoid;
+  }
+}

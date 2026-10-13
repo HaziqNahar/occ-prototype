@@ -1,5 +1,6 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
-import type { APIRequestContext, BrowserContext, Page } from '@playwright/test'
+import type { APIRequestContext, BrowserContext, Download, Page } from '@playwright/test'
 
 const monitorRoutes = [
   { hasStationRibbon: true, root: '.scada-dom-root--alarms', route: '/screen/alarms' },
@@ -45,6 +46,12 @@ async function signInBrowser(context: BrowserContext, token: string) {
 
 async function getSession(page: Page) {
   return (await (await page.request.get('/api/session', { headers: trainerHeaders() })).json()).session
+}
+
+async function downloadText(page: Page, click: () => Promise<void>) {
+  const [download] = await Promise.all([page.waitForEvent('download'), click()]) as [Download, void]
+
+  return { name: download.suggestedFilename(), text: await readFile((await download.path())!, 'utf8') }
 }
 
 async function signInToken(request: APIRequestContext, username: string) {
@@ -398,6 +405,21 @@ test.describe.serial('OCC monitor regressions', () => {
 
     await expect(actions.getByRole('row', { name: /Aisyah \(trainee\).*Acknowledged alarms/ })).toBeVisible()
     await expect(actions.getByRole('row', { name: /Loaded the scenario/ })).toBeVisible()
+
+    // The run and the run list export as CSV for training records.
+    const runCsv = await downloadText(page, () => page.locator('.history-detail').getByRole('button', { name: 'Export CSV' }).click())
+
+    expect(runCsv.name).toMatch(/^occ-run-aisyah-\d{4}-\d{2}-\d{2}-PSD-Obstructed\.csv$/)
+    expect(runCsv.text.startsWith('\uFEFFRun,PSD Obstructed')).toBe(true)
+    expect(runCsv.text).toContain('Trainer notes,E2E history check')
+    expect(runCsv.text).toMatch(/Aisyah,trainee,Acknowledged alarms,.*,Done/)
+
+    const listCsv = await downloadText(page, () => page.locator('.history-runs').locator('..').getByRole('button', { name: 'Export CSV' }).click())
+
+    expect(listCsv.name).toMatch(/^occ-runs-all-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(listCsv.text).toContain('Date,Trainee,Scenario,Exercise')
+    expect(listCsv.text).toMatch(/Aisyah,PSD Obstructed,1,[A-Z2-9]{4},practice,NOT COMPLETED/)
+    await expect(page.getByRole('button', { name: 'Print / PDF' })).toBeVisible()
 
     // The trainee's own progress.
     const traineeContext = await browser.newContext()

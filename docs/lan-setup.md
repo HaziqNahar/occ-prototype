@@ -100,7 +100,8 @@ first.
 4. Watch the checklists; **Complete** each run, then open its **Report** to add
    notes.
 5. Afterwards: **History** shows every completed run with each action, and
-   **Progress** each trainee's record.
+   **Progress** each trainee's record. Both have **Export CSV** (opens in Excel)
+   and **Print / PDF** (choose *Save as PDF* in the print dialog) for training files.
 
 ## 7. Backups
 

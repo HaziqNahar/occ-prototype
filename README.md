@@ -63,8 +63,8 @@ npm.cmd run reset:password -- <username> <new password>
 | `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
 | `/report` | Trainer | Post-session report: score, checklist, timeline, evidence log, trainer notes. |
 | `/admin` | Admin trainer | **People**: add trainers and trainees, reset passwords, switch accounts off, make admins. |
-| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run with its score, checklist, trainer notes and, from the action log, each action with who did it and when. |
-| `/progress` | Trainer (trainee: own) | **Trainee progress**: runs, completed, passed, average score, and best / average / latest result per scenario. |
+| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run with its score, checklist, trainer notes and, from the action log, each action with who did it and when. **Export CSV** saves the run list or one run; **Print / PDF** prints the chosen run. |
+| `/progress` | Trainer (trainee: own) | **Trainee progress**: runs, completed, passed, average score, and best / average / latest result per scenario. **Export CSV** and **Print / PDF** for training records. |
 
 `/ios`, `/ios/scenarios` and `/ios/assessment` are old addresses; they open the
 Trainer Console.

@@ -8,7 +8,8 @@ import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
 import { describeAction } from '../history'
 import type { RunDetail, RunSummary } from '../history'
-import { formatResult, formatRunTime, historyApi } from '../historyClient'
+import { downloadCsv, formatResult, formatRunTime, historyApi } from '../historyClient'
+import { exportFileName, runsToCsv, runToCsv } from '../historyExport'
 import type { AppRoute } from '../types'
 
 type HistoryScreenProps = {
@@ -92,6 +93,14 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
           <div className="trainer-console-panel-head">
             <h2 id="history-runs-heading">Runs</h2>
             <span>{runs ? runs.length : '…'}</span>
+            <button
+              type="button"
+              className="history-export"
+              disabled={!runs?.length}
+              onClick={() => downloadCsv(exportFileName('occ-runs', isTrainer ? traineeId || 'all' : user.id, new Date().toISOString().slice(0, 10)), runsToCsv(runs ?? []))}
+            >
+              Export CSV
+            </button>
           </div>
           {isTrainer && (
             <label className="trainer-console-field">
@@ -147,6 +156,19 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
               <div className="trainer-console-panel-head">
                 <h2 id="history-detail-heading">{shownDetail.scenarioTitle}</h2>
                 <span>{formatRunTime(shownDetail.startedAt ?? shownDetail.completedAt)}</span>
+              </div>
+              <div className="history-export-row">
+                <button
+                  type="button"
+                  className="history-export"
+                  onClick={() => downloadCsv(
+                    exportFileName('occ-run', shownDetail.trainees.map((trainee) => trainee.id).join('-'), (shownDetail.startedAt ?? '').slice(0, 10), shownDetail.scenarioTitle),
+                    runToCsv(shownDetail),
+                  )}
+                >
+                  Export CSV
+                </button>
+                <button type="button" className="history-export" onClick={() => window.print()}>Print / PDF</button>
               </div>
               <dl className="trainer-console-figures">
                 <div><dt>Result</dt><dd>{formatResult(shownDetail.result)}</dd></div>

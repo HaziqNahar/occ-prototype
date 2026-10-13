@@ -7,7 +7,8 @@ import SelectField from '../components/SelectField'
 import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
 import type { TraineeProgress } from '../history'
-import { formatResult, formatRunTime, historyApi } from '../historyClient'
+import { downloadCsv, formatResult, formatRunTime, historyApi } from '../historyClient'
+import { exportFileName, progressToCsv } from '../historyExport'
 import type { AppRoute } from '../types'
 
 type ProgressScreenProps = {
@@ -69,6 +70,14 @@ function ProgressScreen({ onNavigate, user }: ProgressScreenProps) {
         </div>
         {error && <p className="trainer-console-message" role="alert">{error}</p>}
         <nav aria-label="Progress tools">
+          {shown && (
+            <>
+              <button type="button" onClick={() => downloadCsv(exportFileName('occ-progress', shown.trainee.id, new Date().toISOString().slice(0, 10)), progressToCsv(shown))}>
+                Export CSV
+              </button>
+              <button type="button" onClick={() => window.print()}>Print / PDF</button>
+            </>
+          )}
           <button type="button" onClick={() => onNavigate('/history', isTrainer && chosenId ? `?trainee=${encodeURIComponent(chosenId)}` : '')}>
             {isTrainer ? 'Run history' : 'My runs'}
           </button>
