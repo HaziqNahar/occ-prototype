@@ -7,7 +7,7 @@ import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
 import { getScenarioTaskOwner } from '../iosScenarioRoles'
 import { openOccMonitors } from '../occMonitors'
 import { scenarioTemplates } from '../scenarioLibrary'
-import type { SessionActor } from '../session-commands/types'
+import type { SessionActor, SessionCommand } from '../session-commands/types'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
 import {
   findTrainingScenarioDefinition,
@@ -67,7 +67,15 @@ function ExercisePanel({
   token,
   trainees,
 }: ExercisePanelProps) {
-  const { dispatch, session, synced } = useOccSession(getActor, token, onSignedOut, exercise?.id ?? null)
+  const { dispatch: dispatchCommand, session, synced } = useOccSession(getActor, token, onSignedOut, exercise?.id ?? null)
+  const [commandProblem, setCommandProblem] = useState('')
+  // Say when the server refused a command or could not be reached, rather than
+  // leaving the trainer to wonder why nothing happened.
+  const dispatch = (command: SessionCommand) => dispatchCommand(command).then((outcome) => {
+    setCommandProblem(outcome.accepted && !outcome.reason ? '' : outcome.reason ?? 'The training server did not accept that.')
+
+    return outcome
+  })
   const headingId = useId()
   const number = session.sessionMeta.exercise ?? exercise?.exercise ?? 1
   const activeDefinition = getTrainingScenarioDefinition(session.activeScenario.id)
@@ -245,6 +253,9 @@ function ExercisePanel({
         </div>
       </section>
 
+      {commandProblem && (
+        <p className="trainer-console-notice is-warning" role="alert">{commandProblem}</p>
+      )}
       {session.scenarioNotice.text && (
         <p className={`trainer-console-notice is-${session.scenarioNotice.tone}`} role="status">{session.scenarioNotice.text}</p>
       )}

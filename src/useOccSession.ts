@@ -238,7 +238,7 @@ export function useOccSession(
 
       const outcome = applyLocally(command, actor)
 
-      return { ...outcome, reason: outcome.reason ?? 'Backend unavailable: the change was kept in this window only.' }
+      return { ...outcome, reason: outcome.reason ?? 'Cannot reach the training server, so this was not saved. Check that the server window on the host PC is open, then try again.' }
     }
   }, [applyLocally, applySnapshot, applyUpdate, backendEnabled, render])
 
