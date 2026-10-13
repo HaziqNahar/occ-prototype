@@ -160,7 +160,8 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
         evidenceKeywords: ['doors and psds closed for train clear'],
         id: 'close-doors-scheduled-withdrawal',
         label: 'Close all train doors & PSDs for train clear',
-        monitor: 'Trainer confirms',
+        // IOS: the trainer confirms it on the console (no simulator command for it).
+        monitor: 'IOS',
         weight: 10,
       },
       callTask('dtc-scheduled-withdrawal', 'Alert DTC: withdrawal train returning to depot', ['dtc-withdrawal-return'], { critical: true }),
@@ -569,7 +570,8 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
         evidenceKeywords: ['doors and psds closed for train clear'],
         id: 'close-doors-unscheduled-withdrawal',
         label: 'Close all train doors & PSDs for train clear',
-        monitor: 'Trainer confirms',
+        // IOS: the trainer confirms it on the console (no simulator command for it).
+        monitor: 'IOS',
         weight: 10,
       },
       callTask('train-clear-unscheduled-withdrawal', 'Receive Train Clear from the driver', ['driver-train-clear-received'], { critical: true }),

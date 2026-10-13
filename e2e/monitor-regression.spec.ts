@@ -436,6 +436,114 @@ test.describe.serial('OCC monitor regressions', () => {
     expect(errors).toEqual([])
   })
 
+  test('a train loop & shuttle disruption is worked from the Calls panel', async ({ page }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+    await page.goto('/ios/modules')
+    await page.getByRole('radio', { name: /Train Loop & Shuttle Service/ }).click()
+    await page.getByRole('button', { name: 'Incident', exact: true }).click()
+    await page.getByRole('option', { name: 'Dual train loop with shuttle' }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+
+    const status = page.getByRole('region', { name: 'Scenario status' })
+
+    await expect(status.getByText('Dual train loop with shuttle', { exact: true })).toBeVisible()
+    await expect(status).toContainText('line-wide')
+    await expect(page.getByText(/CC has decided on: loops PGC – HGN and HBF – FRP; shuttle HGN – SER/).first()).toBeVisible()
+
+    // Line-wide: no scenario train, nothing held.
+    expect((await getSession(page)).activeScenario.targetTrainId).toBeUndefined()
+
+    // Each SOP call is made from the Calls dialog on the Line Map.
+    const calls = [
+      { channel: 'Radio', message: 'Train loop service and free regular & bridging bus service in operation', to: 'Radio - Broadcast to all Stations & Trains' },
+      { channel: 'Teleph.', message: 'Train loop service implemented: your station is an intermediate terminal', station: 'FRP', to: 'Teleph. - Station Staff (SM/ASM)' },
+      { channel: 'Teleph.', message: 'Prepare and record disruption PA for stations and trains', to: 'Teleph. - Communication Controller (CoC)' },
+      { channel: 'Teleph.', message: 'Prepare and record PA for stations and train on the shuttle service', to: 'Teleph. - Communication Controller (CoC)' },
+      { channel: 'Teleph.', message: 'Disseminate the Train Disruption Notice to all stations', to: 'Teleph. - Communication Controller (CoC)' },
+      { channel: 'Radio', message: 'CSOs to make local PA in the train every 4 minutes', to: 'Radio - Broadcast to all Stations & Trains' },
+    ]
+
+    await page.goto('/screen/line-map')
+
+    const callControls = page.getByLabel('Call controls')
+
+    for (const call of calls) {
+      await callControls.getByRole('button', { name: new RegExp(`^${call.channel.replace('.', '\\.')} \\d+$`) }).click()
+
+      const dialog = page.getByRole('dialog', { name: 'OCC communications' })
+      const field = (name: string) => dialog.locator('.comms-dialog-field', { has: page.getByText(name, { exact: true }) }).locator('select')
+
+      await field('Call to').selectOption({ label: call.to })
+
+      if (call.station) {
+        await field('Station').selectOption(call.station)
+      }
+
+      await field('Message').selectOption({ label: call.message })
+      await dialog.getByRole('button', { name: 'Send' }).click()
+      await expect(dialog.locator('output')).toHaveText(`Logged: ${call.message}`)
+      await dialog.getByRole('button', { name: 'Close' }).click()
+    }
+
+    // The checklist is done but for the review; the trainer completes it as a pass.
+    await page.goto('/ios/modules')
+    await expect(status).toContainText('6 / 7')
+    await status.getByRole('button', { name: 'Complete' }).click()
+    await expect(status.getByText('COMPLETE', { exact: true })).toBeVisible()
+    await expect(status).toContainText('100%')
+    expect(errors).toEqual([])
+  })
+
+  test('the trainer confirms doors & PSDs closed in an unscheduled withdrawal', async ({ page, request }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+    await page.goto('/ios/modules')
+    await page.getByRole('radio', { name: /Unscheduled Train Withdrawal/ }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+
+    const status = page.getByRole('region', { name: 'Scenario status' })
+
+    await expect(status.getByText('Unscheduled Train Withdrawal', { exact: true })).toBeVisible()
+
+    // The train CC chose is held at a platform, named in the notice.
+    const session = await getSession(page)
+    const trainId = session.activeScenario.targetTrainId as string
+    const { station, track } = session.activeScenario.faultLocation as { station: string; track: string }
+
+    expect(session.trains.find((train: { id: string }) => train.id === trainId)?.status).toBe('HOLD')
+    await expect(page.getByText(`CC has decided to withdraw Train ${trainId} at ${station} ${track}`).first()).toBeVisible()
+
+    // The trainee makes the SOP calls.
+    const traineeHeaders = { authorization: `Bearer ${await signInToken(request, TRAINEE.username)}` }
+
+    await request.post('/api/class/join', { data: { code: session.sessionMeta.code }, headers: traineeHeaders })
+
+    for (const messageId of ['driver-withdraw-train-clear', 'station-assist-train-clear', 'coc-withdrawal-pa', 'dtc-withdrawal-return', 'driver-train-clear-received']) {
+      const response = await request.post('/api/session/commands', {
+        data: { command: { request: { messageId, station, trainId }, type: 'LOG_CALL' }, sourceId: 'e2e' },
+        headers: traineeHeaders,
+      })
+
+      expect(response.ok()).toBeTruthy()
+    }
+
+    // Closing doors & PSDs has no simulator command: the trainer confirms it.
+    const doorsStep = page.locator('.trainer-console-tasks li', { hasText: 'Close all train doors & PSDs for train clear' })
+
+    await doorsStep.getByRole('button', { name: 'Confirm' }).click()
+    await expect(doorsStep).toHaveClass(/is-done/)
+    await expect(status).toContainText('6 / 10')
+
+    // Completing before the train is selected, routed and moved is refused.
+    await status.getByRole('button', { name: 'Complete' }).click()
+    await expect(page.getByText(/Cannot complete yet\. Open: Select affected train, Route the train to the designated destination, Move the train off the platform\./).first()).toBeVisible()
+    await expect(status.getByText('RUNNING', { exact: true })).toBeVisible()
+    expect(errors).toEqual([])
+  })
+
   test('without signing in, every page asks for a sign-in', async ({ browser }) => {
     const context = await browser.newContext()
     const page = await context.newPage()
