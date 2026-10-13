@@ -178,9 +178,10 @@ export function createMonitorEvent(
   }
 }
 
+// A new alarm is not acknowledged (Ack N) until the operator acknowledges it.
 export function createSummaryEvent(event: MonitorAlarmRow, tone: AlarmSummaryRow['tone'] = 'yellow'): AlarmSummaryRow {
   return {
-    ack: 'Y',
+    ack: 'N',
     avl: '',
     mms: 'S',
     timestamp: formatAlarmSummaryTimestamp(event.time),

@@ -188,15 +188,54 @@ export const alarmSummaryRows: AlarmSummaryRow[] = [
 ]
 
 // The reference OCC display reports the full alarm archive count while only
-// the current rows are rendered in the viewport. Keep that baseline visible
-// as new scenario rows are added to the local session.
+// the current rows are rendered in the viewport. Each alarm raised during the
+// session adds to that baseline.
 export const ALARM_SUMMARY_TOTAL = 63
+
+const baselineAlarmKeys = new Set(alarmSummaryRows.map((row) => `${row.timestamp}|${row.asset}|${row.description}`))
+
+function isSessionAlarm(row: AlarmSummaryRow) {
+  return !baselineAlarmKeys.has(`${row.timestamp}|${row.asset}|${row.description}`)
+}
 
 export function getAlarmSummaryCounts(rows: readonly AlarmSummaryRow[]) {
   return {
     notAcknowledged: rows.filter((row) => row.ack === 'N').length,
-    total: Math.max(ALARM_SUMMARY_TOTAL, rows.length),
+    total: ALARM_SUMMARY_TOTAL + rows.filter(isSessionAlarm).length,
   }
+}
+
+export type AlarmBannerRow = {
+  asset: string
+  description: string
+  mms: string
+  time: string
+  tone: 'grey' | 'orange' | 'red' | 'yellow'
+  value: string
+}
+
+// Alarms already on the display when the shift starts.
+const BASELINE_ALARM_BANNER_ROWS: AlarmBannerRow[] = [
+  { asset: 'EMU/008/TRN/XXXXXXX', description: 'Train 008: Train ITAMA Status', mms: 'S', time: '21/06 06:59:23', tone: 'yellow', value: 'NOT GRANTED' },
+  { asset: 'EMU/028/TRN/XXXXXXX', description: 'Train 028 Car 055: DT TCI Status', mms: 'S', time: '21/06 08:29:29', tone: 'orange', value: 'FAILURE' },
+  { asset: 'EMU/026/TRN/XXXXXXX', description: 'Train 026: TCI communication status through radio', mms: 'S', time: '21/06 08:55:58', tone: 'orange', value: 'FAILURE' },
+  { asset: 'EMU/032/TRN/XXXXXXX', description: 'Train 032 Car 063: DT Driving Console Cover Status', mms: 'S', time: '21/06 09:08:24', tone: 'orange', value: 'OPENED (ACTIVE)' },
+]
+
+const ALARM_BANNER_SIZE = 4
+
+// The header panel lists the latest alarms, oldest first, as the SCADA header does.
+export function getAlarmBannerRows(rows: readonly AlarmSummaryRow[]): AlarmBannerRow[] {
+  const sessionRows = rows.filter(isSessionAlarm).reverse().map((row) => ({
+    asset: row.asset,
+    description: row.description,
+    mms: row.mms,
+    time: row.timestamp.replace(/^(\d\d\/\d\d)\/\d\d /, '$1 '),
+    tone: row.tone,
+    value: row.value,
+  }))
+
+  return [...BASELINE_ALARM_BANNER_ROWS, ...sessionRows].slice(-ALARM_BANNER_SIZE)
 }
 
 const timetableRowsByName = new Map<NelTimetableName, TimetableRow[]>()

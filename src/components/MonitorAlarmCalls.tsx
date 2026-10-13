@@ -2,10 +2,12 @@ import { useState } from 'react'
 import alarmAckIcon from '../assets/alarm-icons/alarm_ack.png'
 import alarmDisplayIcon from '../assets/alarm-icons/alarm_display.png'
 import type { CommsChannel, CommsLogEntry } from '../comms/commsCatalog'
+import type { AlarmBannerRow } from '../sessionState'
 import { stationRibbonItems } from '../screens/line-map/model'
 import type { AppRoute } from '../types'
 
 type AlarmCallsHeaderDomProps = {
+  alarmBannerRows?: readonly AlarmBannerRow[]
   alarmNotAcknowledged?: number
   alarmTotal?: number
   callLog?: readonly CommsLogEntry[]
@@ -14,14 +16,8 @@ type AlarmCallsHeaderDomProps = {
   onNavigate: (route: AppRoute) => void
 }
 
-const ALARM_PREVIEW_ROWS = [
-  ['S', '21/06 06:59:23', 'EMU/008/TRN/XXXXXXX', 'Train 008: Train ITAMA Status', 'NOT GRANTED', 'yellow'],
-  ['S', '21/06 08:29:29', 'EMU/028/TRN/XXXXXXX', 'Train 028 Car 055: DT TCI Status', 'FAILURE', 'orange'],
-  ['S', '21/06 08:55:58', 'EMU/026/TRN/XXXXXXX', 'Train 026: TCI communication status through radio', 'FAILURE', 'orange'],
-  ['S', '21/06 09:08:24', 'EMU/032/TRN/XXXXXXX', 'Train 032 Car 063: DT Driving Console Cover Status', 'OPENED (ACTIVE)', 'orange'],
-] as const
-
 export function AlarmCallsHeaderDom({
+  alarmBannerRows = [],
   alarmNotAcknowledged = 0,
   alarmTotal = 0,
   callLog = [],
@@ -136,18 +132,18 @@ export function AlarmCallsHeaderDom({
             </a>
           </div>
           <div className="line-map-alarm-table">
-            {ALARM_PREVIEW_ROWS.map((row) => (
+            {alarmBannerRows.map((row) => (
               <button
-                className={`line-map-alarm-row line-map-alarm-row--${row[5]}`}
-                key={`${row[1]}-${row[2]}-${row[4]}`}
+                className={`line-map-alarm-row line-map-alarm-row--${row.tone}`}
+                key={`${row.time}-${row.asset}-${row.description}`}
                 onClick={() => onNavigate('/screen/alarms')}
                 type="button"
               >
-                <span>{row[0]}</span>
-                <span>{row[1]}</span>
-                <span>{row[2]}</span>
-                <span>{row[3]}</span>
-                <span>{row[4]}</span>
+                <span>{row.mms}</span>
+                <span>{row.time}</span>
+                <span>{row.asset}</span>
+                <span>{row.description}</span>
+                <span>{row.value}</span>
               </button>
             ))}
           </div>

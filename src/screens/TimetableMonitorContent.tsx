@@ -8,6 +8,12 @@ import { isTimetableTripAction } from '../session-commands/monitorCommands'
 import { formatTimetableClockTime, getTimetableClockNow } from '../timetableClockState'
 import { getActiveTimetableView, getTimetableStationOptions, getTimetableViewRows } from '../timetableViewState'
 import type { MonitorScreenProps } from './monitorScreenTypes'
+
+// The SCADA timetable shows two-digit fields: 5:32:45 as 05:32:45, 0:35 as 00:35.
+function padClock(value: string) {
+  return value ? value.split(':').map((part) => part.padStart(2, '0')).join(':') : ''
+}
+
 export default function TimetableMonitorContent({
   onNavigate,
   session,
@@ -206,6 +212,7 @@ export default function TimetableMonitorContent({
         </div>
         <div className="timetable-dom-table" onScroll={updateTimetableScroll} ref={tableRef} role="table">
           <div className="timetable-dom-row timetable-dom-row--head" role="row">
+            <span>Stat.</span>
             <span>Train<br />#</span>
             <span>Sched.<br />#</span>
             <span>Point</span>
@@ -233,21 +240,22 @@ export default function TimetableMonitorContent({
               role="row"
               type="button"
             >
+              <span>{row.state}</span>
               <span>{row.train}</span>
               <span>{row.sched}</span>
               <span>{row.originPoint}</span>
-              <span>{row.originTime}</span>
+              <span>{padClock(row.originTime)}</span>
               <span>-</span>
               <span>{row.stationPoint}</span>
-              <span>{row.stationTime}</span>
-              <span>{row.dwell}</span>
-              <span>{row.run}</span>
+              <span>{padClock(row.stationTime)}</span>
+              <span>{padClock(row.dwell)}</span>
+              <span>{padClock(row.runTime ?? '')}</span>
               <span>{row.destinationPoint}</span>
-              <span>{row.destinationTime}</span>
+              <span>{padClock(row.destinationTime)}</span>
               <span>-</span>
               <span>{row.revision}</span>
               <span>{row.speed}</span>
-              <span />
+              <span>{row.minDwell}</span>
               <span />
             </button>
           ))}

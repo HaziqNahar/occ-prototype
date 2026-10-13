@@ -8604,7 +8604,7 @@
 }
 
 .scada-dom-root--timetable .timetable-dom-row {
-  grid-template-columns: 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
+  grid-template-columns: 34px 42px 50px 46px 70px 170px 52px 70px 50px 50px 54px 72px 172px 44px 48px 58px 106px;
   width: 1188px;
 }
 
@@ -8630,10 +8630,11 @@
 
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(13),
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(3),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16) {
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16),
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(17) {
   justify-content: center;
   text-align: center;
 }
@@ -8657,10 +8658,11 @@
 
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(13),
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(3),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16) {
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16),
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(17) {
   text-align: center;
 }
 
@@ -9059,7 +9061,7 @@
 }
 
 .scada-dom-root--timetable .timetable-dom-row {
-  grid-template-columns: 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
+  grid-template-columns: 34px 42px 50px 46px 70px 170px 52px 70px 50px 50px 54px 72px 172px 44px 48px 58px 106px;
   width: 1188px;
 }
 
@@ -9087,10 +9089,11 @@
 
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(13),
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(3),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16) {
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(16),
+.scada-dom-root--timetable .timetable-dom-row--head > span:nth-child(17) {
   justify-content: center;
   text-align: center;
 }
@@ -9115,10 +9118,11 @@
 
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(1),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(2),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(13),
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(3),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(14),
 .scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(15),
-.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16) {
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(16),
+.scada-dom-root--timetable .timetable-dom-row--data > span:nth-child(17) {
   text-align: center;
 }
 
@@ -9592,19 +9596,19 @@
 
 /* Group brackets start at each group's Point column. */
 .scada-dom-root--timetable .timetable-dom-headings .origin {
-  left: 92px;
-  width: 302px;
+  left: 126px;
+  width: 286px;
 }
 
 .scada-dom-root--timetable .timetable-dom-headings .selected {
-  left: 394px;
+  left: 412px;
   width: 222px;
   letter-spacing: 5px;
 }
 
 .scada-dom-root--timetable .timetable-dom-headings .destination {
-  left: 616px;
-  width: 316px;
+  left: 634px;
+  width: 298px;
 }
 
 .scada-dom-root--timetable .timetable-dom-table {
@@ -9620,7 +9624,7 @@
 }
 
 .scada-dom-root--timetable .timetable-dom-row {
-  grid-template-columns: 42px 50px 46px 70px 186px 52px 70px 50px 50px 54px 72px 190px 44px 48px 58px 106px;
+  grid-template-columns: 34px 42px 50px 46px 70px 170px 52px 70px 50px 50px 54px 72px 172px 44px 48px 58px 106px;
   width: 1188px;
 }
 
@@ -10545,6 +10549,10 @@
 
 .line-map-alarm-row--yellow {
   background: #ffff00;
+}
+
+.line-map-alarm-row--grey {
+  background: #c0c0c0;
 }
 
 .line-map-station-ribbon {

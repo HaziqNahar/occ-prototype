@@ -4,7 +4,7 @@ import {
   acknowledgesScenarioAlarm,
   isScenarioAlarmPending,
 } from '../../src/alarmAcknowledgement'
-import { createInitialSession } from '../../src/sessionState'
+import { ALARM_SUMMARY_TOTAL, createInitialSession, getAlarmBannerRows, getAlarmSummaryCounts } from '../../src/sessionState'
 import { createTrainingScenarioStartSession } from '../../src/trainingScenarios'
 import { applySessionCommand } from '../../src/session-commands/applySessionCommand'
 import { getAlarmRowKey } from '../../src/session-commands/types'
@@ -59,4 +59,23 @@ assert.equal(acknowledgesScenarioAlarm(createInitialSession().alarmSummaryRows, 
   assert.equal(incident.accepted, true)
   assert.equal(incident.session.scenarioTasks.ackAlarm, true)
   assert.equal(isScenarioAlarmPending(incident.session.alarmSummaryRows), false)
+}
+
+// New alarms arrive unacknowledged (Ack N), add to the total and show in the
+// header panel, newest last; acknowledging them clears the count.
+{
+  const baseline = createInitialSession().alarmSummaryRows
+
+  assert.deepEqual(getAlarmSummaryCounts(baseline), { notAcknowledged: 0, total: ALARM_SUMMARY_TOTAL })
+  assert.equal(getAlarmBannerRows(baseline).length, 4)
+  assert.equal(rows[faultIndex].ack, 'N')
+  assert.deepEqual(getAlarmSummaryCounts(rows), { notAcknowledged: 2, total: ALARM_SUMMARY_TOTAL + 2 })
+
+  const banner = getAlarmBannerRows(rows)
+
+  assert.equal(banner.length, 4)
+  assert.equal(banner[3].description, rows[0].description)
+  assert.equal(banner[2].description, rows[1].description)
+  assert.match(banner[3].time, /^\d\d\/\d\d \d\d:\d\d:\d\d$/)
+  assert.equal(getAlarmSummaryCounts(acknowledgeAlarmRows(rows, new Set(rows.map((_, index) => index)))).notAcknowledged, 0)
 }

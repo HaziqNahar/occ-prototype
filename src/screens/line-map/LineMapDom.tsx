@@ -9,6 +9,7 @@ import type {
 } from 'react'
 import ScadaFooter from '../../components/ScadaFooter'
 import { AlarmCallsHeaderDom, StationRibbon } from '../../components/MonitorAlarmCalls'
+import type { AlarmBannerRow } from '../../sessionState'
 import Win98HtmlButton from '../../components/train-control/Win98HtmlButton'
 import usePopupDrag from '../../components/train-control/usePopupDrag'
 import {
@@ -87,6 +88,7 @@ const TRACK_Y_BY_SECTION = [
   { start: MAP_SECTION_OFFSETS.section04, upper: MAIN_UPPER_TRACK_Y, lower: MAIN_LOWER_TRACK_Y },
 ] as const
 type LineMapMonitorDomProps = {
+  alarmBannerRows: readonly AlarmBannerRow[]
   alarmNotAcknowledged: number
   alarmTotal: number
   callLog?: readonly CommsLogEntry[]
@@ -379,6 +381,7 @@ function getAnnotationTop(annotation: SchematicAnnotation) {
 }
 
 export default function LineMapMonitorDom({
+  alarmBannerRows,
   alarmNotAcknowledged,
   alarmTotal,
   callLog,
@@ -494,6 +497,7 @@ export default function LineMapMonitorDom({
     >
       <div className="line-map-coordinate-surface">
         <LineMapHeaderDom
+          alarmBannerRows={alarmBannerRows}
           alarmNotAcknowledged={alarmNotAcknowledged}
           alarmTotal={alarmTotal}
           callLog={callLog}
@@ -549,12 +553,14 @@ export default function LineMapMonitorDom({
 }
 
 function LineMapHeaderDom({
+  alarmBannerRows,
   alarmNotAcknowledged,
   alarmTotal,
   callLog,
   onNavigate,
   onOpenComms,
 }: {
+  alarmBannerRows: readonly AlarmBannerRow[]
   alarmNotAcknowledged: number
   alarmTotal: number
   callLog?: readonly CommsLogEntry[]
@@ -564,6 +570,7 @@ function LineMapHeaderDom({
   return (
     <header className="line-map-header-dom">
       <AlarmCallsHeaderDom
+        alarmBannerRows={alarmBannerRows}
         alarmNotAcknowledged={alarmNotAcknowledged}
         alarmTotal={alarmTotal}
         callLog={callLog}

@@ -116,10 +116,13 @@ export type TimetableRow = {
   stationTime: string
   dwell: string
   run: string
+  // Run time from the selected station to the next one, m:ss.
+  runTime?: string
   destinationPoint: string
   destinationTime: string
   revision: string
   speed: string
+  minDwell?: string
   selected?: boolean
 }
 

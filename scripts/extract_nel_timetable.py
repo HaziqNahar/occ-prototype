@@ -152,10 +152,13 @@ def get_station_call(events: list[dict[str, Any]], station: str) -> dict[str, st
     calls = [event for event in events if event["station"] == station]
 
     if not calls:
-        return {"point": "", "time": "", "arrive": "", "depart": "", "dwell": ""}
+        return {"point": "", "time": "", "arrive": "", "depart": "", "dwell": "", "runTime": ""}
 
     arrive = next((event["time"] for event in calls if event["kind"] == "arrive"), calls[0]["time"])
     depart = next((event["time"] for event in calls if event["kind"] == "depart"), arrive)
+    # Run time: from leaving this station to reaching the next one.
+    last_call_index = events.index(calls[-1])
+    next_call = next((event for event in events[last_call_index + 1:] if event["station"] != station), None)
 
     return {
         "point": station,
@@ -163,6 +166,7 @@ def get_station_call(events: list[dict[str, Any]], station: str) -> dict[str, st
         "arrive": arrive,
         "depart": depart,
         "dwell": get_time_delta(arrive, depart),
+        "runTime": get_time_delta(depart, next_call["time"]) if next_call else "",
     }
 
 
@@ -214,6 +218,7 @@ def get_compact_services(data: dict[str, Any], selected_station: str) -> list[di
             "originTime": origin["time"],
             "page": service["page"],
             "run": service["direction"],
+            "runTime": selected["runTime"],
             "scheduleNo": service["scheduleNo"],
             "selectedStation": selected_station,
             "stationPoint": selected_point,
@@ -240,6 +245,8 @@ def write_compact_ts(data: dict[str, Any], output: Path, selected_station: str) 
             "  originTime: string",
             "  page: number",
             "  run: 'NB' | 'SB'",
+            "  // Run time from the selected station to the next one, m:ss.",
+            "  runTime?: string",
             "  scheduleNo: string",
             "  selectedStation: string",
             "  serviceNo: string",

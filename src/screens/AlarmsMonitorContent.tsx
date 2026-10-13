@@ -6,7 +6,7 @@ import { ScadaDomButton } from '../components/LegacyScadaFooter'
 import ScadaDomSurface from '../components/ScadaDomSurface'
 import ScadaFooter from '../components/ScadaFooter'
 import { AlarmCallsHeaderDom, StationRibbon } from '../components/MonitorAlarmCalls'
-import { getAlarmSummaryCounts } from '../sessionState'
+import { getAlarmBannerRows, getAlarmSummaryCounts } from '../sessionState'
 import { getAlarmRowKey } from '../session-commands/types'
 import type { AlarmSummaryRow } from '../types'
 import type { MonitorScreenProps } from './monitorScreenTypes'
@@ -110,6 +110,7 @@ export default function AlarmsMonitorContent({
       title={`${activeTab} | ${statusNote} | ${selectedRow ? selectedRow.asset : 'No live alarm selected'} | ${notAcknowledged} pending`}
     >
       <AlarmCallsHeaderDom
+        alarmBannerRows={getAlarmBannerRows(rows)}
         alarmNotAcknowledged={notAcknowledged}
         alarmTotal={alarmTotal}
         callLog={callLog}

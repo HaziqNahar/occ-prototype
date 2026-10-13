@@ -107,6 +107,7 @@ import type { PublicUser } from './accounts'
 import type { SessionActor } from './session-commands/types'
 import type { MonitorLaunchRequest, ScreenRegistration } from './sessionClient'
 import {
+  getAlarmBannerRows,
   getAlarmSummaryCounts,
   getTimetablePlaybackTrainIdSet,
 } from './sessionState'
@@ -1962,6 +1963,7 @@ function MonitorCanvas({
         </div>
       )}
       <LineMapMonitorDom
+        alarmBannerRows={getAlarmBannerRows(session.alarmSummaryRows)}
         alarmNotAcknowledged={alarmNotAcknowledged}
         alarmTotal={alarmTotal}
         callLog={callLog}
