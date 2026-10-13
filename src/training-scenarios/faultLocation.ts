@@ -9,6 +9,9 @@ export type FaultLocation = {
   trainId: string
 }
 
+// Fault scenarios happen in the training area, Sengkang to Punggol.
+export const FAULT_STATIONS = ['SKG', 'PGL', 'PGC'] as const
+
 // Train 317 already sits at BGK northbound on the line map; used when no location is chosen.
 export const DEFAULT_FAULT_LOCATION: FaultLocation = { station: 'BGK', track: 'NB', trainId: '317' }
 
@@ -35,7 +38,7 @@ export function pickRandomFaultLocation(session: OccSessionState, random: () => 
   const train = pick(idleTrains.length > 0 ? idleTrains : session.trains)
 
   return {
-    station: pick(platformData).code,
+    station: pick(FAULT_STATIONS),
     track: random() < 0.5 ? 'NB' : 'SB',
     trainId: train?.id ?? DEFAULT_FAULT_LOCATION.trainId,
   }

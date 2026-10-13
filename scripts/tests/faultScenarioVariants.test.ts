@@ -8,6 +8,7 @@ import {
   DEFAULT_FAULT_LOCATION,
   applyTrainingScenarioRuntimeEvent,
   createTrainingScenarioStartSession,
+  FAULT_STATIONS,
   pickRandomFaultLocation,
   resolveFaultText,
   findTrainingScenarioDefinition,
@@ -180,7 +181,7 @@ assert.equal(createTrainingScenarioStartSession(createInitialSession(), 'DOOR_FA
   assert.equal(session.trains.find((train) => train.id === '317')?.doorFailureState, undefined)
 }
 
-// Random locations use real stations, both bounds and trains from the roster.
+// Random locations are SKG-PGC stations, both bounds and trains from the roster.
 {
   const session = createInitialSession()
   const values = [0, 0.99, 0.5, 0.2, 0.7, 0.4]
@@ -191,11 +192,12 @@ assert.equal(createTrainingScenarioStartSession(createInitialSession(), 'DOOR_FA
 
   picks.forEach((pick) => {
     assert.equal(trainIds.has(pick.trainId), true)
-    assert.match(pick.station, /^[A-Z]{3}$/)
+    assert.ok((FAULT_STATIONS as readonly string[]).includes(pick.station))
     assert.ok(pick.track === 'NB' || pick.track === 'SB')
   })
   assert.equal(new Set(picks.map((pick) => pick.track)).size, 2)
-  assert.ok(new Set(picks.map((pick) => pick.station)).size > 1)
+  assert.equal(pickRandomFaultLocation(session, () => 0).station, 'SKG')
+  assert.equal(pickRandomFaultLocation(session, () => 0.99).station, 'PGC')
   // Trains already running on the map are avoided.
   const busy = { ...session, trains: session.trains.map((train) => ({ ...train, lineMapVisible: train.id !== '350' })) }
   assert.equal(pickRandomFaultLocation(busy, () => 0.3).trainId, '350')

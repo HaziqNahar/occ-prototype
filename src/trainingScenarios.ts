@@ -35,6 +35,7 @@ import {
 import type { FaultLocation } from './training-scenarios/faultLocation'
 export {
   DEFAULT_FAULT_LOCATION,
+  FAULT_STATIONS,
   pickRandomFaultLocation,
   resolveFaultText,
 } from './training-scenarios/faultLocation'

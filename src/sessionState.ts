@@ -562,6 +562,36 @@ function createInitialTrainStates(timetableName: NelTimetableName = DEFAULT_NEL_
   })
 }
 
+// A new run on the same timetable starts clean: the previous run's train goes
+// back to where it normally is, its timetable trip returns to the plan, and the
+// alarm list starts from the shift's opening alarms, so an old incident alarm
+// can neither confuse the trainee nor be acknowledged for credit.
+export function clearPreviousScenarioRun(session: OccSessionState): OccSessionState {
+  const previousTrainId = session.activeScenario.targetTrainId
+  const baselineTrain = previousTrainId
+    ? createInitialTrainStates(session.timetableName).find((train) => train.id === previousTrainId)
+    : undefined
+  const plannedRows = getTimetableRows(session.timetableName)
+
+  return {
+    ...session,
+    alarmSummaryRows,
+    eventRows: alarmRows,
+    timetableRows: session.timetableRows.flatMap((row) => {
+      if (row.train !== previousTrainId) {
+        return [row]
+      }
+
+      const planned = plannedRows.find((item) => item.train === row.train && item.sched === row.sched)
+
+      return planned ? [planned] : []
+    }),
+    trains: baselineTrain
+      ? session.trains.map((train) => (train.id === previousTrainId ? baselineTrain : train))
+      : session.trains,
+  }
+}
+
 export function createInitialSession(
   trainingMode: TrainingMode = 'PRACTICE',
   timetableName: NelTimetableName = DEFAULT_NEL_TIMETABLE_NAME,

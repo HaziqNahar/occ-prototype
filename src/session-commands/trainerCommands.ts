@@ -3,7 +3,7 @@ import { normalizeNelTimetableName } from '../data/nelTimetable'
 import type { NelTimetableName } from '../data/nelTimetable'
 import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import { createSummaryEvent, formatScenarioTime } from '../scenarioWorkflow'
-import { createResetSessionState, updateSessionLifecycle } from '../sessionState'
+import { clearPreviousScenarioRun, createResetSessionState, updateSessionLifecycle } from '../sessionState'
 import {
   applyTrainingScenarioRuntimeEvent,
   applyTrainingScenarioTrainSelection,
@@ -104,7 +104,7 @@ export function loadScenario(
   const definition = findTrainingScenarioDefinition(options.kind, options.incident)
   // A different timetable changes the train roster, so start from a clean session.
   const base = loaded.timetableName === timetableName
-    ? loaded
+    ? clearPreviousScenarioRun(loaded)
     : keepSessionPeople(
         createResetSessionState(options.trainingMode, Date.now(), (loaded.scenarioRevision ?? 0) + 1, timetableName),
         loaded,
