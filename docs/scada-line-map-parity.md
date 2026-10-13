@@ -1,73 +1,135 @@
-# SCADA Line Map Parity Checklist
+# SCADA Monitor Parity Checklist
 
-This checklist keeps the prototype aligned with the SBS Transit OCC monitor references. The goal is not a modern redesign; it is a functional recreation of the observed SCADA screens.
+This checklist keeps the simulator's three trainee monitors (Alarms, Line Map,
+Timetable) aligned with the SBS Transit OCC monitor references. The goal is a
+functional recreation of the real SCADA screens, not a modern redesign.
+
+Last audited: 13 Oct 2026, against the current build (screenshots of each
+monitor at 1275 x 1019, with no scenario and with Train Door Fault loaded).
 
 ## Reference Files
 
-| Reference | Native size | Coverage | Prototype status |
-| --- | ---: | --- | --- |
-| `Line 01 (HBF to LTI).png` | 1275 x 1015 | HBF, OTP, CNT, CQY, DBG, LTI | Partial |
-| `Line 02 (LTI to SER).png` | 1279 x 1019 | LTI, FRP, BNK, PTP, WLH, SER | Partial |
-| `Line 03 (SER to SKG).png` | 1275 x 1019 | SER, KVN, HGN, BGK, SKG | Active baseline |
-| `Line 04 (SKG to PGC).png` | 1279 x 1017 | SKG, PGL, PGC, OCC depot | Partial |
-| `20260226_102707.jpg` | photo reference | ITAMA popup / Win98 dialog style | Partial |
+The reference screenshots are controlled material and are not stored in this
+repository.
 
-## Global SCADA Frame
+| Reference | Shows |
+| --- | --- |
+| `Full Screen - GWS Traffic Schematic.JPG` | Whole line HBF to PGC on one wide screen, in normal service |
+| `Full Screen - GWS View Setting.JPG` | The three monitors side by side: Timetable, Line Map, Alarms |
+| `Screenshot 1.png` | Traffic current time table with the deviation graphs |
+| `Screenshot 2.png` | Line Map, HBF to LTI, with the Calls panel |
+| `Screenshot 3.png` | Alarm summary display, with the Alarms panel |
+| `Screenshot 4-6.png` | Further captures from the same session |
+| `Line 01-04 (... ).png`, `20260226_102707.jpg` | Earlier per-section traces and the ITAMA dialog photo |
 
-| Area | Required details | Status |
-| --- | --- | --- |
-| Canvas size | Use approximately 1275 x 1019 monitor space | Done |
-| Live monitor surface | Use hand-built SCADA SVG elements instead of screenshot-backed UI | Done |
-| Interaction zones | Keep real SVG train, toolbar, command stack, and control hotspots under/over the traced SCADA visual layer | Done prototype-level |
-| Reference assets | Generate vector SVG traces from Line 01-04 screenshots; do not render PNG screenshot slices in the live app | Done |
-| Window chrome | Blue title bar, grey menu row, status row | Partial |
-| Top vertical tabs | `Alarms`, `Calls` | Done |
-| Top alarm state | `Not Ack`, `Total`, alarm rows, scrollbar, `Display` icon button | Partial |
-| Top calls state | `P E C`, `RATIS`, `Teleph.`, `Radio`, `Author.`, `P C P`, large grey message pane | Partial |
-| Station ribbon | Blue station dots, station codes, `O C C DEPOT`, `OVERALL` | Partial |
-| Bottom toolbar | Layout/Command/Power/ECS/Traffic/Coms/Utility/Admin with icons | Partial |
-| Bottom mode buttons | Point No., Track No., FB No., Signal No., Train, NorthBound, SouthBound | Partial |
-| Bottom utility icons | Pan/select, zoom, page/window, system command, note, print, terminal, help | Partial |
+## Score
 
-## Line Map Schematic
+Status values: **Done** (matches the reference), **Partial** (present but
+different or incomplete), **Missing** (not there, or wrong).
 
-| Area | Required details | Status |
-| --- | --- | --- |
-| Four horizontal segments | Four full 1275px vector-traced SVG panels for Line 01-04, with no screenshot seams | In progress |
-| Tracks | Main NB/SB tracks with explicit white/red/yellow block data instead of generated/random repeats | In progress |
-| Signals | Signal heads, labels, sub-labels, red/white state | Partial |
-| Points | P labels, crossover geometry, turnback routes, and junction geometry | In progress |
-| Platforms | Station blocks with PSD/PH/SPKS/CD/ESB/ESP labels | Partial |
-| Command stacks | ROUTE/OCCA, DISPATCH/OCCA, HII/ISCS | Done visually, partial behavior |
-| Trains | Train number markers and direction triangles, including the main reference train IDs | In progress |
-| Yard/depot | BGK/SKG/PGC sidings and depot connectors drawn as vector geometry | In progress |
-| Scroll behavior | Horizontal pan controls, draggable map, keyboard pan, and direct wheel/trackpad pan across traced panels | Done prototype-level |
+| Monitor | Done | Partial | Missing | Items |
+| --- | ---: | ---: | ---: | ---: |
+| Shared frame (header, ribbon, footer) | 8 | 4 | 0 | 12 |
+| Line Map | 10 | 4 | 0 | 14 |
+| Alarms | 1 | 1 | 2 | 4 |
+| Timetable | 1 | 1 | 3 | 5 |
+| **Total** | **20** | **10** | **5** | **35** |
+
+Fidelity by item: (20 + 10 x 0.5) / 35 = **about 70%**. The layout and drawing
+of every screen are close to the references; most of the gap is what the
+screens show while running (trains, alarm state, timetable columns). In live use
+the Line Map looks emptier than 70% suggests, because of the train coverage gap
+(Line Map item 9).
+
+## Shared Frame
+
+| # | Area | Reference | Status | Notes |
+| ---: | --- | --- | --- | --- |
+| 1 | Canvas size | About 1275 x 1019 per monitor | Done | |
+| 2 | Live surface | Hand-built SVG/DOM, no screenshot slices | Done | |
+| 3 | Window chrome | The references are full screen: no title bar, menu row or status row | Partial | Our blue title bar, menu row and "SCADA window ready" row use about 70 px of height. Hide them in full screen (F11). |
+| 4 | `Alarms` / `Calls` side tabs | Vertical tabs at top left | Done | |
+| 5 | Header alarm panel | `Not Ack`, `Total`, the newest unacknowledged alarms, `Display` | Partial | The rows are fixed sample rows; a scenario alarm never appears here. `Not Ack` stays 0 (see Alarms item 2). |
+| 6 | Header calls panel | `P E C 0`, `RATIS 0`, `Telepn. 0` (greyed), `Radio 0`, `Author. 0`, `P C P 0`, message pane | Partial | Labels read `PECO` and `RATS 0`, and the greyed button is RATS rather than Telepn. |
+| 7 | Station ribbon | Station dots HBF to PGC, `O C C DEPOT`, `OVERALL` | Done | |
+| 8 | Bottom toolbar | LAYOUT, COMMAND, POWER, E C S, TRAFFIC, COMS, UTILITY, ADMIN, page arrows, help | Done | |
+| 9 | Bottom mode buttons | Point No., Track No., FB No., Signal No., Car/Train, NorthBound/SouthBound, Temporary Speed Restriction | Done | |
+| 10 | Bottom utility icons | Pan, zoom, window, system command, note, print | Done | |
+| 11 | Operator box | Operator username over `[ TSR1 ] @ OCC` | Partial | The username line is empty; show the signed-in trainee's username. |
+| 12 | Clock box | Time and date | Done | |
+
+## Line Map
+
+| # | Area | Reference | Status | Notes |
+| ---: | --- | --- | --- | --- |
+| 1 | Whole line | HBF to PGC as one continuous schematic | Done | Pans seamlessly from HBF to PGC. |
+| 2 | Title and ATC blocks | `DETAIL SIGNALLING SYSTEM HBF TO PGC`, `CYCLE / NONE`, ATC01-ATC11 GGAMA/GTSR | Done | |
+| 3 | Signals | Heads with S-numbers, red/white state | Done | |
+| 4 | Points and crossovers | P-labels, crossovers, LTI and PTP centre sidings, BGK RT1-RT3 depot links | Done | |
+| 5 | HBF siding | Track 100-102 to P101 | Done | |
+| 6 | PGC tail | Crossovers past PGC to S1111 and the sidings | Partial | Our map stops at the 1115 crossover. |
+| 7 | Platforms | PSD/PH, SPKS/CD, ESB/ESP boxes per platform, green bars | Partial | Drawn correctly, but they never change: PSD and door faults do not show on the platform boxes. |
+| 8 | Track colours | Normal service: main line white, occupied blocks red, routes yellow | Partial | With no route set, the whole main line is drawn yellow, so the screen looks very different from the reference at a glance. |
+| 9 | Trains in service | About 30 train tags spread over the whole line | Partial | **Biggest gap.** Timetable trains only run between SKG and PGC (the timetable route audit finds routes for those stations only), so HBF to HGN never shows a train. A loaded scenario adds its own train. |
+| 10 | Train tags | Green number tag with direction notch and red/yellow bar | Done | |
+| 11 | Direction arrows | White arrows above and below the tracks | Done | |
+| 12 | Command stacks | ROUTE/OCCA, DISPATCH/OCCA, HII/ISCS per station | Done | |
+| 13 | `GH` button | Bottom left of the first section | Done | |
+| 14 | Panning | Drag, wheel, keyboard (`Home`, `End`, arrows) | Done | |
+
+## Alarms Monitor
+
+| # | Area | Reference | Status | Notes |
+| ---: | --- | --- | --- | --- |
+| 1 | Layout | Archives/Events/Alarms tabs, Help/Filter/Print/Close, Ack all/Ack selection/Unselect, sort field, columns | Done | |
+| 2 | Ack column and `Not Acknowledged` | A new alarm shows `N` and is counted until acknowledged | Missing | Scenario alarms are created with `Y`, so `Not Acknowledged` stays 0 (`createSummaryEvent` in `src/scenarioWorkflow.ts`). Scoring is not affected; it uses `acknowledgedAt`. |
+| 3 | Total and row count | `Total` matches a full list (75 rows in the reference) | Partial | `Total` is fixed at 63 while the table shows 5-7 rows. |
+| 4 | Background alarm traffic | Train holds, emergency brakes, skip-stop demands, route abandoned, arriving during the shift | Missing | Only the scenario's alarm arrives; the list is otherwise static. |
+
+## Timetable Monitor
+
+| # | Area | Reference | Status | Notes |
+| ---: | --- | --- | --- | --- |
+| 1 | Layout | Loaded time table, Station, Direction, ORIGIN / SELECTED STATION / DESTINATION, six action buttons, Help/Print/Close | Done | Our extra `LIVE hh:mm:ss` box is not in the reference. |
+| 2 | `Stat.` column | `R` (run), `>` (next), `M>` per train | Missing | No `Stat.` column. |
+| 3 | `Run` column | Run time to the next station (`02:21`) | Missing | Shows the direction (`NB`) instead. |
+| 4 | Rev., Speed inc., Min. dwell, Crew # | `Y` flags and crew number | Missing | Empty. |
+| 5 | Deviation graphs | Train numbers, early/late bars in green/yellow, times under each train | Partial | Axes and train numbers are drawn; bars and times stay at zero because trains never run early or late. |
 
 ## Interactions
 
-| Interaction | Expected prototype behavior | Status |
+Unchanged since the last audit and covered by the browser tests
+(`npm run test:ui`).
+
+| Interaction | Behaviour | Status |
 | --- | --- | --- |
-| Click train | Select train and update status bar | Done |
-| Right-click train | Intercept native browser menu and open SCADA-style command context menu with inspection/readiness/ITAMA options | Done prototype-level |
-| Open ITAMA | Show Win98-style `SIG Arrival Time for Train` dialog with nearest station/platform values | Done prototype-level |
-| Apply ITAMA | Acknowledge scenario evidence/task | Done prototype-level |
-| Route/Dispatch/Hold | Open Win98-style SCADA command request, then apply command into scenario task/evidence state | Done prototype-level |
-| Top `Alarms` tab | Show alarm table state | Done prototype-level |
-| Top `Calls` tab | Show communications panel state | Done prototype-level |
-| Toolbar buttons | Show selected tool/mode feedback | Done prototype-level |
-| SCADA status readout | Show selected train and latest command/notice in the SVG toolbar status area | Done prototype-level |
+| Click train | Selects the train and updates the status bar | Done |
+| Right-click train | SCADA-style command menu with inspection, readiness and ITAMA options | Done |
+| ITAMA | `SIG Arrival Time for Train` dialog; applying it records the task | Done |
+| Route / Dispatch / Hold | SCADA command request dialog, recorded as scenario actions | Done |
+| Alarms / Calls tabs | Switch the header panel; Calls opens the comms dialog | Done |
+| Acknowledge alarms | Ack all / Ack selection; only the incident alarm scores | Done |
+| Timetable row select | Selects the train for the scenario | Done |
 
-## Next Parity Passes
+## To Do, in Priority Order
 
-1. Keep the traced SCADA panels as the visual baseline, then add invisible/semantic hotspots for every operator action.
-2. Add missing station-specific details for Line 01, Line 02, and Line 04.
-3. Replace generic icon drawings with closer Win98 bitmap-style icons where necessary.
-4. Add more exact popup menu/dialog options from the monitor photos.
-5. Expand route, dispatch, HII, signal, and point interactions from prototype-level to scenario-level behavior.
+| # | Work | Fixes | Estimate |
+| ---: | --- | --- | --- |
+| 1 | Run timetable trains over the whole line (route definitions HBF to SKG, both directions, from the full timetable) | Line Map 9 | 4-5 days |
+| 2 | New alarms show `N`, count as Not Acknowledged and appear in the header panel; Total follows the list | Alarms 2-3, Frame 5 | 0.5 day |
+| 3 | Timetable `Stat.` and `Run` columns and the Rev./Speed/Min. dwell/Crew flags | Timetable 2-4 | 0.5 day |
+| 4 | Main line white in normal service; yellow only for a set route | Line Map 8 | 0.5 day |
+| 5 | PSD and door states on the platform boxes (with the PSD and door fault scenarios) | Line Map 7 | 1-2 days |
+| 6 | Train delays, so the deviation graphs move | Timetable 5 | 1 day, after 1 |
+| 7 | Background alarm traffic during a run | Alarms 4 | 1 day |
+| 8 | Small items: hide window chrome in full screen, operator username, `RATIS`/`P E C` labels, PGC tail, remove `LIVE` box | Frame 3, 6, 11; Line Map 6 | 1 day |
 
-## Demo Mode Controls
+Items 2-4 and 8 (about 2.5 days) raise the item score to about 93%, but item 1
+is what makes the Line Map look like the real line.
 
-| Key | Behavior |
+## Line Map Keys
+
+| Key | Behaviour |
 | --- | --- |
 | `Home` / `End` | Jump to the first or last line section. |
-| `ArrowLeft` / `ArrowRight` | Pan to previous or next section area. |
+| `ArrowLeft` / `ArrowRight` | Pan to the previous or next section. |
