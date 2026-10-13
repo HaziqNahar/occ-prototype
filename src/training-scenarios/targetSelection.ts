@@ -14,6 +14,10 @@ import type {
 export function getActiveTrainingScenarioTargetTrainId(session: OccSessionState) {
   const definition = getTrainingScenarioDefinition(session.activeScenario.id)
 
+  if (definition.noTargetTrain) {
+    return ''
+  }
+
   if (
     (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH')
     && !session.activeScenario.targetTrainId

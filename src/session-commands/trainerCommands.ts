@@ -32,7 +32,14 @@ const refused = (session: OccSessionState): SessionCommandResult => ({
 })
 
 export const TRAINING_MODES: readonly TrainingMode[] = ['PRACTICE', 'ASSESSMENT', 'PLAYER']
-const SCENARIO_KINDS: readonly TrainingScenarioKind[] = ['TRAIN_LAUNCH', 'TRAIN_WITHDRAWAL', 'DOOR_FAULT', 'PSD_FAULT']
+const SCENARIO_KINDS: readonly TrainingScenarioKind[] = [
+  'TRAIN_LAUNCH',
+  'TRAIN_WITHDRAWAL',
+  'DOOR_FAULT',
+  'PSD_FAULT',
+  'SERVICE_DISRUPTION',
+  'UNSCHEDULED_WITHDRAWAL',
+]
 
 export function isTrainingMode(value: unknown): value is TrainingMode {
   return TRAINING_MODES.includes(value as TrainingMode)

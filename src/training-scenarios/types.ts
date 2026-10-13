@@ -5,7 +5,13 @@ import type {
   ScenarioTaskId,
 } from '../types'
 
-export type TrainingScenarioKind = 'TRAIN_LAUNCH' | 'TRAIN_WITHDRAWAL' | 'DOOR_FAULT' | 'PSD_FAULT'
+export type TrainingScenarioKind =
+  | 'TRAIN_LAUNCH'
+  | 'TRAIN_WITHDRAWAL'
+  | 'DOOR_FAULT'
+  | 'PSD_FAULT'
+  | 'SERVICE_DISRUPTION'
+  | 'UNSCHEDULED_WITHDRAWAL'
 
 export type TrainingScenarioTaskDefinition = {
   // Comms catalog message ids that must all be logged from the Calls panel.
@@ -39,12 +45,18 @@ export type TrainingScenarioFault = {
 }
 
 export type TrainingScenarioDefinition = {
+  // Shown to the trainee when the scenario is armed; may use {train}, {station} and {bound}.
+  armNotice?: string
   defaultTargetTrainId: string
   duration: string
   fault?: TrainingScenarioFault
+  // Happens at a station platform without a fault alarm: the train is placed and held there.
+  heldAtStation?: boolean
   id: string
   incident: string
   kind: TrainingScenarioKind
+  // A line-wide incident with no scenario train (e.g. a service disruption).
+  noTargetTrain?: boolean
   objective: string
   target: string
   tasks: readonly TrainingScenarioTaskDefinition[]

@@ -2,12 +2,13 @@ import { appendScenarioEvidence, createScenarioEvidence } from '../scenario'
 import type { OccSessionState, ScenarioEvidence } from '../types'
 
 // Calls and instructions a Traffic Controller gives during an incident, taken
-// from the NEL OCC SOPs (train launch, train door faults, PSD faults, 12-car rescue).
+// from the NEL OCC SOPs (train launch, train door faults, PSD faults, 12-car rescue,
+// train loop & shuttle service, scheduled/unscheduled train withdrawal).
 // Logged calls become accepted trainee evidence, which scenario tasks score.
 
 export type CommsChannel = 'RADIO' | 'TELEPHONE'
 
-export type CommsRecipientId = 'CC' | 'WC' | 'COC' | 'DTC' | 'CREW' | 'DRIVER' | 'STATION'
+export type CommsRecipientId = 'BROADCAST' | 'CC' | 'WC' | 'COC' | 'DTC' | 'CREW' | 'DRIVER' | 'STATION'
 
 export type CommsRecipient = {
   channel: CommsChannel
@@ -25,6 +26,7 @@ export type CommsMessage = {
 
 export const commsRecipients: readonly CommsRecipient[] = [
   { channel: 'RADIO', id: 'DRIVER', label: 'Train Driver (CSO/ASM on board)', needsTrain: true },
+  { channel: 'RADIO', id: 'BROADCAST', label: 'Broadcast to all Stations & Trains' },
   { channel: 'TELEPHONE', id: 'STATION', label: 'Station Staff (SM/ASM)', needsStation: true },
   { channel: 'TELEPHONE', id: 'CC', label: 'Chief Controller (CC)' },
   { channel: 'TELEPHONE', id: 'WC', label: 'Works Coordinator (WC)' },
@@ -46,6 +48,12 @@ export const commsMessages: readonly CommsMessage[] = [
   { id: 'driver-authorise-rm', label: 'Authorised to drive in Restricted Manual (RM)', recipient: 'DRIVER' },
   { id: 'driver-authorise-cm-dirbs', label: 'Authorised CM mode with DIRBS to withdraw train', recipient: 'DRIVER' },
   { id: 'driver-detrain', label: 'Authorised train-to-platform detrainment', recipient: 'DRIVER' },
+  { id: 'driver-withdraw-train-clear', label: 'Train taken out of service: perform train clear at the withdrawal station', recipient: 'DRIVER' },
+  { id: 'driver-train-clear-received', label: 'Train Clear declared: train is cleared of passengers', recipient: 'DRIVER' },
+  { id: 'driver-authorise-manual-withdrawal', label: 'Authorised to drive the withdrawal train in CM/RM to destination', recipient: 'DRIVER' },
+  { id: 'broadcast-loop-service', label: 'Train loop service and free regular & bridging bus service in operation', recipient: 'BROADCAST' },
+  { id: 'broadcast-train-local-pa', label: 'CSOs to make local PA in the train every 4 minutes', recipient: 'BROADCAST' },
+  { id: 'broadcast-service-update', label: 'Update on changes to the loop or bridging bus service', recipient: 'BROADCAST' },
   { id: 'station-board-investigate', label: 'Board the train and investigate', recipient: 'STATION' },
   { id: 'station-investigate-psd', label: 'Proceed to the affected PSD and investigate', recipient: 'STATION' },
   { id: 'station-isolate-psd-closed', label: 'Authorised to isolate the defective PSD in closed position', recipient: 'STATION' },
@@ -55,6 +63,8 @@ export const commsMessages: readonly CommsMessage[] = [
   { id: 'station-standby-platform', label: 'Standby at the affected platform', recipient: 'STATION' },
   { id: 'station-alert-door-isolation', label: 'Train with door isolation approaching, note affected PSD bound', recipient: 'STATION' },
   { id: 'station-detrain', label: 'Detrain passengers at the platform', recipient: 'STATION' },
+  { id: 'station-loop-terminal', label: 'Train loop service implemented: your station is an intermediate terminal', recipient: 'STATION' },
+  { id: 'station-assist-train-clear', label: 'Train to be withdrawn at your station: assist in train clear', recipient: 'STATION' },
   { id: 'cc-alert-incident', label: 'Alert CC of the incident', recipient: 'CC' },
   { id: 'cc-second-check', label: 'Request 2nd level check for RM movement', recipient: 'CC' },
   { id: 'cc-update', label: 'Update CC on recovery progress', recipient: 'CC' },
@@ -62,8 +72,13 @@ export const commsMessages: readonly CommsMessage[] = [
   { id: 'wc-engineering-support', label: 'Request engineering support', recipient: 'WC' },
   { id: 'coc-passenger-info', label: 'Disseminate service information to passengers', recipient: 'COC' },
   { id: 'coc-platform-cctv', label: 'Check the platform CCTV', recipient: 'COC' },
+  { id: 'coc-disruption-pa', label: 'Prepare and record disruption PA for stations and trains', recipient: 'COC' },
+  { id: 'coc-shuttle-pa', label: 'Prepare and record PA for stations and train on the shuttle service', recipient: 'COC' },
+  { id: 'coc-disruption-notice', label: 'Disseminate the Train Disruption Notice to all stations', recipient: 'COC' },
+  { id: 'coc-withdrawal-pa', label: 'Make PA on the withdrawal train', recipient: 'COC' },
   { id: 'dtc-despatch', label: 'Coordinate train despatch from depot', recipient: 'DTC' },
   { id: 'dtc-reception-track', label: 'Confirm train status at reception track', recipient: 'DTC' },
+  { id: 'dtc-withdrawal-return', label: 'Withdrawal train returning to depot', recipient: 'DTC' },
   { id: 'crew-driver-deployment', label: 'Arrange train driver deployment', recipient: 'CREW' },
 ]
 

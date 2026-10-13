@@ -106,17 +106,21 @@ export function createTrainingScenarioStartSession(
 ) {
   const definition = findTrainingScenarioDefinition(kind, incident)
   // Fault scenarios happen at a location: a held train at a station platform.
-  const faultLocation = definition.fault ? options.faultLocation ?? DEFAULT_FAULT_LOCATION : undefined
+  const faultLocation = definition.fault || definition.heldAtStation
+    ? options.faultLocation ?? DEFAULT_FAULT_LOCATION
+    : undefined
   const targetTrainId = faultLocation?.trainId ?? getInitialTrainingScenarioTargetTrainId(current, definition)
   const displayTargetTrainId = targetTrainId
-    ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
-      ? 'PENDING'
-      : definition.defaultTargetTrainId)
+    ?? (definition.noTargetTrain
+      ? 'LINE'
+      : definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
+        ? 'PENDING'
+        : definition.defaultTargetTrainId)
   // A fault train is not pre-selected: finding it from the alarm is part of the exercise.
   const selectedTrainId = faultLocation
     ? current.selectedTrainId
     : targetTrainId
-      ?? (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
+      ?? (definition.noTargetTrain || definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'TRAIN_LAUNCH'
         ? current.selectedTrainId
         : definition.defaultTargetTrainId)
   const injected = injectTrainingScenarioFault(
@@ -207,6 +211,10 @@ function injectTrainingScenarioFault(
 }
 
 export function getTrainingScenarioArmNotice(definition: TrainingScenarioDefinition, faultLocation?: FaultLocation) {
+  if (definition.armNotice) {
+    return resolveFaultText(definition.armNotice, faultLocation)
+  }
+
   if (definition.kind === 'TRAIN_LAUNCH') {
     return `${definition.title} armed. Select an eligible SKG-origin timetable train to launch.`
   }
@@ -226,7 +234,7 @@ function getInitialTrainingScenarioTargetTrainId(
   _current: OccSessionState,
   definition: TrainingScenarioDefinition,
 ) {
-  if (definition.kind === 'TRAIN_LAUNCH') {
+  if (definition.noTargetTrain || definition.kind === 'TRAIN_LAUNCH') {
     return undefined
   }
 
@@ -417,7 +425,7 @@ function getTrainingScenarioTrainSelectionNotice(
     return { text: `Train ${trainId} selected for launch.`, tone: 'info' as const }
   }
 
-  if (definition.kind === 'TRAIN_WITHDRAWAL') {
+  if (definition.kind === 'TRAIN_WITHDRAWAL' || definition.kind === 'UNSCHEDULED_WITHDRAWAL') {
     return { text: `Train ${trainId} selected for withdrawal.`, tone: 'info' as const }
   }
 
@@ -495,7 +503,7 @@ function getRuntimeEventTrainingTaskIds(
     }
   }
 
-  // Fault scenarios: each task declares which live event completes it.
+  // Fault, disruption and unscheduled withdrawal scenarios: each task declares which live event completes it.
   return getTrainingScenarioDefinition(session.activeScenario.id).tasks
     .filter((task) => {
       switch (event.type) {

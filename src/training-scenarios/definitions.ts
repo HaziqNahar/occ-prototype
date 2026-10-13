@@ -39,13 +39,52 @@ function reviewFaultTask(id: string): TrainingScenarioTaskDefinition {
   return { id, label: 'Review final incident state', mappedTaskId: 'completeScenario', monitor: 'IOS', weight: 5 }
 }
 
+// Train loop & shuttle service during a disruption (NEL/OPS/TRA/OP/DEG/14.001.46).
+// One definition per service pattern in section 7; OCC's part is 7.3 and 7.5.
+type DisruptionPattern = {
+  buses: string
+  id: string
+  incident: string
+  loops: string
+  shuttle?: string
+  terminals: string
+}
+
+function serviceDisruptionDefinition(pattern: DisruptionPattern): TrainingScenarioDefinition {
+  const service = [pattern.loops, pattern.shuttle].filter(Boolean).join('; ')
+
+  return {
+    armNotice: `Service disruption. CC has decided on: ${service}. Free regular & bridging bus ${pattern.buses}. Intermediate terminal ${pattern.terminals}. Implement as per SOP.`,
+    defaultTargetTrainId: FAULT_TRAIN_ID,
+    duration: '06:00',
+    id: pattern.id,
+    incident: pattern.incident,
+    kind: 'SERVICE_DISRUPTION',
+    noTargetTrain: true,
+    objective: `Implement the ${pattern.incident.toLowerCase()} (${service}) with free regular & bridging bus ${pattern.buses}: broadcast it, inform the intermediate terminal station, record the disruption PA and send the disruption notice.`,
+    target: service,
+    title: pattern.incident,
+    tasks: [
+      callTask(`broadcast-${pattern.id}`, 'Radio broadcast the loop service and bridging buses to stations & trains', ['broadcast-loop-service'], { critical: true, weight: 20 }),
+      callTask(`inform-terminal-${pattern.id}`, 'Inform the intermediate terminal station(s) via PABX or Tetra', ['station-loop-terminal'], { critical: true, weight: 15 }),
+      callTask(`disruption-pa-${pattern.id}`, 'Prepare and record the disruption PA for stations and trains', ['coc-disruption-pa'], { critical: true, weight: 15 }),
+      ...(pattern.shuttle
+        ? [callTask(`shuttle-pa-${pattern.id}`, 'Prepare and record the PA for the shuttle train service', ['coc-shuttle-pa'], { critical: true, weight: 15 })]
+        : []),
+      callTask(`disruption-notice-${pattern.id}`, 'Disseminate the Train Disruption Notice to all stations', ['coc-disruption-notice'], { weight: 15 }),
+      callTask(`train-local-pa-${pattern.id}`, 'Instruct CSOs to make local PA every 4 minutes', ['broadcast-train-local-pa'], { weight: 5 }),
+      reviewFaultTask(`review-${pattern.id}`),
+    ],
+  }
+}
+
 export const idleTrainingScenarioDefinition: TrainingScenarioDefinition = {
   defaultTargetTrainId: '317',
   duration: '00:00',
   id: 'idle',
   incident: 'None',
   kind: 'DOOR_FAULT',
-  objective: 'Select Launch, Withdraw, or Door Fault to arm a training scenario.',
+  objective: 'Select a scenario to arm a training exercise.',
   target: 'No active scenario',
   title: 'Idle',
   tasks: [],
@@ -454,6 +493,84 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
       callTask('authorise-rmf-doors', 'Authorise train doors in RMF with read-back', ['driver-rmf-doors'], { critical: true }),
       releaseTrainTask('release-psd-multiple-train', 'Release the train'),
       reviewFaultTask('review-psd-multiple-outcome'),
+    ],
+  },
+  // Sections 7.1, 7.2, 7.6, 7.7 and 7.8 of the train loop & shuttle SOP.
+  serviceDisruptionDefinition({
+    buses: 'HBF – PTP',
+    id: 'disruption-single-loop',
+    incident: 'Single train loop service',
+    loops: 'loop PGC – PTP',
+    terminals: 'PTP',
+  }),
+  serviceDisruptionDefinition({
+    buses: 'OTP – DBG',
+    id: 'disruption-dual-loop',
+    incident: 'Dual train loop service',
+    loops: 'loops PGC – DBG and HBF – OTP',
+    terminals: 'OTP & DBG',
+  }),
+  serviceDisruptionDefinition({
+    buses: 'FRP – SKG',
+    id: 'disruption-single-loop-shuttle',
+    incident: 'Single train loop with shuttle',
+    loops: 'loop HBF – FRP',
+    shuttle: 'shuttle PGC – SKG',
+    terminals: 'FRP',
+  }),
+  serviceDisruptionDefinition({
+    buses: 'FRP – SER',
+    id: 'disruption-dual-loop-shuttle',
+    incident: 'Dual train loop with shuttle',
+    loops: 'loops PGC – HGN and HBF – FRP',
+    shuttle: 'shuttle HGN – SER',
+    terminals: 'FRP & HGN',
+  }),
+  serviceDisruptionDefinition({
+    buses: 'BGK – PGC',
+    id: 'disruption-single-platform',
+    incident: 'Loop with shuttle (single platform)',
+    loops: 'loop HBF – BGK',
+    shuttle: 'shuttle PGC – BGK on the same platform',
+    terminals: 'BGK',
+  }),
+  // Unscheduled withdrawal at a station (NEL/OPS/TRA/OP/OCC/03.001.9, section 7.2).
+  {
+    armNotice: 'Unscheduled withdrawal: CC has decided to withdraw Train {train} at {station} {bound}. Respond as per SOP.',
+    defaultTargetTrainId: FAULT_TRAIN_ID,
+    duration: '07:00',
+    heldAtStation: true,
+    id: 'unscheduled-withdrawal',
+    incident: 'Unscheduled withdrawal at station',
+    kind: 'UNSCHEDULED_WITHDRAWAL',
+    objective: 'CC has decided to withdraw the train at {station} {bound} from service. Alert the driver and station staff, have CoC make the PA, close doors and PSDs for train clear, then route the train to its destination.',
+    target: 'Train {train} at {station} {bound}',
+    title: 'Unscheduled Train Withdrawal',
+    tasks: [
+      selectFaultTrainTask('select-unscheduled-withdrawal-train'),
+      callTask('driver-unscheduled-withdrawal', 'Alert the driver: train out of service, train clear at the station', ['driver-withdraw-train-clear'], { critical: true }),
+      callTask('station-unscheduled-withdrawal', 'Inform station staff to assist in train clear', ['station-assist-train-clear'], { critical: true }),
+      callTask('coc-unscheduled-withdrawal', 'Alert CoC to make PA on the withdrawal train', ['coc-withdrawal-pa'], { critical: true }),
+      callTask('dtc-unscheduled-withdrawal', 'Alert DTC: withdrawal train returning to depot', ['dtc-withdrawal-return'], { weight: 5 }),
+      {
+        critical: true,
+        evidenceKeywords: ['doors and psds closed for train clear'],
+        id: 'close-doors-unscheduled-withdrawal',
+        label: 'Close all train doors & PSDs for train clear',
+        monitor: 'Trainer confirms',
+        weight: 10,
+      },
+      callTask('train-clear-unscheduled-withdrawal', 'Receive Train Clear from the driver', ['driver-train-clear-received'], { critical: true }),
+      {
+        critical: true,
+        id: 'route-unscheduled-withdrawal',
+        label: 'Route the train to the designated destination',
+        mappedTaskId: 'setRoute',
+        monitor: 'Line Map',
+        weight: 10,
+      },
+      releaseTrainTask('release-unscheduled-withdrawal', 'Move the train off the platform'),
+      reviewFaultTask('review-unscheduled-withdrawal'),
     ],
   },
 ] as const

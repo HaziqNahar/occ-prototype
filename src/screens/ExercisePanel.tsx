@@ -213,7 +213,7 @@ function ExercisePanel({
             <small>
               {isIdle
                 ? 'Choose a scenario below and load it.'
-                : `${session.trainingMode.toLowerCase()} · ${targetTrainId ? `Train ${targetTrainId}` : 'train not chosen yet'} · ${session.timetableName.replace('NEL_OTES_', '')}`}
+                : `${session.trainingMode.toLowerCase()} · ${targetTrainId ? `Train ${targetTrainId}` : activeDefinition.noTargetTrain ? 'line-wide' : 'train not chosen yet'} · ${session.timetableName.replace('NEL_OTES_', '')}`}
             </small>
           </div>
         </div>

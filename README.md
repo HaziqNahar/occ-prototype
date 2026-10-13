@@ -99,10 +99,18 @@ The console's **Open monitors** opens an exercise's monitors on the trainer's PC
 | Train Withdrawal | Withdraw a live train to the RT2 depot |
 | Train Door Fault | Door failure (open/close), EHS activation, detrainment door cover open |
 | PSD Fault | Obstructed, single PSD failed to open, single PSD failed to close, PSD summary light not available (override switch), manual PSD operation (RM train), multiple PSD failed to open |
+| Train Loop & Shuttle Service | Single train loop, dual train loop, single loop with shuttle, dual loop with shuttle, loop with shuttle (single platform) |
+| Unscheduled Train Withdrawal | Withdraw a train from service at a station on the Chief Controller's decision |
 
 - Fault scenarios follow the NEL OCC SOPs for train door faults
   (NEL/OPS/TRA/OP/TRN/07.001.34) and PSD faults (NEL/OPS/TRA/OP/DEG/09.001.18);
   Train Launch adds the coordination steps from NEL/OPS/TRA/OP/OCC/07.001.28.
+- Train Loop & Shuttle Service follows the OCC actions in
+  NEL/OPS/TRA/OP/DEG/14.001.46 (one incident per service pattern in section 7);
+  it is line-wide, with no scenario train, and is scored on the calls logged.
+- Unscheduled Train Withdrawal follows section 7.2 of NEL/OPS/TRA/OP/OCC/03.001.9.
+  Like a fault run, the train is placed and held at a random platform. Closing
+  the train doors and PSDs for train clear is confirmed by the trainer.
 - Each fault run picks a random train, station and bound. The train is placed
   and held at that platform, and the alarm text names the location.
 - Only acknowledging the scenario's own incident alarm counts towards the score.
