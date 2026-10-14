@@ -63,7 +63,7 @@ const run: RunSummary = {
   const csv = runToCsv(detail)
 
   assert.match(csv, /^Run,PSD Obstructed\r\n/)
-  assert.match(csv, /\r\nChecklist,Done,Critical,Where\r\nApply platform hold on the train,yes,yes,Line Map\r\nReview final incident state,no,,IOS\r\n/)
+  assert.match(csv, /\r\nChecklist,Done,Critical,Where\r\nApply platform hold on the train,yes,yes,Line Map\r\nReview final incident state,no,,Trainer\r\n/)
   assert.match(csv, /,Alex Tan,trainee,Held a train,Train 345,Done\r\n/)
   assert.match(csv, /,Door command,Train 345,Refused: Hold the train first\.\r\n$/)
 }

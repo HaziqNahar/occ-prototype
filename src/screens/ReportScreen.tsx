@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { archiveOccReport } from '../backendClient'
+import { formatEvidenceLine, getEvidenceWhoLabel } from '../iosEvidenceTrail'
+import { getScenarioTaskOwnerLabel, getScenarioTaskPlaceLabel } from '../iosScenarioRoles'
 import { getSessionId } from '../sessionCode'
 import { buildScenarioReport } from '../scenarioReport'
 import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
@@ -11,6 +13,8 @@ import type { AppRoute, OccSessionState } from '../types'
 type ReportScreenProps = {
   onNavigate: (route: AppRoute) => void
   session: OccSessionState
+  // The signed-in trainer, who signs the report off.
+  trainerName?: string
 }
 
 const trainingModeSummary = {
@@ -24,7 +28,7 @@ function compactReportText(value: string, limit = 110) {
   return normalized.length > limit ? `${normalized.slice(0, limit - 1).trimEnd()}...` : normalized
 }
 
-function ReportScreen({ onNavigate, session }: ReportScreenProps) {
+function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
   const [archiveNote, setArchiveNote] = useState('Not saved yet')
   const [trainerNotes, setTrainerNotes] = useState('')
   const scenarioReport = buildScenarioReport(session)
@@ -145,7 +149,7 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
                 <div>
                   <strong>{task.label}</strong>
                   <small>
-                    {task.monitor} | Owner: {task.owner} | {task.completionSource}
+                    {getScenarioTaskPlaceLabel(task.monitor)} | Owner: {getScenarioTaskOwnerLabel(task.owner)} | {task.completionSource === 'Instructor review' ? 'Trainer review' : task.completionSource}
                     {taskMetric?.completedAt ? ` | ${taskMetric.responseSeconds}s / ${taskMetric.thresholdSeconds}s` : ''}
                     {task.evidenceCount > 0 ? ` | ${task.evidenceCount} evidence` : ''}
                   </small>
@@ -164,8 +168,8 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
           {scenarioReport.timeline.map((event) => (
             <div className={`report-event ${event.result === 'rejected' ? 'is-rejected' : ''}`} key={event.id}>
               <span>{event.time}</span>
-              <strong>{event.source}</strong>
-              <p>{event.title}: {compactReportText(event.detail)}</p>
+              <strong>{getEvidenceWhoLabel(event)}</strong>
+              <p>{compactReportText(formatEvidenceLine({ action: event.title, detail: event.detail }))}</p>
               <small>{event.categoryLabel}</small>
             </div>
           ))}
@@ -199,8 +203,8 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
             traineeActivity.map((evidence) => (
               <div className={`report-evidence-row is-${evidence.result} is-${evidence.category}`} key={evidence.id}>
                 <span>{evidence.time}</span>
-                <strong>{evidence.source}</strong>
-                <p>{evidence.action}: {evidence.detail}</p>
+                <strong>{getEvidenceWhoLabel(evidence)}</strong>
+                <p>{formatEvidenceLine(evidence)}</p>
                 <em>{evidence.categoryLabel}</em>
               </div>
             ))
@@ -264,7 +268,7 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
           />
           <div className="report-signoff">
             <span>Trainer sign-off</span>
-            <strong>MNADZRULS [TSR1] @ OCC</strong>
+            <strong>{trainerName ?? '________________'}</strong>
           </div>
         </article>
       </section>

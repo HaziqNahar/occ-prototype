@@ -429,7 +429,7 @@ function App() {
   if (route === '/report') {
     return (
       <Suspense fallback={null}>
-        <ReportScreen onNavigate={navigate} session={session} />
+        <ReportScreen onNavigate={navigate} session={session} trainerName={user?.name} />
       </Suspense>
     )
   }

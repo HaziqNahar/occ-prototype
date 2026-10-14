@@ -103,6 +103,12 @@ function ExercisePanel({
   const startedAt = session.sessionMeta?.startedAt ? Date.parse(session.sessionMeta.startedAt) : undefined
   const isRunning = session.scenarioMode === 'RUNNING'
   const aidsOn = areTrainingAidsOn(session)
+  // The session's last message is often just a step's label ("Acknowledge door
+  // failure alarm"), which reads like an order: say what it is.
+  const notice = session.scenarioNotice
+  const noticeLabel = notice.tone === 'warning' || isIdle
+    ? ''
+    : score.taskResults.some((task) => task.complete && task.label === notice.text) ? 'Step done' : 'Latest'
   const onlineMonitors = getOnlineMonitors(session, now)
   // Trainees type this code: never show the placeholder one.
   const sessionCode = synced ? session.sessionMeta.code : '----'
@@ -122,8 +128,15 @@ function ExercisePanel({
     ? launchTrainChoice
     : launchTrainOptions[0]?.value ?? ''
   const otherExercise = exercises.find((item) => item.id !== exercise?.id)
-  const assignable = trainees.filter((trainee) => !session.trainees.some((joined) => joined.email === trainee.id))
+  // A trainee is in one exercise at a time: assigning one from the other
+  // exercise moves them, so the list says where they are and lists them last.
+  const exerciseOf = (traineeId: string) => exercises.find((item) => item.id !== exercise?.id && item.trainees.some((joined) => joined.id === traineeId))
+  const assignable = trainees
+    .filter((trainee) => !session.trainees.some((joined) => joined.email === trainee.id))
+    .map((trainee) => ({ ...trainee, elsewhere: exerciseOf(trainee.id)?.exercise }))
+    .sort((left, right) => Number(Boolean(left.elsewhere)) - Number(Boolean(right.elsewhere)))
   const assignId = assignable.some((trainee) => trainee.id === traineeChoice) ? traineeChoice : assignable[0]?.id ?? ''
+  const assignMoves = Boolean(assignable.find((trainee) => trainee.id === assignId)?.elsewhere)
 
   useEffect(() => {
     // Ticks the run timer each second, and monitor presence every few seconds when idle.
@@ -201,10 +214,13 @@ function ExercisePanel({
               <SelectField
                 ariaLabel={`Trainee for Exercise ${number}`}
                 value={assignId}
-                options={assignable.map((trainee) => ({ label: trainee.name, value: trainee.id }))}
+                options={assignable.map((trainee) => ({
+                  label: trainee.elsewhere ? `${trainee.name} (in Exercise ${trainee.elsewhere})` : trainee.name,
+                  value: trainee.id,
+                }))}
                 onChange={setTraineeChoice}
               />
-              <button type="button" disabled={!assignId} onClick={() => onAssign(assignId, exercise.id)}>Assign</button>
+              <button type="button" disabled={!assignId} onClick={() => onAssign(assignId, exercise.id)}>{assignMoves ? 'Move here' : 'Assign'}</button>
             </span>
           )}
           <button type="button" onClick={() => openOccMonitors({ code: sessionCode, number })}>Open monitors</button>
@@ -271,7 +287,10 @@ function ExercisePanel({
         <p className="trainer-console-notice is-warning" role="alert">{commandProblem}</p>
       )}
       {session.scenarioNotice.text && (
-        <p className={`trainer-console-notice is-${session.scenarioNotice.tone}`} role="status">{session.scenarioNotice.text}</p>
+        <p className={`trainer-console-notice is-${notice.tone}`} role="status">
+          {noticeLabel && <strong className="trainer-console-notice-label">{noticeLabel}:</strong>}
+          {notice.text}
+        </p>
       )}
 
       <div className="trainer-console-grid">
@@ -368,6 +387,12 @@ function ExercisePanel({
                 const isLive = Boolean(task.runtimeOnly || task.commsMessageIds?.length || task.mappedTaskId)
                 const owner = getScenarioTaskOwner(task.monitor)
                 const canConfirm = !task.complete && !isLive && owner === 'Instructor'
+                // Trainer steps say how the trainer completes them.
+                const place = owner !== 'Instructor'
+                  ? task.monitor
+                  : task.mappedTaskId === 'completeScenario'
+                    ? 'Trainer: click Complete when the trainee is done'
+                    : task.complete || isLive ? 'Trainer' : 'Trainer: click Confirm when the trainee has done it'
 
                 return (
                   <li
@@ -380,7 +405,7 @@ function ExercisePanel({
                         {task.label}
                         {task.critical && <b title="Critical SOP step"> ★</b>}
                       </strong>
-                      <small>{task.monitor}</small>
+                      <small>{place}</small>
                     </div>
                     {canConfirm && (
                       <button type="button" onClick={() => confirmTask(task.id, task.label)}>Confirm</button>

@@ -1,4 +1,5 @@
 import { describeAction } from './history'
+import { getScenarioTaskPlaceLabel } from './iosScenarioRoles'
 import type { RunDetail, RunSummary, TraineeProgress } from './history'
 
 // CSV exports of past runs and trainee progress, for training records and
@@ -90,7 +91,7 @@ export function runToCsv(run: RunDetail) {
     ['Trainer notes', run.notes],
     [],
     ['Checklist', 'Done', 'Critical', 'Where'],
-    ...run.tasks.map((task) => [task.label, task.complete ? 'yes' : 'no', task.critical ? 'yes' : '', task.monitor]),
+    ...run.tasks.map((task) => [task.label, task.complete ? 'yes' : 'no', task.critical ? 'yes' : '', task.monitor && getScenarioTaskPlaceLabel(task.monitor)]),
     [],
     ['Time', 'Who', 'Role', 'Action', 'Detail', 'Result'],
     ...run.actions.map((action) => [

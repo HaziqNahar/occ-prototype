@@ -374,6 +374,10 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(exercise1.getByLabel('Session').getByText(TRAINEE.name)).toBeVisible()
     await expect(incidentAlarm).toHaveCount(0)
 
+    // Exercise 2's list says where she is now, and assigning her moves her back.
+    await expect(exercise2.getByRole('button', { name: 'Move here' })).toBeVisible()
+    await expect(exercise2.locator('.trainer-exercise-assign')).toContainText(`${TRAINEE.name} (in Exercise 1)`)
+
     await exercise2.getByRole('button', { name: 'Close exercise' }).click()
     await expect(exercise2).toHaveCount(0)
     await traineeContext.close()
@@ -672,6 +676,10 @@ test.describe.serial('OCC monitor regressions', () => {
 
     await report.goto(`/report?session=${encodeURIComponent((await getSession(page)).sessionMeta.code)}`)
     await expect(report.locator('.report-kpi', { hasText: 'Aids used' })).toContainText('Show me 4 · Locate 1')
+    // Signed off by the signed-in trainer; the timeline names people, not system sources.
+    await expect(report.locator('.report-signoff')).toContainText('Test Trainer')
+    await expect(report.locator('.report-event', { hasText: 'Action rejected' }).first()).toContainText('Test Trainer')
+    await expect(report.locator('.report-event').filter({ hasText: /Scenario Guard|IOS Scenario/ })).toHaveCount(0)
     await report.request.post('/api/reports', { data: { notes: 'E2E aids check' }, headers: trainerHeaders() })
     await report.goto('/history')
     await report.getByRole('button', { name: /Train Door Fault/ }).first().click()

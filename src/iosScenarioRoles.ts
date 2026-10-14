@@ -10,6 +10,16 @@ export function getScenarioTaskOwner(monitor: string): ScenarioTaskOwner {
   return 'Traffic Controller'
 }
 
+// Where a checklist step is done, as trainers read it: "IOS" (the instructor
+// station) is the Trainer Console, so those steps are the trainer's.
+export function getScenarioTaskPlaceLabel(monitor: string) {
+  return monitor === 'IOS' ? 'Trainer' : monitor
+}
+
+export function getScenarioTaskOwnerLabel(owner: string) {
+  return owner === 'Instructor' ? 'Trainer' : owner
+}
+
 export function doesScenarioTaskBelongToRole(role: TraineeRole, monitor: string) {
   return getScenarioTaskOwner(monitor) === role
 }

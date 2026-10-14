@@ -12898,6 +12898,12 @@
   background: rgba(13, 26, 44, 0.85);
 }
 
+.trainer-console-notice-label {
+  margin-right: 6px;
+  color: #9fb3ca;
+  font-weight: 800;
+}
+
 .trainer-console-notice.is-success {
   border-left-color: #4ade80;
 }

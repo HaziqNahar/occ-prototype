@@ -16,6 +16,8 @@ import {
 import type { OccSessionState } from './types'
 
 type ScenarioReportTimelineEntry = {
+  // Who did it, when the server recorded a person.
+  actor?: string
   categoryLabel: string
   detail: string
   id: string
@@ -67,6 +69,7 @@ function buildEvidenceTimeline(evidenceLog: OccSessionState['evidenceLog']): Sce
     .slice()
     .reverse()
     .map((evidence) => ({
+      actor: evidence.actor,
       categoryLabel: evidence.categoryLabel,
       detail: evidence.detail,
       id: evidence.id,

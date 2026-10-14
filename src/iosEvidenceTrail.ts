@@ -88,6 +88,32 @@ export function getEvidenceCategoryLabel(category: IosEvidenceCategory) {
   }
 }
 
+// Stored evidence sources, as trainers read them. The stored values drive the
+// categories above, so they are only renamed for display.
+const SOURCE_LABELS: Record<string, string> = {
+  IOS: 'Trainer Console',
+  'IOS Scenario Control': 'Trainer Console',
+  'IOS Scenario Runtime': 'Trainer Console',
+  'Scenario Guard': 'Scenario check',
+  'Trainee Traffic Controller': 'Calls panel',
+}
+
+export function getEvidenceSourceLabel(source: string) {
+  return SOURCE_LABELS[source] ?? source
+}
+
+// Who did it: the person when the server recorded one, otherwise where it came from.
+export function getEvidenceWhoLabel(evidence: Pick<ScenarioEvidence, 'actor' | 'source'>) {
+  return evidence.actor || getEvidenceSourceLabel(evidence.source)
+}
+
+// "Action: detail", without a dangling colon when there is no detail.
+export function formatEvidenceLine(evidence: Pick<ScenarioEvidence, 'action' | 'detail'>) {
+  const detail = formatEvidenceDetail(evidence.detail).trim()
+
+  return detail ? `${evidence.action}: ${detail}` : evidence.action
+}
+
 export function categoriseScenarioEvidence(evidenceLog: ScenarioEvidence[]): CategorisedScenarioEvidence[] {
   return evidenceLog.map((evidence) => {
     const category = getEvidenceCategory(evidence)
@@ -95,7 +121,8 @@ export function categoriseScenarioEvidence(evidenceLog: ScenarioEvidence[]): Cat
     return {
       ...evidence,
       category,
-      categoryLabel: getEvidenceCategoryLabel(category),
+      // A refused action is the trainee's, even though the system recorded it.
+      categoryLabel: evidence.result === 'rejected' ? 'Refused action' : getEvidenceCategoryLabel(category),
       detail: formatEvidenceDetail(evidence.detail),
     }
   })
