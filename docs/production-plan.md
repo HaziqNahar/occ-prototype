@@ -75,6 +75,12 @@ Design notes for phases 2–5 so two sessions need no rework:
   example a `?session=` code in the monitor addresses).
 - Scores and the action log are per session, so each trainee's report is theirs.
 
+## After the plan
+
+The Practice training layer (next-step coach, Show me / Locate, instant
+feedback, aid counts in the report) was added on 14 Oct 2026; see
+[training-layer-plan.md](training-layer-plan.md).
+
 ## Later (not planned)
 
 A **shared exercise** (two trainees on the same trains, in different OCC roles)

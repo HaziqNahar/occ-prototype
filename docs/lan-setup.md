@@ -99,7 +99,10 @@ first.
    exercise shows its own 4-character code.
 2. Each trainee: enter their exercise's code and **Join session**, then
    **Open my monitors**.
-3. Trainer: choose a scenario in each exercise's column and **Load scenario**.
+3. Trainer: choose a scenario and a **Mode** in each exercise's column and
+   **Load scenario**. In **Practice** the trainee's monitors show a coach with
+   the next step, **Show me** and **Locate**; **Aids on/off** on the console
+   hides it. In **Assessment** no aids are shown.
 4. Watch the checklists; **Complete** each run, then open its **Report** to add
    notes.
 5. Afterwards: **History** shows every completed run with each action, and
@@ -153,5 +156,7 @@ This also switches the account back on and signs it out everywhere.
 | Only one monitor opened | Allow pop-ups for the host address, then **Open my monitors** again. |
 | "You have been signed out" | The account's password was reset or it was switched off, or the sign-in is over 7 days old. Sign in again. |
 | The page says the app is not built | Run `npm.cmd run host:build` on the host and start the server again. |
+| No coach on a trainee's monitors | The run is in Assessment (no aids by design), or **Aids off** on the console in Practice. Click it to switch the aids on. |
+| DISPATCH or HII says "No train at …" or "Train … is not at …" | Station panels act only on the train at their own station, as at the OCC. Use the panel at the train's station. |
 
 The project's README describes the server's API and the development setup.

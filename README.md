@@ -56,14 +56,14 @@ npm.cmd run reset:password -- <username> <new password>
 | Page | Who | Purpose |
 | --- | --- | --- |
 | `/` | Everyone | Sign in (or set up the first trainer), then the start page for your role. Also opens the three monitors on a monitor PC. |
-| `/ios/modules` | Trainer | **Trainer Console**: one column per exercise (up to two). Each has its own code, trainee, monitors, scenario chooser (incident, mode, time target, timetable), checklist, trainee activity, pause/complete/stop and report. **Add Exercise 2** opens the second; trainees can be assigned or moved between exercises. |
+| `/ios/modules` | Trainer | **Trainer Console**: one column per exercise (up to two). Each has its own code, trainee, monitors, scenario chooser (incident, mode, time target, timetable), checklist, trainee activity, pause/complete/stop, the **Aids on/off** switch (Practice only) and report. **Add Exercise 2** opens the second; trainees can be assigned or moved between exercises. |
 | `/session/join` | Trainee | Join with your exercise's code from the console, then open the monitors. Shows exercise status but never names the incident. |
 | `/screen/alarms` | Trainee | Monitor 01: alarm summary and acknowledgement, Calls panel. |
 | `/screen/line-map` | Trainee | Monitor 02: SCADA line map, train commands (route, dispatch, HII hold), train inspector, Calls panel. |
 | `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
-| `/report` | Trainer | Post-session report: score, checklist, timeline, evidence log, trainer notes. |
+| `/report` | Trainer | Post-session report: score, checklist, timeline, evidence log, trainer notes; in Practice, how often Show me and Locate were used. |
 | `/admin` | Admin trainer | **People**: add trainers and trainees, reset passwords, switch accounts off, make admins. |
-| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run with its score, checklist, trainer notes and, from the action log, each action with who did it and when. **Export CSV** saves the run list or one run; **Print / PDF** prints the chosen run. |
+| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run with its score, checklist, trainer notes and, from the action log, each action with who did it and when, and the Show me / Locate counts of Practice runs. **Export CSV** saves the run list or one run; **Print / PDF** prints the chosen run. |
 | `/progress` | Trainer (trainee: own) | **Trainee progress**: runs, completed, passed, average score, and best / average / latest result per scenario. **Export CSV** and **Print / PDF** for training records. |
 
 `/ios`, `/ios/scenarios` and `/ios/assessment` are old addresses; they open the
@@ -78,11 +78,12 @@ Trainer Console.
    with their exercise's code and clicks **Open my monitors**. (The trainer can
    also pick the trainee in an exercise's **Assign** list, or **Move** them.)
 3. Trainer picks a scenario in an exercise's column (for example **PSD Fault →
-   Single PSD failed to close**) and clicks **Load scenario**; the other
-   exercise is not affected.
-4. The trainee finds the incident alarm on Monitor 01, acknowledges it, selects
-   and holds the train on Monitor 02, makes the SOP calls from the **Calls**
-   tab (Radio / Teleph.), and releases the train.
+   Single PSD failed to close**), a **Mode** (Practice or Assessment) and clicks
+   **Load scenario**; the other exercise is not affected.
+4. The trainee finds the incident alarm on Monitor 01, selects its row and
+   clicks **Ack. selection**, right-clicks the train on Monitor 02 to select it
+   and holds it, makes the SOP calls from the **Calls** tab (Radio / Teleph.),
+   and releases the train with **DISPATCH** on the panel at its station.
 5. Trainer watches each checklist fill in, clicks **Complete**, then opens that
    exercise's **Report**.
 
@@ -90,6 +91,29 @@ A trainee's pages and monitors always show their own exercise, and follow them
 when the trainer moves them. A trainee cannot see or act in the other exercise.
 The console's **Open monitors** opens an exercise's monitors on the trainer's PC
 (`/screen/...?session=<code>`).
+
+### Practice aids
+
+In a **Practice** run each trainee monitor shows a small **PRACTICE** coach at
+the top right. It is drawn over the SCADA screen and never changes it; it can
+be dragged elsewhere (remembered per monitor). Click it to open it:
+
+- **Next step**: the next checklist step and how to do it, for example
+  "Calls → Teleph. → Chief Controller (CC) → Alert CC of the incident". On the
+  other monitors it says where the step is done.
+- **Show me** outlines what to click: the train, the incident row, the Calls
+  tab, the DISPATCH button on the train's station panel, or a timetable row.
+- **Locate Train …** (Line Map) moves the map to the scenario train and puts a
+  pulsing ring on it.
+- A refused or out-of-order action shows why, for example "Select Train 337
+  before acknowledging its alarm."
+
+The trainer can switch the aids off with **Aids on/off**. In **Assessment**
+nothing is shown and the switch is locked off (the server enforces it). Show
+me and Locate uses are counted in the report and History but never taken off
+the score. Hints come from the scenario definitions, so a new scenario gets
+them without extra work. Design and status:
+[docs/training-layer-plan.md](docs/training-layer-plan.md).
 
 ## Scenarios
 
@@ -125,6 +149,13 @@ The console's **Open monitors** opens an exercise's monitors on the trainer's PC
 - Steps are scored from live actions: alarm acknowledgement, train selection,
   holds, door commands, routes, dispatch, and calls logged from the Calls panel
   (`src/comms/commsCatalog.ts`). Critical steps are marked with ★.
+- As at the OCC, a station panel's **DISPATCH** and **HII** act only on the
+  train at that panel's station (the dialog names it; a panel with no train is
+  refused). The panel's **ROUTE** switches it between Central AUTO and MANUAL;
+  a train's route is set from a signal (right-click → **Define Route**). On the
+  Line Map, right-click a train for its menu and double-click it for its
+  inspector; a left click does nothing. See
+  [docs/scada-line-map-parity.md](docs/scada-line-map-parity.md).
 - Scenario definitions live in `src/training-scenarios/definitions.ts`.
 
 ## Timetables
@@ -229,12 +260,12 @@ backend data (stop the backend first).
 | `GET /api/history`, `GET /api/history/<run id>` | Past runs (`?trainee=` to filter), and one run with its checklist and actions. Trainees get their own only |
 | `GET /api/progress?trainee=<id>` | A trainee's progress (a trainee gets their own) |
 | `GET /api/admin/backups`, `POST /api/admin/backups` | Admin: list backups, make one now |
-
-Any other address is the app itself, served from `dist/` (`OCC_STATIC_DIR`); a
-production build talks to the server it was loaded from.
 | `GET /api/reports/latest` | Report summary of the current run, built by the server |
 | `GET /api/reports` | Archived reports |
 | `POST /api/reports` | Save trainer notes with the current run's report (the server scores it) |
+
+Any other address is the app itself, served from `dist/` (`OCC_STATIC_DIR`); a
+production build talks to the server it was loaded from.
 
 A run is archived (and appears in the history) when it is completed, or when
 the trainer saves notes on its report; runs stopped without either are not kept.
