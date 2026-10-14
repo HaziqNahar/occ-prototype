@@ -695,7 +695,10 @@ test.describe.serial('OCC monitor regressions', () => {
     await aids.click()
     await expect(alarmsCoach).toBeVisible()
 
-    // Assessment: no coach, and the switch cannot turn it on.
+    // Assessment: no coach, and the switch cannot turn it on. During a run the
+    // scenario picker is folded to a summary.
+    await expect(page.locator('.trainer-console-scenario-summary')).toContainText('Train Door Fault')
+    await page.getByRole('button', { name: 'Change scenario' }).click()
     await page.locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
     await page.getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
@@ -744,6 +747,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await timetable.close()
 
     // PSD fault: once the train is held and the calls are made, DISPATCH on the fault station's panel.
+    await page.getByRole('button', { name: 'Change scenario' }).click()
     await page.getByRole('radio', { name: /PSD Fault/ }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
     await expect.poll(async () => (await getSession(page)).activeScenario.id).toBe('psd-fault-obstructed')

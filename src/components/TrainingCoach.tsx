@@ -162,10 +162,10 @@ function TrainingCoach({ feedback, monitor, onAidUsed, onDismissFeedback, sessio
   return (
     <aside
       aria-label="Practice coach"
-      className={`training-coach ${expanded ? 'is-expanded' : ''} ${hint && !here ? 'is-elsewhere' : ''}`}
+      className={`training-coach training-coach--${monitor.toLowerCase().replace('_', '-')} ${expanded ? 'is-expanded' : ''} ${hint && !here ? 'is-elsewhere' : ''}`}
       data-testid="training-coach"
       ref={panelRef}
-      style={position ? { left: position.left, right: 'auto', top: position.top } : undefined}
+      style={position ? { bottom: 'auto', left: position.left, right: 'auto', top: position.top } : undefined}
     >
       <button
         aria-expanded={expanded}

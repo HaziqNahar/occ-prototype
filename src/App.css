@@ -4317,10 +4317,10 @@
   background: linear-gradient(180deg, #3b587d, #2a405f);
 }
 
-.report-actions button:last-child {
+/* Saving the report is the page's main action. */
+.report-actions .is-primary {
   border-color: rgba(99, 179, 237, 0.65);
   background: linear-gradient(180deg, var(--control-action-hover), var(--control-action));
-  box-shadow: inset 4px 0 0 var(--control-button-active), 0 12px 24px rgba(3, 10, 24, 0.24);
 }
 
 .report-card {
@@ -12855,9 +12855,13 @@
 }
 
 .trainer-console-figures em {
-  color: #64748b;
+  color: #9fb3ca;
   font-size: 14px;
   font-style: normal;
+}
+
+.trainer-console-figures .is-over {
+  color: #fbbf24;
 }
 
 .trainer-console-figures .is-bad {
@@ -12896,6 +12900,42 @@
   padding: 8px 12px;
   color: #d8ecff;
   background: rgba(13, 26, 44, 0.85);
+}
+
+/* Scenario picker folded to a summary while a run is loaded. */
+.trainer-console-scenario-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.trainer-console-scenario-summary strong {
+  font-size: 16px;
+}
+
+.trainer-console-scenario-summary span {
+  color: #d8ecff;
+}
+
+.trainer-console-scenario-summary small {
+  color: #9fb3ca;
+}
+
+.trainer-console-scenario-summary button,
+.trainer-console-picker-toggle {
+  justify-self: start;
+  margin-top: 8px;
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: var(--ink);
+  background: var(--control-button);
+  font-weight: 800;
+}
+
+.trainer-console-picker-toggle {
+  margin-top: 0;
+  padding: 2px 10px;
+  font-size: 12px;
 }
 
 .trainer-console-notice-label {
@@ -13765,12 +13805,24 @@
   font-size: 18px;
 }
 
+/* Name on one line, its Move / Remove links together on the next. */
 .trainer-exercise-trainee {
   display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  flex-direction: column;
+  gap: 1px;
   margin-right: 10px;
+}
+
+.trainer-exercise-trainee-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainer-exercise-trainee-actions {
+  display: flex;
+  gap: 12px;
+  white-space: nowrap;
 }
 
 .trainer-exercise-trainee button {
@@ -14066,6 +14118,21 @@
   background: rgba(17, 24, 39, 0.94);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   font: 13px/1.35 system-ui, 'Segoe UI', sans-serif;
+}
+
+/* Monitor 01: start bottom right, over the alarm table's empty rows, so the
+   header alarm panel's VALUE column stays visible; it opens upwards. */
+.training-coach--alarms {
+  top: auto;
+  bottom: 14vh;
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.training-coach--alarms .training-coach-body,
+.training-coach--alarms .training-coach-feedback {
+  border-top: 0;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.35);
 }
 
 .training-coach.is-elsewhere {

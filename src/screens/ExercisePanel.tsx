@@ -43,10 +43,22 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
 // Scenario families the console can arm; fault families pick their SOP variant by incident.
 const consoleTemplates = scenarioTemplates.filter((template) => template.trainingScenarioKind)
 
+// mm:ss, or h:mm:ss once a run passes an hour (a run left open overnight
+// would otherwise read 1378:49).
 function formatElapsed(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds))
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const hours = Math.floor(seconds / 3600)
 
-  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  return hours > 0
+    ? `${hours}:${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`
+    : `${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`
+}
+
+function durationSeconds(duration: string) {
+  const [minutes, seconds] = duration.split(':').map(Number)
+
+  return Number.isFinite(minutes) && Number.isFinite(seconds) ? minutes * 60 + seconds : 0
 }
 
 function getTemplateIdForScenario(scenarioId: string) {
@@ -94,6 +106,8 @@ function ExercisePanel({
   const [timeTarget, setTimeTarget] = useState('')
   const [traineeChoice, setTraineeChoice] = useState('')
   const [now, setNow] = useState(() => Date.now())
+  // During a run the scenario picker folds to a summary, leaving room for the checklist.
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const score = scoreTrainingScenario(session)
   const completedTasks = score.taskResults.filter((task) => task.complete).length
@@ -114,7 +128,11 @@ function ExercisePanel({
   const sessionCode = synced ? session.sessionMeta.code : '----'
   const timeTargetValue = timeTarget || selectedDefinition.duration
   const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
-  const elapsed = !isIdle && startedAt ? formatElapsed((now - startedAt) / 1000) : '--:--'
+  // A completed run's time stops at completion.
+  const completedAt = session.scenarioMode === 'COMPLETE' && session.sessionMeta?.completedAt ? Date.parse(session.sessionMeta.completedAt) : undefined
+  const elapsedSeconds = !isIdle && startedAt ? ((completedAt ?? now) - startedAt) / 1000 : 0
+  const elapsed = !isIdle && startedAt ? formatElapsed(elapsedSeconds) : '--:--'
+  const overTarget = !isIdle && Boolean(startedAt) && elapsedSeconds > durationSeconds(session.activeScenario.duration)
   const activity = categoriseScenarioEvidence(session.evidenceLog)
     .filter((evidence) => evidence.category !== 'trainer' || evidence.result === 'rejected')
     .slice(0, 14)
@@ -146,6 +164,7 @@ function ExercisePanel({
   }, [isRunning])
 
   const loadScenario = () => {
+    setPickerOpen(false)
     void dispatch({
       duration: timeTargetValue,
       incident: selectedDefinition.incident,
@@ -184,19 +203,21 @@ function ExercisePanel({
             <dd>
               {session.trainees.length > 0 ? session.trainees.map((trainee) => (
                 <span className="trainer-exercise-trainee" key={trainee.email}>
-                  {trainee.name}
-                  {otherExercise && exercise && (
-                    <button type="button" className="is-quiet" onClick={() => onAssign(trainee.email, otherExercise.id)}>
-                      Move to Exercise {otherExercise.exercise}
+                  <span className="trainer-exercise-trainee-name">{trainee.name}</span>
+                  <span className="trainer-exercise-trainee-actions">
+                    {otherExercise && exercise && (
+                      <button type="button" className="is-quiet" onClick={() => onAssign(trainee.email, otherExercise.id)}>
+                        Move to Exercise {otherExercise.exercise}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="is-quiet"
+                      onClick={() => void dispatch({ traineeId: trainee.email, type: 'TRAINEE_LEAVE' })}
+                    >
+                      Remove
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="is-quiet"
-                    onClick={() => void dispatch({ traineeId: trainee.email, type: 'TRAINEE_LEAVE' })}
-                  >
-                    Remove
-                  </button>
+                  </span>
                 </span>
               )) : 'None joined yet'}
             </dd>
@@ -244,7 +265,12 @@ function ExercisePanel({
           </div>
         </div>
         <dl className="trainer-console-figures">
-          <div><dt>Time</dt><dd>{elapsed}<em> / {isIdle ? '--:--' : session.activeScenario.duration}</em></dd></div>
+          <div>
+            <dt>Time</dt>
+            <dd className={overTarget ? 'is-over' : undefined} title={overTarget ? 'Past the time target' : undefined}>
+              {elapsed}<em> / {isIdle ? '--:--' : session.activeScenario.duration}</em>
+            </dd>
+          </div>
           <div><dt>Tasks</dt><dd>{completedTasks}<em> / {score.totalTasks}</em></dd></div>
           <div><dt>Score</dt><dd>{score.score}%</dd></div>
           <div><dt>Wrong actions</dt><dd className={score.rejectedActions > 0 ? 'is-bad' : undefined}>{score.rejectedActions}</dd></div>
@@ -295,68 +321,86 @@ function ExercisePanel({
 
       <div className="trainer-console-grid">
         <section className="trainer-console-panel trainer-console-scenarios" aria-labelledby={`${headingId}-scenario`}>
-          <h2 id={`${headingId}-scenario`}>Scenario</h2>
-          <div className="trainer-console-scenario-list" role="radiogroup" aria-label="Scenario">
-            {consoleTemplates.map((item) => (
-              <button
-                aria-checked={item.id === template.id}
-                className={item.id === template.id ? 'is-selected' : undefined}
-                key={item.id}
-                onClick={() => setTemplateId(item.id)}
-                role="radio"
-                type="button"
-              >
-                <strong>{item.title}</strong>
-                {item.incidents.length > 1 && <small>{item.incidents.length} incidents</small>}
+          <div className="trainer-console-panel-head">
+            <h2 id={`${headingId}-scenario`}>Scenario</h2>
+            {!isIdle && pickerOpen && (
+              <button type="button" className="trainer-console-picker-toggle" onClick={() => setPickerOpen(false)}>Hide</button>
+            )}
+          </div>
+          {!isIdle && !pickerOpen ? (
+            <div className="trainer-console-scenario-summary">
+              <strong>{activeDefinition.title}</strong>
+              <span>{session.activeScenario.incident}</span>
+              <small>
+                {session.trainingMode.toLowerCase()} · target {session.activeScenario.duration} · {session.timetableName.replace('NEL_OTES_', '').replace('_', ' ')}
+              </small>
+              <button type="button" onClick={() => setPickerOpen(true)}>Change scenario</button>
+            </div>
+          ) : (
+            <>
+              <div className="trainer-console-scenario-list" role="radiogroup" aria-label="Scenario">
+                {consoleTemplates.map((item) => (
+                  <button
+                    aria-checked={item.id === template.id}
+                    className={item.id === template.id ? 'is-selected' : undefined}
+                    key={item.id}
+                    onClick={() => setTemplateId(item.id)}
+                    role="radio"
+                    type="button"
+                  >
+                    <strong>{item.title}</strong>
+                    {item.incidents.length > 1 && <small>{item.incidents.length} incidents</small>}
+                  </button>
+                ))}
+              </div>
+              {template.incidents.length > 1 && (
+                <label className="trainer-console-field">
+                  <span>Incident</span>
+                  <SelectField
+                    ariaLabel="Incident"
+                    value={selectedIncident}
+                    options={template.incidents.map((value) => ({ label: value, value }))}
+                    onChange={setIncident}
+                  />
+                </label>
+              )}
+              <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
+              <div className="trainer-console-field-row">
+                <label className="trainer-console-field">
+                  <span>Mode</span>
+                  <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
+                </label>
+                <label className="trainer-console-field">
+                  <span>Time target</span>
+                  <input
+                    aria-invalid={!timeTargetIsValid}
+                    className="trainer-console-input"
+                    onChange={(event) => setTimeTarget(event.target.value)}
+                    placeholder="mm:ss"
+                    value={timeTargetValue}
+                  />
+                </label>
+                <label className="trainer-console-field">
+                  <span>Timetable</span>
+                  <SelectField
+                    ariaLabel="Timetable"
+                    value={timetableName}
+                    options={nelTimetableOptions.map((option) => ({ label: option.label, value: option.value }))}
+                    onChange={setTimetableName}
+                  />
+                </label>
+              </div>
+              <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
+                {isIdle ? 'Load scenario' : 'Restart with this scenario'}
               </button>
-            ))}
-          </div>
-          {template.incidents.length > 1 && (
-            <label className="trainer-console-field">
-              <span>Incident</span>
-              <SelectField
-                ariaLabel="Incident"
-                value={selectedIncident}
-                options={template.incidents.map((value) => ({ label: value, value }))}
-                onChange={setIncident}
-              />
-            </label>
+              {timetableName !== session.timetableName && (
+                <small className="trainer-console-hint">Changing timetable resets all trains.</small>
+              )}
+              <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
+                Reset whole session
+              </button>
+            </>
           )}
-          <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
-          <div className="trainer-console-field-row">
-            <label className="trainer-console-field">
-              <span>Mode</span>
-              <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
-            </label>
-            <label className="trainer-console-field">
-              <span>Time target</span>
-              <input
-                aria-invalid={!timeTargetIsValid}
-                className="trainer-console-input"
-                onChange={(event) => setTimeTarget(event.target.value)}
-                placeholder="mm:ss"
-                value={timeTargetValue}
-              />
-            </label>
-            <label className="trainer-console-field">
-              <span>Timetable</span>
-              <SelectField
-                ariaLabel="Timetable"
-                value={timetableName}
-                options={nelTimetableOptions.map((option) => ({ label: option.label, value: option.value }))}
-                onChange={setTimetableName}
-              />
-            </label>
-          </div>
-          <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
-            {isIdle ? 'Load scenario' : 'Restart with this scenario'}
-          </button>
-          {timetableName !== session.timetableName && (
-            <small className="trainer-console-hint">Changing timetable resets all trains.</small>
-          )}
-          <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
-            Reset whole session
-          </button>
         </section>
 
         <section className="trainer-console-panel trainer-console-checklist" aria-labelledby={`${headingId}-checklist`}>

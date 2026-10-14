@@ -78,7 +78,7 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
         </div>
         <div className="report-actions">
           <button type="button" onClick={() => onNavigate('/ios/modules')}>Back to console</button>
-          <button type="button" disabled={!hasScenario} onClick={archiveReport}>Save Report</button>
+          <button type="button" className="is-primary" disabled={!hasScenario} onClick={archiveReport}>Save Report</button>
           <button type="button" onClick={() => window.print()}>Print</button>
         </div>
       </header>
