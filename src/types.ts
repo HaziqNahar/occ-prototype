@@ -277,7 +277,15 @@ export type AssessmentTaskMetric = {
 // The session's assessment, kept by the server after every command: score and
 // result from the scenario definition, plus step timings
 // (session-commands/assessment.ts).
+// How often the trainee used Show me and Locate in a Practice run. Recorded
+// for the trainer, never taken off the score (docs/training-layer-plan.md, piece 5).
+export type TrainingAidUse = {
+  locate: number
+  showMe: number
+}
+
 export type OccAssessmentMetrics = {
+  aidsUsed: TrainingAidUse
   completedAt?: string
   lateTasks: number
   onTimeTasks: number

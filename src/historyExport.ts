@@ -51,7 +51,7 @@ const trainees = (run: RunSummary) => run.trainees.map((trainee) => trainee.name
 
 export function runsToCsv(runs: readonly RunSummary[]) {
   return toCsv([
-    ['Date', 'Trainee', 'Scenario', 'Exercise', 'Session code', 'Mode', 'Result', 'Score %', 'Time', 'Wrong actions', 'Completed', 'Trainer notes', 'Run id'],
+    ['Date', 'Trainee', 'Scenario', 'Exercise', 'Session code', 'Mode', 'Result', 'Score %', 'Time', 'Wrong actions', 'Show me used', 'Locate used', 'Completed', 'Trainer notes', 'Run id'],
     ...runs.map((run) => [
       formatExportTime(run.startedAt ?? run.completedAt),
       trainees(run),
@@ -63,6 +63,8 @@ export function runsToCsv(runs: readonly RunSummary[]) {
       run.score,
       run.durationLabel,
       run.rejectedActions,
+      run.aidsUsed?.showMe,
+      run.aidsUsed?.locate,
       run.completed ? 'yes' : 'no',
       run.notes,
       run.id,
@@ -83,6 +85,8 @@ export function runToCsv(run: RunDetail) {
     ['Score %', run.score],
     ['Time', run.durationLabel],
     ['Wrong actions', run.rejectedActions],
+    ['Show me used', run.aidsUsed?.showMe],
+    ['Locate used', run.aidsUsed?.locate],
     ['Trainer notes', run.notes],
     [],
     ['Checklist', 'Done', 'Critical', 'Where'],

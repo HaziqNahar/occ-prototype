@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { applySessionCommand } from '../../src/session-commands/applySessionCommand'
 import type { SessionActor, SessionCommand } from '../../src/session-commands/types'
+import { buildScenarioReport } from '../../src/scenarioReport'
 import { createInitialSession, restoreSession } from '../../src/sessionState'
 import { trainingScenarioDefinitions } from '../../src/training-scenarios/definitions'
 import { getCoachState, getStepHint } from '../../src/training-scenarios/hints'
@@ -101,4 +102,35 @@ for (const definition of trainingScenarioDefinitions) {
     assert.ok(hint.how.length > 0 && hint.how.every(Boolean), `${definition.id} / ${task.id} has a hint`)
     assert.ok(!hint.label.includes('{'), `${definition.id} / ${task.id} label is filled in`)
   }
+}
+
+// Show me and Locate are counted for the report, never scored, and only while aids show.
+{
+  let session = loadDoorFault('PRACTICE')
+  const scoreBefore = session.assessmentMetrics.score
+
+  session = apply(session, trainee, { aid: 'SHOW_ME', type: 'USE_TRAINING_AID' })
+  session = apply(session, trainee, { aid: 'SHOW_ME', type: 'USE_TRAINING_AID' })
+  session = apply(session, trainee, { aid: 'LOCATE', type: 'USE_TRAINING_AID' })
+  assert.deepEqual(session.assessmentMetrics.aidsUsed, { locate: 1, showMe: 2 })
+  assert.equal(session.assessmentMetrics.score, scoreBefore)
+  assert.equal(session.assessmentMetrics.rejectedActions, 0)
+  assert.deepEqual(buildScenarioReport(session).archiveSummary.aidsUsed, { locate: 1, showMe: 2 })
+
+  // A new run starts from zero.
+  session = apply(session, trainer, {
+    duration: '06:00',
+    faultLocation: location,
+    incident: 'Door fault',
+    kind: 'DOOR_FAULT',
+    timetableName: session.timetableName,
+    trainingMode: 'PRACTICE',
+    type: 'LOAD_SCENARIO',
+  })
+  assert.deepEqual(session.assessmentMetrics.aidsUsed, { locate: 0, showMe: 0 })
+
+  session = apply(session, trainer, { enabled: false, type: 'SET_TRAINING_AIDS' })
+  assert.equal(applySessionCommand(session, { aid: 'SHOW_ME', type: 'USE_TRAINING_AID' }, { actor: trainee }).accepted, false)
+  assert.equal(applySessionCommand(loadDoorFault('ASSESSMENT'), { aid: 'LOCATE', type: 'USE_TRAINING_AID' }, { actor: trainee }).accepted, false)
+  assert.equal(applySessionCommand(session, { aid: 'PEEK', type: 'USE_TRAINING_AID' } as unknown as SessionCommand, { actor: trainer }).accepted, false)
 }

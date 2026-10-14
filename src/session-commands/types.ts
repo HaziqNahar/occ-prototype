@@ -5,6 +5,7 @@ import type { NelTimetableName } from '../data/nelTimetable'
 import type { TimetablePlaybackPlan } from '../screens/line-map/timetablePlayback'
 import type { FaultLocation } from '../training-scenarios/faultLocation'
 import type { TrainingScenarioKind } from '../training-scenarios/types'
+import type { TrainingAid } from '../trainingAids'
 import type {
   LineMapPlatformDoorState,
   LineMapRouteSegmentState,
@@ -132,6 +133,8 @@ export type SessionCommand =
   // Monitor 03 Timetable
   | { direction?: TimetableViewDirection; station?: string; type: 'SET_TIMETABLE_VIEW' }
   | { action: TimetableTripAction; sched: string; trainId: string; type: 'TIMETABLE_TRIP_ACTION' }
+  // Practice coach: the trainee used Show me or Locate (counted, not scored)
+  | { aid: TrainingAid; type: 'USE_TRAINING_AID' }
   // Calls panel (Monitor 01 and 02)
   | { request: CommsRequest; type: 'LOG_CALL' }
   // Line map train simulation

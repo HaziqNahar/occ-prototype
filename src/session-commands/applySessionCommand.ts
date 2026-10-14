@@ -1,6 +1,8 @@
 import type { TrainDoorCommand } from '../components/train-control/trainCommandState'
 import { nelTimetableOptions } from '../data/nelTimetable'
 import { finalizeSessionUpdate } from '../sessionState'
+import { TRAINING_AIDS } from '../trainingAids'
+import type { TrainingAid } from '../trainingAids'
 import {
   applyTrainingScenarioTimetableCompletion,
   applyTrainingScenarioTimetableStep,
@@ -33,6 +35,7 @@ import {
   logCall,
   setTimetableView,
   showNotice,
+  recordTrainingAidUse,
 } from './monitorCommands'
 import { applySimPatch } from './simPatch'
 import {
@@ -174,6 +177,8 @@ export function validateSessionCommand(command: unknown): string | null {
         : 'Expected a timetable view.'
     case 'TIMETABLE_TRIP_ACTION':
       return isText(value.trainId) && typeof value.sched === 'string' && isTimetableTripAction(value.action) ? null : 'Expected a trip action.'
+    case 'USE_TRAINING_AID':
+      return TRAINING_AIDS.includes(value.aid as TrainingAid) ? null : 'Unknown training aid.'
     case 'LOG_CALL':
       return value.request && typeof value.request === 'object' && isText((value.request as { messageId?: unknown }).messageId)
         ? null
@@ -281,6 +286,8 @@ function runCommand(session: OccSessionState, command: SessionCommand, context: 
       return setTimetableView(session, command)
     case 'TIMETABLE_TRIP_ACTION':
       return applyTimetableTripAction(session, command.trainId, command.sched, command.action)
+    case 'USE_TRAINING_AID':
+      return recordTrainingAidUse(session, command.aid)
     case 'LOG_CALL':
       return logCall(session, command.request)
     case 'SIM_UPDATE':

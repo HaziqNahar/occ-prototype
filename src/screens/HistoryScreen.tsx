@@ -175,6 +175,15 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
                 <div><dt>Score</dt><dd>{shownDetail.score}%</dd></div>
                 <div><dt>Time</dt><dd>{shownDetail.durationLabel ?? '—'}</dd></div>
                 <div><dt>Wrong actions</dt><dd className={shownDetail.rejectedActions > 0 ? 'is-bad' : undefined}>{shownDetail.rejectedActions}</dd></div>
+                {shownDetail.aidsUsed && (
+                  <div title="Practice aids are recorded, not taken off the score.">
+                    <dt>Aids used</dt>
+                    <dd>
+                      {shownDetail.aidsUsed.showMe + shownDetail.aidsUsed.locate}
+                      <em> Show me {shownDetail.aidsUsed.showMe} · Locate {shownDetail.aidsUsed.locate}</em>
+                    </dd>
+                  </div>
+                )}
               </dl>
               <p className="history-facts">
                 {shownDetail.trainees.length > 0 ? shownDetail.trainees.map((trainee) => (

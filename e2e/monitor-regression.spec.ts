@@ -656,6 +656,20 @@ test.describe.serial('OCC monitor regressions', () => {
       return Boolean(ring && tab && Math.abs(ring.x + 4 - tab.x) < 2 && Math.abs(ring.y + 4 - tab.y) < 2)
     }).toBe(true)
 
+    // Aids used are counted for the report and History, and the score is not reduced.
+    await expect.poll(async () => (await getSession(page)).assessmentMetrics.aidsUsed).toEqual({ locate: 1, showMe: 3 })
+
+    const report = await context.newPage()
+
+    await report.goto(`/report?session=${encodeURIComponent((await getSession(page)).sessionMeta.code)}`)
+    await expect(report.locator('.report-kpi', { hasText: 'Aids used' })).toContainText('Show me 3 · Locate 1')
+    await report.request.post('/api/reports', { data: { notes: 'E2E aids check' }, headers: trainerHeaders() })
+    await report.goto('/history')
+    await report.getByRole('button', { name: /Train Door Fault/ }).first().click()
+    await expect(report.getByText('E2E aids check')).toBeVisible()
+    await expect(report.locator('.trainer-console-figures div', { hasText: 'Aids used' })).toContainText('Show me 3 · Locate 1')
+    await report.close()
+
     // The trainer's switch hides it everywhere.
     await aids.click()
     await expect(aids).toHaveText('Aids off')

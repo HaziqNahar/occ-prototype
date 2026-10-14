@@ -125,6 +125,7 @@ import LoginPage, { AccessNotice } from './screens/LoginPage'
 import SignInPage from './screens/SignInPage'
 import TrainingCoach from './components/TrainingCoach'
 import { useCommandFeedback } from './components/useCommandFeedback'
+import type { TrainingAid } from './trainingAids'
 import { exerciseApi } from './exerciseClient'
 import { useAuth } from './useAuth'
 import type {
@@ -265,6 +266,8 @@ function App() {
   } = useOccSession(getActor, CONSOLE_ROUTES.has(route) ? null : token, auth.handleSignedOut, sessionRef)
   // The trainee monitors send through this, so the Practice coach can say why an action was refused.
   const { clearFeedback, dispatch: monitorDispatch, feedback } = useCommandFeedback(dispatch)
+  // Counted for the run report; sent past the feedback wrapper as it is not a trainee action.
+  const recordAidUse = useCallback((aid: TrainingAid) => void dispatch({ aid, type: 'USE_TRAINING_AID' }), [dispatch])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -367,7 +370,7 @@ function App() {
           simulate={simulate}
           subscribeMonitorLaunch={subscribeMonitorLaunch}
         />
-        <TrainingCoach feedback={feedback} monitor="LINE_MAP" onDismissFeedback={clearFeedback} session={session} />
+        <TrainingCoach feedback={feedback} monitor="LINE_MAP" onAidUsed={recordAidUse} onDismissFeedback={clearFeedback} session={session} />
       </OperatorNameContext.Provider>
     )
   }
@@ -376,7 +379,7 @@ function App() {
     return (
       <OperatorNameContext.Provider value={user?.id ?? ''}>
         <AlarmsScreen dispatch={monitorDispatch} onNavigate={navigate} session={session} />
-        <TrainingCoach feedback={feedback} monitor="ALARMS" onDismissFeedback={clearFeedback} session={session} />
+        <TrainingCoach feedback={feedback} monitor="ALARMS" onAidUsed={recordAidUse} onDismissFeedback={clearFeedback} session={session} />
       </OperatorNameContext.Provider>
     )
   }
@@ -385,7 +388,7 @@ function App() {
     return (
       <OperatorNameContext.Provider value={user?.id ?? ''}>
         <TimetableScreen dispatch={monitorDispatch} onNavigate={navigate} session={session} />
-        <TrainingCoach feedback={feedback} monitor="TIMETABLE" onDismissFeedback={clearFeedback} session={session} />
+        <TrainingCoach feedback={feedback} monitor="TIMETABLE" onAidUsed={recordAidUse} onDismissFeedback={clearFeedback} session={session} />
       </OperatorNameContext.Provider>
     )
   }

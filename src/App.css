@@ -12415,11 +12415,19 @@
 }
 
 .report-kpis {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .report-kpi small {
   display: none;
+}
+
+.report-kpi .report-kpi-detail {
+  margin-left: 8px;
+  color: #9fb3ca;
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 600;
 }
 
 .report-evidence-details {

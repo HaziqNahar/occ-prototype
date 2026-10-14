@@ -1,7 +1,7 @@
 # Training Layer Plan
 
 Practice-mode aids drawn over the three trainee monitors (Alarms, Line Map,
-Timetable). Agreed 14 Oct 2026. Pieces 1–4 done (`src/trainingAids.ts`,
+Timetable). Agreed 14 Oct 2026. Pieces 1–5 done (`src/trainingAids.ts`,
 `src/training-scenarios/hints.ts`, `src/components/TrainingCoach.tsx`,
 `CoachHighlight.tsx`, `coachTargets.ts`, `useCommandFeedback.ts`).
 

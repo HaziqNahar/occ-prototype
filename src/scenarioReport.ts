@@ -119,6 +119,8 @@ export function buildScenarioReport(session: OccSessionState) {
 
   return {
     archiveSummary: {
+      // Practice aids used (not taken off the score).
+      aidsUsed: session.assessmentMetrics.aidsUsed,
       averageResponseSeconds,
       completedTasks: scenarioScore.completedTasks,
       durationLabel: formatDuration(durationSeconds),

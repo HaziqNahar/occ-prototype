@@ -6,6 +6,8 @@ import { completeScenarioTask, createMonitorEvent, createSummaryEvent } from '..
 import { updateTrainDelay } from '../trainDelay'
 import { getLineMapRouteStatus, updateLineMapRouteState } from '../screens/line-map/lineMapRouteState'
 import { sessionCodesMatch } from '../sessionCode'
+import { areTrainingAidsOn } from '../trainingAids'
+import type { TrainingAid } from '../trainingAids'
 import { applyTrainingScenarioRuntimeEvent, getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
 import type {
   MonitorAlarmRow,
@@ -120,6 +122,28 @@ export function logCall(current: OccSessionState, request: CommsRequest): Sessio
   return next === current
     ? { accepted: false, reason: 'Unknown call message.', session: current }
     : accepted(next)
+}
+
+// Counts a Show me or Locate for the run report. Only while aids show: in
+// Assessment the coach is not drawn, so a use there cannot be real.
+export function recordTrainingAidUse(current: OccSessionState, aid: TrainingAid): SessionCommandResult {
+  if (!areTrainingAidsOn(current)) {
+    return { accepted: false, reason: 'Training aids are off.', session: current }
+  }
+
+  if (current.scenarioMode !== 'RUNNING') {
+    return { accepted: false, reason: 'No scenario is running.', session: current }
+  }
+
+  const used = current.assessmentMetrics.aidsUsed ?? { locate: 0, showMe: 0 }
+
+  return accepted({
+    ...current,
+    assessmentMetrics: {
+      ...current.assessmentMetrics,
+      aidsUsed: aid === 'LOCATE' ? { ...used, locate: used.locate + 1 } : { ...used, showMe: used.showMe + 1 },
+    },
+  })
 }
 
 export function showNotice(current: OccSessionState, notice: OccSessionState['scenarioNotice']): SessionCommandResult {

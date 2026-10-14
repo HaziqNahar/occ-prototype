@@ -488,6 +488,7 @@ export function createAssessmentMetrics(): OccAssessmentMetrics {
   }), {} as OccAssessmentMetrics['tasks'])
 
   return {
+    aidsUsed: { locate: 0, showMe: 0 },
     lateTasks: 0,
     onTimeTasks: 0,
     rejectedActions: 0,

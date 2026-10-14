@@ -34,12 +34,17 @@ const run: RunSummary = {
 
 // The run list: one header row and one row per run.
 {
-  const lines = runsToCsv([run, { ...run, completed: false, id: 'r2', notes: '', result: 'IN PROGRESS', score: 20 }]).trimEnd().split('\r\n')
+  const lines = runsToCsv([
+    run,
+    { ...run, completed: false, id: 'r2', notes: '', result: 'IN PROGRESS', score: 20 },
+    { ...run, aidsUsed: { locate: 1, showMe: 3 }, id: 'r3', mode: 'PRACTICE' },
+  ]).trimEnd().split('\r\n')
 
-  assert.equal(lines.length, 3)
-  assert.equal(lines[0], 'Date,Trainee,Scenario,Exercise,Session code,Mode,Result,Score %,Time,Wrong actions,Completed,Trainer notes,Run id')
-  assert.match(lines[1], /,Alex Tan,PSD Obstructed,2,K7M2,assessment,PASS,95,5m 00s,1,yes,"Calls in order, hold ""prompt""\.",/)
+  assert.equal(lines.length, 4)
+  assert.equal(lines[0], 'Date,Trainee,Scenario,Exercise,Session code,Mode,Result,Score %,Time,Wrong actions,Show me used,Locate used,Completed,Trainer notes,Run id')
+  assert.match(lines[1], /,Alex Tan,PSD Obstructed,2,K7M2,assessment,PASS,95,5m 00s,1,,,yes,"Calls in order, hold ""prompt""\.",/)
   assert.match(lines[2], /,NOT COMPLETED,20,.*,no,,r2$/)
+  assert.match(lines[3], /,practice,PASS,95,5m 00s,1,3,1,yes,/)
 }
 
 // One run: summary, checklist and actions with plain action names.

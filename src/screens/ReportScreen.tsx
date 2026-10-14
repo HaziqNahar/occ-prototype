@@ -117,6 +117,15 @@ function ReportScreen({ onNavigate, session }: ReportScreenProps) {
             <span>Trainee actions</span>
             <strong>{evidenceGroups.trainee.length}</strong>
           </div>
+          {session.trainingMode === 'PRACTICE' && (
+            <div className="report-kpi" title="Practice aids are recorded, not taken off the score.">
+              <span>Aids used</span>
+              <strong>
+                {assessmentMetrics.aidsUsed.showMe + assessmentMetrics.aidsUsed.locate}
+                <em className="report-kpi-detail">Show me {assessmentMetrics.aidsUsed.showMe} · Locate {assessmentMetrics.aidsUsed.locate}</em>
+              </strong>
+            </div>
+          )}
         </section>
       )}
 

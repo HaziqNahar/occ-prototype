@@ -1,5 +1,7 @@
 import { getCommsMessage } from './comms/commsCatalog'
 import type { SessionCommandType } from './session-commands/types'
+import { trainingAidLabels } from './trainingAids'
+import type { TrainingAid } from './trainingAids'
 
 // Past runs and trainee progress, built from the archived reports (scored by the
 // server) and the action log. Shared by the server (server/history.ts) and pages.
@@ -7,6 +9,8 @@ import type { SessionCommandType } from './session-commands/types'
 export type RunTrainee = { id: string; name: string }
 
 export type RunSummary = {
+  // Show me / Locate uses in a Practice run; missing on older reports.
+  aidsUsed?: { locate: number; showMe: number }
   // The run reached Complete (otherwise the trainer saved notes mid-run).
   completed: boolean
   completedAt?: string
@@ -90,7 +94,12 @@ export function toRunSummary(report: { id: string; notes: unknown; summary: Reco
       ))
     : []
 
+  const aidsUsed = summary.aidsUsed && typeof summary.aidsUsed === 'object'
+    ? summary.aidsUsed as Record<string, unknown>
+    : undefined
+
   return {
+    aidsUsed: aidsUsed ? { locate: asNumber(aidsUsed.locate), showMe: asNumber(aidsUsed.showMe) } : undefined,
     completed: summary.lifecycle === 'COMPLETE',
     completedAt: asString(summary.completedAt),
     durationLabel: asString(summary.durationLabel),
@@ -182,6 +191,7 @@ const ACTION_LABELS: Partial<Record<SessionCommandType, string>> = {
   TRAIN_READINESS: 'Train readiness command',
   TRAINEE_JOIN: 'Joined the exercise',
   TRAINEE_LEAVE: 'Left the exercise',
+  USE_TRAINING_AID: 'Used a training aid',
 }
 
 export function describeAction(type: string | null) {
@@ -204,6 +214,7 @@ export function describeActionSubject(payload: unknown) {
     text(command.routeLabel),
     text(command.view) && command.type === 'OPEN_TRAIN_VIEW' ? text(command.view) : undefined,
     text(command.action),
+    text(command.aid) ? trainingAidLabels[command.aid as TrainingAid] ?? text(command.aid) : undefined,
   ].filter(Boolean)
 
   return parts.length > 0 ? parts.join(' · ') : undefined

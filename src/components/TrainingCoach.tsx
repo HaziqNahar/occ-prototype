@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { areTrainingAidsOn } from '../trainingAids'
+import type { TrainingAid } from '../trainingAids'
 import { coachMonitorLabels, getCoachState } from '../training-scenarios/hints'
 import type { CoachMonitor, CoachTarget } from '../training-scenarios/hints'
 import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
@@ -13,6 +14,8 @@ type TrainingCoachProps = {
   // This monitor's last refused action (piece 4).
   feedback?: CommandFeedback | null
   monitor: CoachMonitor
+  // Records a Show me or Locate for the run report (piece 5).
+  onAidUsed?: (aid: TrainingAid) => void
   onDismissFeedback?: () => void
   session: OccSessionState
 }
@@ -54,7 +57,7 @@ function clampPosition(position: Position, width: number, height: number): Posit
   }
 }
 
-function TrainingCoach({ feedback, monitor, onDismissFeedback, session }: TrainingCoachProps) {
+function TrainingCoach({ feedback, monitor, onAidUsed, onDismissFeedback, session }: TrainingCoachProps) {
   const [expanded, setExpanded] = useState(false)
   const [position, setPosition] = useState<Position | null>(() => readPosition(monitor))
   const [highlight, setHighlight] = useState<Highlight | null>(null)
@@ -96,6 +99,7 @@ function TrainingCoach({ feedback, monitor, onDismissFeedback, session }: Traini
 
     setMissing('')
     setHighlight({ id: Date.now(), target, variant })
+    onAidUsed?.(variant === 'ring' ? 'LOCATE' : 'SHOW_ME')
   }
   const elsewhere = hint && !here
     ? `Next step is on ${hint.monitors.map((item) => coachMonitorLabels[item]).join(' or ')}`
