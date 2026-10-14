@@ -14838,15 +14838,15 @@
    plain dark-grey surfaces, sentence-case labels, one accent colour. The
    rules below are scoped to .app-shell, so the SCADA monitors are untouched. */
 .app-shell {
-  --shell-bg: #0e1013;
-  --shell-sidebar: #13161a;
-  --shell-surface: #171a1f;
-  --shell-raised: #1e2228;
-  --shell-border: rgba(255, 255, 255, 0.08);
-  --shell-border-strong: rgba(255, 255, 255, 0.16);
+  --shell-bg: #07111f;
+  --shell-sidebar: #0a1626;
+  --shell-surface: #0d1a2c;
+  --shell-raised: #132238;
+  --shell-border: rgba(148, 163, 184, 0.18);
+  --shell-border-strong: rgba(148, 163, 184, 0.3);
   --shell-text: #e8eaed;
-  --shell-muted: #9aa3ad;
-  --shell-faint: #6b7480;
+  --shell-muted: #9fb3ca;
+  --shell-faint: #64748b;
   --shell-accent: #3b82f6;
   --shell-accent-soft: rgba(59, 130, 246, 0.16);
 
@@ -15073,8 +15073,8 @@
 }
 
 .app-shell .app-shell-main button:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.28);
-  background: #262b33;
+  border-color: rgba(148, 163, 184, 0.45);
+  background: #1b2d47;
 }
 
 .app-shell .app-shell-main button.is-primary,
@@ -15125,7 +15125,7 @@
   border: 1px solid var(--shell-border-strong);
   border-radius: 8px;
   color: var(--shell-text);
-  background: #0f1216;
+  background: #081321;
   box-shadow: none;
   font-family: inherit;
   font-weight: 400;
@@ -15266,7 +15266,7 @@
 .start-shell,
 .trainee-shell {
   color: #e8eaed;
-  background: #0e1013;
+  background: #07111f;
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 14px;
 }
@@ -15274,9 +15274,9 @@
 .start-card,
 .trainee-card {
   gap: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
-  background: #171a1f;
+  background: #0d1a2c;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
 
@@ -15291,7 +15291,7 @@
 }
 
 .start-brand p {
-  color: #9aa3ad;
+  color: #9fb3ca;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -15303,15 +15303,15 @@
 }
 
 .start-question {
-  color: #9aa3ad;
+  color: #9fb3ca;
   font-size: 14px;
   font-weight: 500;
 }
 
 .start-role {
   min-height: 0;
-  border-color: rgba(255, 255, 255, 0.08);
-  background: #1e2228;
+  border-color: rgba(148, 163, 184, 0.18);
+  background: #132238;
 }
 
 .start-role:hover,
@@ -15338,8 +15338,8 @@
 }
 
 .start-footer {
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #6b7480;
+  border-color: rgba(148, 163, 184, 0.18);
+  color: #64748b;
 }
 
 .start-footer button {
@@ -15348,11 +15348,11 @@
 }
 
 .sign-in-note {
-  color: #9aa3ad;
+  color: #9fb3ca;
 }
 
 .trainee-join label span {
-  color: #9aa3ad;
+  color: #9fb3ca;
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0;
@@ -15361,10 +15361,10 @@
 
 .trainee-join input,
 .trainee-join select {
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 8px;
   color: #e8eaed;
-  background: #0f1216;
+  background: #081321;
 }
 
 .trainee-join input:focus {
@@ -15387,7 +15387,7 @@
 }
 
 .trainee-join button.trainee-leave {
-  color: #9aa3ad;
+  color: #9fb3ca;
   background: none;
 }
 
@@ -15406,7 +15406,7 @@
   justify-self: start;
   border: 0;
   padding: 0;
-  color: #9aa3ad;
+  color: #9fb3ca;
   background: none;
 }
 
@@ -15427,11 +15427,11 @@
 }
 
 .app-shell-main .trainee-status {
-  background: #1e2228;
+  background: #132238;
 }
 
 .app-shell-main .trainee-facts {
-  color: #9aa3ad;
+  color: #9fb3ca;
   font-weight: 500;
   text-align: left;
 }
