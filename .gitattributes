@@ -1,2 +1,17 @@
-# Windows batch files need CRLF to run reliably.
+# Line endings: LF in the repository and in the working copy, on every PC,
+# whatever core.autocrlf says. Windows batch files keep CRLF to run reliably.
+* text=auto eol=lf
 *.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Never convert binary files.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.xlsx binary
+*.docx binary
+*.sqlite binary
