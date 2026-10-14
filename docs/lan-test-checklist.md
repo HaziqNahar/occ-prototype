@@ -6,7 +6,7 @@ what the automated rehearsal (`npm run test:lan`) cannot: real PCs, monitors,
 the firewall and the network.
 
 **People and PCs:** host PC (can be the trainer PC), trainer PC, two trainee PCs
-with three monitors each. Allow about 75 minutes. Note the result of each step;
+with three monitors each. Allow about 90 minutes. Note the result of each step;
 anything that fails goes to the troubleshooting table in
 [lan-setup.md](lan-setup.md).
 
@@ -83,7 +83,28 @@ exercises side by side to save time.
 | G7 | Trainee makes the missing calls, trainer ticks doors & PSDs, then completes | PASS | |
 | G8 | Trainer loads **Train Launch** in either exercise and the trainee launches a train from the depot | Train enters SKG mainline service; trainer completes: PASS | |
 
-## H. Clean up
+## H. Training aids and OCC behaviour
+
+Practice aids are drawn over the monitors (see
+[training-layer-plan.md](training-layer-plan.md)); the OCC behaviour rows were
+confirmed at the OCC on 14 Oct 2026. Use Exercise 1 for Practice and Exercise 2
+for Assessment.
+
+| # | Step | Expected | OK? |
+| --- | --- | --- | --- |
+| H1 | Trainer loads **Train Door Fault** in **Practice** in Exercise 1 | Console shows **Aids on**. Each of trainee 1's monitors has an orange **PRACTICE** coach at the top right: Monitor 02 says "Next: Select affected train", Monitors 01 and 03 say "Next step is on Monitor 02 Line Map" | |
+| H2 | Trainee 1 clicks the coach on Monitor 02, then **Show me**, then **Locate Train …** | Show me outlines the train; Locate moves the map to the train's section and puts a pulsing ring on it. The train can still be clicked through them | |
+| H3 | Before selecting the train, trainee 1 clicks the red incident row on Monitor 01, then **Ack. selection** | The coach on Monitor 01 shows "Select Train … before acknowledging its alarm." | |
+| H4 | Trainee 1 drags the coach to another spot, then reloads that monitor (`F5`) | The coach comes back where it was put | |
+| H5 | Trainer clicks **Aids on** (it changes to **Aids off**), then clicks it again | The coach disappears from all three monitors within a second, then comes back | |
+| H6 | Trainee 1 works the incident to the end; trainer completes and saves the report | Report and History show **Aids used** with the Show me and Locate counts; the score is not lower for using them | |
+| H7 | Trainer loads any fault scenario in **Assessment** in Exercise 2; trainee 2 acknowledges the alarm before selecting the train | The Aids switch is greyed out and reads **Aids off**; no coach on trainee 2's monitors and no message for the wrong action (it still counts as a wrong action on the console) | |
+| H8 | Trainee 2 looks at the alarm summary on Monitor 01 before clicking anything | No row is selected | |
+| H9 | Trainee 2 left-clicks a train on Monitor 02, then right-clicks it, then double-clicks it | Left click: nothing. Right-click: the train menu. Double-click: the train inspector | |
+| H10 | Trainee 2 clicks **DISPATCH** on the panel at the fault train's station | The command dialog names that train (`EMU/<train>/TRN`) | |
+| H11 | Trainee 2 clicks **DISPATCH** on a panel at a station with no train, then **Apply** | Refused: "No train at <station>." (in Practice the coach shows it) | |
+
+## I. Clean up
 
 - Switch off the two test trainee accounts on the People page.
 - Copy `server\data\backups` to the backup location.
