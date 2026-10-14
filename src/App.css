@@ -15260,3 +15260,178 @@
     display: none;
   }
 }
+
+/* Sign-in, start page and "not available": the same dark look as the app
+   shell, one plain card in the middle, no SCADA picture behind it. */
+.start-shell,
+.trainee-shell {
+  color: #e8eaed;
+  background: #0e1013;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.start-card,
+.trainee-card {
+  gap: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: #171a1f;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.trainee-card {
+  width: min(420px, 100%);
+}
+
+.start-brand img {
+  height: 32px;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.start-brand p {
+  color: #9aa3ad;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.start-brand h1 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.start-question {
+  color: #9aa3ad;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.start-role {
+  min-height: 0;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1e2228;
+}
+
+.start-role:hover,
+.start-role:focus-visible {
+  border-color: #3b82f6;
+  transform: none;
+}
+
+.start-role strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.start-role-tag {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.start-role.is-trainer .start-role-tag,
+.start-role.is-trainee .start-role-tag {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.16);
+}
+
+.start-footer {
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #6b7480;
+}
+
+.start-footer button {
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+.sign-in-note {
+  color: #9aa3ad;
+}
+
+.trainee-join label span {
+  color: #9aa3ad;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.trainee-join input,
+.trainee-join select {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #e8eaed;
+  background: #0f1216;
+}
+
+.trainee-join input:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+
+.trainee-join button,
+.trainee-monitors button {
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #3b82f6;
+  font-weight: 500;
+}
+
+.trainee-join button:hover,
+.trainee-monitors button:hover {
+  background: #2563eb;
+}
+
+.trainee-join button.trainee-leave {
+  color: #9aa3ad;
+  background: none;
+}
+
+/* The trainee's session page sits in the app shell: the card on the left. */
+.app-shell .trainee-card {
+  width: min(480px, 100%);
+  padding: 24px;
+  box-shadow: none;
+}
+
+.app-shell-main .trainee-status {
+  border-radius: 10px;
+}
+
+.app-shell-main button.trainee-leave {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  color: #9aa3ad;
+  background: none;
+}
+
+.app-shell-main button.trainee-leave:hover {
+  color: #f87171;
+  background: none;
+}
+
+.app-shell-main .trainee-join button,
+.app-shell-main .trainee-monitors button {
+  border-color: transparent;
+  color: #ffffff;
+  background: #3b82f6;
+}
+
+.trainee-status strong {
+  font-weight: 600;
+}
+
+.app-shell-main .trainee-status {
+  background: #1e2228;
+}
+
+.app-shell-main .trainee-facts {
+  color: #9aa3ad;
+  font-weight: 500;
+  text-align: left;
+}

@@ -1,29 +1,29 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties, FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import type { PublicUser } from '../accounts'
-import occMonitorBackground from '../assets/occ-monitor-bg.png'
-import sbsTransitLogo from '../assets/sbs-transit-logo.png'
+import AppShell from '../components/AppShell'
 import { normalizeEnteredSessionCode } from '../sessionCode'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
-import type { OccSessionState } from '../types'
+import type { AppRoute, OccSessionState } from '../types'
 import type { DispatchSessionCommand } from '../useOccSession'
 import { openOccMonitors } from '../occMonitors'
 
 type TraineeScreenProps = {
   dispatch: DispatchSessionCommand
-  // Opens the trainee's own progress (only with accounts).
-  onOpenProgress?: () => void
+  onNavigate: (route: AppRoute) => void
   // Joins the exercise whose code was typed (the server finds it); without a
   // server, the code is checked against this page's session.
   onJoin?: (code: string) => Promise<{ accepted: boolean; reason: string | null }>
   onSignOut: () => void
+  // No training server: no runs or progress to show.
+  offline: boolean
   session: OccSessionState
   user: PublicUser
 }
 
 // Trainee view: join the trainer's session, then work on the three OCC monitors.
 // It never reveals the incident, because finding it is part of the exercise.
-function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, user }: TraineeScreenProps) {
+function TraineeScreen({ dispatch, offline, onJoin, onNavigate, onSignOut, session, user }: TraineeScreenProps) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [now, setNow] = useState(() => Date.now())
@@ -72,24 +72,20 @@ function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, u
   const modeLabel = session.trainingMode.charAt(0) + session.trainingMode.slice(1).toLowerCase()
 
   return (
-    <main
-      className="trainee-shell"
-      style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
+    <AppShell
+      active="session"
+      offline={offline}
+      onNavigate={onNavigate}
+      onSignOut={onSignOut}
+      pageClassName="trainee-page"
+      title={`Hello, ${joined?.name ?? user.name}`}
+      user={user}
     >
-      <section className="trainee-card" aria-labelledby="trainee-title">
-        <header className="start-brand">
-          <img src={sbsTransitLogo} alt="SBS Transit" />
-          <div>
-            <p>Trainee</p>
-            <h1 id="trainee-title">{joined ? `Hello, ${joined.name}` : `Hello, ${user.name}`}</h1>
-          </div>
-        </header>
-
+      <section className="trainee-card" aria-label="Session">
         {!joined ? (
           <form className="trainee-join" onSubmit={join}>
-            <p className="sign-in-note">Join the training session with the code on your trainer’s screen.</p>
             <label>
-              <span>Session code</span>
+              <span>Session code from your trainer</span>
               <input
                 autoCapitalize="characters"
                 className="trainee-code-input"
@@ -125,16 +121,11 @@ function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, u
                 {onlineMonitors.length === occMonitors.length ? 'Bring monitors to front' : 'Open my monitors'}
               </button>
             </div>
-
+            <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>
           </div>
         )}
-        <nav className="trainee-links" aria-label="More">
-          {joined && <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>}
-          {onOpenProgress && <button type="button" className="trainee-leave" onClick={onOpenProgress}>My progress</button>}
-          <button type="button" className="trainee-leave" onClick={onSignOut}>Sign out</button>
-        </nav>
       </section>
-    </main>
+    </AppShell>
   )
 }
 

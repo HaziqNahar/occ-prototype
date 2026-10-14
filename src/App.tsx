@@ -416,8 +416,9 @@ function App() {
       <Suspense fallback={null}>
         <TraineeScreen
           dispatch={dispatch}
+          offline={!user}
           onJoin={user ? exerciseApi.join : undefined}
-          onOpenProgress={user ? () => navigate('/progress') : undefined}
+          onNavigate={navigate}
           onSignOut={signOut}
           session={session}
           user={user ?? LOCAL_TRAINEE}

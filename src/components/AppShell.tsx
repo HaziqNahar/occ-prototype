@@ -11,6 +11,8 @@ type AppShellProps = {
   active: AppShellSection
   children: ReactNode
   onNavigate: (route: AppRoute) => void
+  // No training server: no history or progress pages to move to.
+  offline?: boolean
   onSignOut?: () => void
   // The page's own class, for its styles (print rules use history-page).
   pageClassName?: string
@@ -25,7 +27,7 @@ type NavItem = { route: AppRoute; section: AppShellSection; label: string }
 // The frame around every trainer page (and a trainee's own runs and
 // progress): a sidebar to move between pages, and the page's title and main
 // actions. The SCADA monitors never use it.
-function AppShell({ actions, active, children, onNavigate, onSignOut, pageClassName, subtitle, title, user }: AppShellProps) {
+function AppShell({ actions, active, children, offline, onNavigate, onSignOut, pageClassName, subtitle, title, user }: AppShellProps) {
   const isTrainer = !user || user.role === 'trainer'
   const items: NavItem[] = isTrainer
     ? [
@@ -38,8 +40,10 @@ function AppShell({ actions, active, children, onNavigate, onSignOut, pageClassN
       ]
     : [
         { label: 'My session', route: '/session/join', section: 'session' },
-        { label: 'My runs', route: '/history', section: 'history' },
-        { label: 'My progress', route: '/progress', section: 'progress' },
+        ...(offline ? [] : [
+          { label: 'My runs', route: '/history', section: 'history' } as NavItem,
+          { label: 'My progress', route: '/progress', section: 'progress' } as NavItem,
+        ]),
       ]
   const initials = (user?.name ?? 'Trainer').split(/[\s_]+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 
