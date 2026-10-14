@@ -92,15 +92,44 @@ function loadDoorFault(trainingMode: TrainingMode) {
   assert.deepEqual(getStepHint(session, routeTask).target, { command: 'ROUTE', kind: 'stationButton', station: 'PGL' })
 }
 
-// Every step of every scenario gets a hint, without text written per step.
+// Every step of every scenario gets a specific hint, without text written per
+// step, on a run loaded as the trainer loads it (the fault train placed in SKG–PGC).
+assert.equal(trainingScenarioDefinitions.length, 17, 'all 17 scenarios are checked')
+
 for (const definition of trainingScenarioDefinitions) {
-  const session = { ...createInitialSession(), activeScenario: { ...createInitialSession().activeScenario, faultLocation: location, id: definition.id, targetTrainId: '345' } }
+  const base = createInitialSession()
+  let session = apply(base, trainer, {
+    duration: definition.duration,
+    faultLocation: location,
+    incident: definition.incident,
+    kind: definition.kind,
+    timetableName: base.timetableName,
+    trainingMode: 'PRACTICE',
+    type: 'LOAD_SCENARIO',
+  })
+
+  // Before the trainer assigns a launch or withdrawal train the hints still read.
+  for (const task of definition.tasks) {
+    assert.ok(getStepHint(session, task).how.every(Boolean), `${definition.id} / ${task.id} reads without a train`)
+  }
+
+  if (!definition.noTargetTrain && !session.activeScenario.targetTrainId) {
+    session = { ...session, activeScenario: { ...session.activeScenario, targetTrainId: '345' } }
+  }
 
   for (const task of definition.tasks) {
+    const name = `${definition.id} / ${task.id}`
     const hint = getStepHint(session, task)
 
-    assert.ok(hint.how.length > 0 && hint.how.every(Boolean), `${definition.id} / ${task.id} has a hint`)
-    assert.ok(!hint.label.includes('{'), `${definition.id} / ${task.id} label is filled in`)
+    assert.ok(hint.how.length > 0 && hint.how.every(Boolean), `${name} has a hint`)
+    assert.ok(!hint.how[0].startsWith('On Monitor'), `${name} says how, not only where: ${hint.how[0]}`)
+    assert.ok(!hint.label.includes('{') && !hint.how.some((line) => line.includes('{')), `${name} is filled in`)
+    // Every step done on a trainee monitor has something for Show me to outline.
+    assert.ok(hint.monitors.length === 0 || hint.target, `${name} has a Show me target`)
+
+    if (hint.target?.kind === 'stationButton' && (definition.fault || definition.heldAtStation)) {
+      assert.equal(hint.target.station, location.station, `${name} points at the fault station's panel`)
+    }
   }
 }
 

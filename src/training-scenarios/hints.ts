@@ -5,7 +5,7 @@ import type { OccSessionState } from '../types'
 import { scoreTrainingScenario } from './assessment'
 import { getTrainingScenarioDefinition } from './definitions'
 import { resolveFaultText } from './faultLocation'
-import { getActiveTrainingScenarioTargetTrainId } from './targetSelection'
+import { getActiveTrainingScenarioTargetTrainId, getEligibleLaunchScenarioTargetOptions } from './targetSelection'
 import type { TrainingScenarioTaskDefinition } from './types'
 
 // Next-step hints for the Practice coach (docs/training-layer-plan.md, piece 2).
@@ -91,6 +91,29 @@ function callPath(messageId: string, trainLabel: string, station?: string) {
   return `Calls → ${recipient.channel === 'RADIO' ? 'Radio' : 'Teleph.'} → ${recipient.label}${target} → ${message.label}`
 }
 
+// Launch and withdrawal trains are chosen in the timetable. Until one is, the
+// launch hint points at the first train that can leave the depot (the same
+// list the trainer assigns from); a withdrawal is any running train.
+function timetableSelectStep(session: OccSessionState, base: Omit<StepHint, 'how'>, trainId: string): StepHint {
+  if (trainId) {
+    return { ...base, how: [`Click Train ${trainId}'s row in the timetable`], target: { kind: 'timetableRow', trainId } }
+  }
+
+  if (getTrainingScenarioDefinition(session.activeScenario.id).kind === 'TRAIN_LAUNCH') {
+    const option = getEligibleLaunchScenarioTargetOptions(session)[0]
+
+    return option
+      ? {
+          ...base,
+          how: [`Click the row of a train leaving the depot, e.g. Train ${option.trainId} (SKG → ${option.destinationPoint})`, 'or wait for the trainer to assign one'],
+          target: { kind: 'timetableRow', trainId: option.trainId },
+        }
+      : { ...base, how: ['Wait for the trainer to assign the launch train'] }
+  }
+
+  return { ...base, how: ['Click the row of a running train to withdraw it'] }
+}
+
 export function getStepHint(session: OccSessionState, task: TrainingScenarioTaskDefinition): StepHint {
   const trainId = getActiveTrainingScenarioTargetTrainId(session)
   const trainLabel = trainId ? `Train ${trainId}` : 'the scenario train'
@@ -142,7 +165,7 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
   switch (task.mappedTaskId) {
     case 'selectTrain':
       return base.monitors.includes('TIMETABLE')
-        ? { ...base, how: [`Click ${trainLabel}'s row in the timetable`], target: trainId ? { kind: 'timetableRow', trainId } : undefined }
+        ? timetableSelectStep(session, base, trainId)
         : { ...base, how: [`Right-click ${trainLabel} on the Line Map`], target: train }
     case 'ackAlarm':
       return {
@@ -160,6 +183,11 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
 
   if (base.monitors.length === 0) {
     return { ...base, how: ['Wait for the trainer to confirm'] }
+  }
+
+  // Steps the simulation completes (the train reaching its endpoint): watch it.
+  if (task.runtimeOnly && base.monitors.includes('LINE_MAP') && !timeDialog) {
+    return { ...base, how: [`Watch ${trainLabel} on the Line Map`, 'This step completes by itself'], target: train }
   }
 
   if (timeDialog && base.monitors.includes('LINE_MAP')) {

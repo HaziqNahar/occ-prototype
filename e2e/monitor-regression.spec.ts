@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
-import type { APIRequestContext, BrowserContext, Download, Page } from '@playwright/test'
+import type { APIRequestContext, BrowserContext, Download, Locator, Page } from '@playwright/test'
+import { platformData } from '../src/screens/line-map/model'
 
 const monitorRoutes = [
   { hasStationRibbon: true, root: '.scada-dom-root--alarms', route: '/screen/alarms' },
@@ -83,6 +84,13 @@ async function clearRuntime(page: Page) {
   })
 
   expect(response.ok()).toBeTruthy()
+}
+
+// Show me's outline sits 4px outside the element it points at.
+async function outlines(page: Page, target: Locator) {
+  const [ring, box] = [await page.getByTestId('coach-highlight').boundingBox(), await target.boundingBox()]
+
+  return Boolean(ring && box && Math.abs(ring.x + 4 - box.x) < 2 && Math.abs(ring.y + 4 - box.y) < 2)
 }
 
 function collectPageErrors(page: Page) {
@@ -694,5 +702,71 @@ test.describe.serial('OCC monitor regressions', () => {
     await alarms.getByRole('button', { name: 'Ack. selection' }).click()
     expect((await (await refused).json()).accepted).toBe(false)
     await expect(alarms.locator('.training-coach-feedback')).toHaveCount(0)
+  })
+
+  test('Show me finds the timetable row and the station panel button', async ({ context, page }) => {
+    const errors = collectPageErrors(page)
+
+    await clearRuntime(page)
+    await page.goto('/ios/modules')
+
+    // Train Launch: before the trainer assigns a train, the trainee picks one in
+    // the Timetable; Show me outlines the row of a train leaving the depot.
+    await page.getByRole('radio', { name: /Train Launch/ }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+
+    const timetable = await context.newPage()
+    const timetableCoach = timetable.getByRole('complementary', { name: 'Practice coach' })
+
+    await timetable.goto('/screen/timetable')
+    await expect(timetableCoach).toContainText('Next: Select train to launch')
+    await timetableCoach.locator('.training-coach-head').click()
+
+    await expect(timetableCoach).toContainText('leaving the depot, e.g. Train')
+    const launchTrainId = (await timetableCoach.textContent())?.match(/e\.g\. Train (\d+)/)?.[1] as string
+    const launchRow = timetable.locator(`[data-testid^="timetable-row-${launchTrainId}-"]`).first()
+
+    expect(launchTrainId).toBeTruthy()
+    await timetableCoach.getByRole('button', { name: 'Show me' }).click()
+    await expect.poll(() => outlines(timetable, launchRow)).toBe(true)
+    await launchRow.click()
+    await expect.poll(async () => (await getSession(page)).activeScenario.targetTrainId).toBe(launchTrainId)
+    await expect(timetableCoach).not.toContainText('Select train to launch')
+    await timetable.close()
+
+    // PSD fault: once the train is held and the calls are made, DISPATCH on the fault station's panel.
+    await page.getByRole('radio', { name: /PSD Fault/ }).click()
+    await page.getByRole('button', { name: 'Restart with this scenario' }).click()
+    await expect.poll(async () => (await getSession(page)).activeScenario.id).toBe('psd-fault-obstructed')
+
+    const session = await getSession(page)
+    const trainId = session.activeScenario.targetTrainId as string
+    const station = session.activeScenario.faultLocation.station as string
+    const incident = session.alarmSummaryRows.find((row: { scenarioAlarm?: boolean }) => row.scenarioAlarm)
+    const send = async (command: Record<string, unknown>) => {
+      const response = await page.request.post('/api/session/commands', { data: { command, sourceId: 'e2e' }, headers: trainerHeaders() })
+
+      expect((await response.json()).accepted, String(command.type)).toBe(true)
+    }
+
+    await send({ trainId, type: 'SELECT_TRAIN', view: 'menu' })
+    await send({ rowKeys: [`${incident.timestamp}|${incident.asset}|${incident.description}`], type: 'ACK_ALARMS' })
+    await send({ detail: '', trainId, type: 'TRAIN_HOLD' })
+
+    for (const messageId of ['station-investigate-psd', 'wc-alert-fault', 'cc-alert-incident', 'driver-standby-console']) {
+      await send({ request: { messageId, station, trainId }, type: 'LOG_CALL' })
+    }
+
+    const lineMap = await context.newPage()
+    const lineMapCoach = lineMap.getByRole('complementary', { name: 'Practice coach' })
+    const panelX = Math.round(platformData.find((platform) => platform.code === station)!.x)
+
+    await lineMap.goto('/screen/line-map')
+    await expect(lineMapCoach).toContainText('Next: Release')
+    await lineMapCoach.locator('.training-coach-head').click()
+    await expect(lineMapCoach).toContainText(`DISPATCH on the ${station} station panel`)
+    await lineMapCoach.getByRole('button', { name: 'Show me' }).click()
+    await expect.poll(() => outlines(lineMap, lineMap.getByTestId(`line-map-command-DISPATCH-${panelX}`))).toBe(true)
+    expect(errors).toEqual([])
   })
 })

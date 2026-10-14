@@ -1,7 +1,7 @@
 # Training Layer Plan
 
 Practice-mode aids drawn over the three trainee monitors (Alarms, Line Map,
-Timetable). Agreed 14 Oct 2026. Pieces 1–5 done (`src/trainingAids.ts`,
+Timetable). Agreed 14 Oct 2026. All six pieces done (`src/trainingAids.ts`,
 `src/training-scenarios/hints.ts`, `src/components/TrainingCoach.tsx`,
 `CoachHighlight.tsx`, `coachTargets.ts`, `useCommandFeedback.ts`).
 
@@ -44,7 +44,7 @@ from text written per step, so new scenarios get hints automatically:
 
 | Task field | Hint |
 | --- | --- |
-| `mappedTaskId: 'selectTrain'` | Click the scenario train on the Line Map |
+| `mappedTaskId: 'selectTrain'` | **Right-click** the scenario train on the Line Map (a left click does nothing there), or click its Timetable row. Before a launch train is chosen: a depot train's row; for a withdrawal: any running train |
 | `mappedTaskId: 'ackAlarm'` | Alarms: select the red incident row, then **Ack. selection** |
 | `commsMessageIds` | Calls: channel, recipient and message, from `src/comms/commsCatalog.ts` |
 | `completesOnHold` | Train inspector **Control page → Train Hold**, or **HII** on the station panel |
@@ -53,7 +53,15 @@ from text written per step, so new scenarios get hints automatically:
 | `mappedTaskId: 'dispatchTrain'` | **DISPATCH** on the station panel |
 | `mappedTaskId: 'completeScenario'` | The trainer completes the run on the console |
 | trainer-confirmed steps | "Wait for the trainer to confirm" |
+| `runtimeOnly` on the Line Map | Watch the train; the step completes by itself |
 | anything else | The step's label and monitor |
+
+Every hint also names a **Show me** target (`CoachTarget`): the train, the
+incident row (or **Ack. selection** once it is selected), the Calls tab (or the
+channel button once it is open), the ROUTE/DISPATCH button on the panel nearest
+the train, or the Timetable row. `scripts/tests/trainingAids.test.ts` loads all
+17 scenarios and checks every step has a specific hint and, on a trainee
+monitor, a target.
 
 ## Where things are
 
