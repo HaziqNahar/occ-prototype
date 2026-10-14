@@ -101,8 +101,9 @@ Unchanged since the last audit and covered by the browser tests
 
 | Interaction | Behaviour | Status |
 | --- | --- | --- |
-| Click train | Selects the train and updates the status bar | Done |
-| Right-click train | SCADA-style command menu with inspection, readiness and ITAMA options | Done |
+| Click train | Nothing: there is no left-click handler and no selected-train status display. Not checked against the reference | Unverified |
+| Right-click train | Selects the train and opens the SCADA-style command menu with inspection, readiness and ITAMA options | Done |
+| Double-click train | Selects the train and opens its inspector (Information page) | Done |
 | ITAMA | `SIG Arrival Time for Train` dialog; applying it records the task | Done |
 | Route / Dispatch / Hold | SCADA command request dialog, recorded as scenario actions | Done |
 | Alarms / Calls tabs | Switch the header panel; Calls opens the comms dialog | Done |
@@ -121,6 +122,7 @@ Unchanged since the last audit and covered by the browser tests
 | 6 | ~~Train delays, so the deviation graphs move~~ | Done | |
 | 7 | ~~Background alarm traffic during a run~~ | Done | |
 | 8 | ~~Small items: window chrome in full screen, operator username, calls labels, PGC end signals~~ | Done | |
+| 9 | Confirm at OCC what a left click on a train does on the real GWS. If it selects the train: add left-click select, a visible selected-train highlight, and change the Practice coach hints from "Right-click Train N" to "Click Train N" (`src/training-scenarios/hints.ts`) | "Click train" row above (listed as Done since the 15 Jun baseline, but it never worked) | about 1 hour |
 
 
 ## Line Map Keys
