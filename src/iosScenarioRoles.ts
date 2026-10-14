@@ -16,6 +16,16 @@ export function getScenarioTaskPlaceLabel(monitor: string) {
   return monitor === 'IOS' ? 'Trainer' : monitor
 }
 
+// A short tag for where a step is done: "Monitor 02 Line Map" and "Line Map
+// Train Control" are both the Line Map.
+export function getScenarioTaskPlaceTag(monitor: string) {
+  if (monitor === 'IOS') return 'Trainer'
+  if (monitor.includes('Line Map')) return 'Line Map'
+  if (monitor.includes('Timetable')) return 'Timetable'
+  if (monitor.includes('Alarm')) return 'Alarms'
+  return monitor
+}
+
 export function getScenarioTaskOwnerLabel(owner: string) {
   return owner === 'Instructor' ? 'Trainer' : owner
 }

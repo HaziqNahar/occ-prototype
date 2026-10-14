@@ -336,8 +336,11 @@ test.describe.serial('OCC monitor regressions', () => {
 
     const exercise1 = page.getByRole('region', { name: 'Exercise 1' })
     const exercise2 = page.getByRole('region', { name: 'Exercise 2' })
+    const tab = (name: string) => page.getByRole('tab', { name: new RegExp(name) })
 
+    // One exercise shows at a time; a new one opens in front.
     await expect(exercise2).toBeVisible()
+    await expect(exercise1).toBeHidden()
 
     // The code shows once the exercise's session has arrived.
     await expect(exercise2.locator('.trainer-console-code')).toHaveText(/^[A-Z2-9]{4}$/)
@@ -362,7 +365,10 @@ test.describe.serial('OCC monitor regressions', () => {
     await exercise2.getByRole('radio', { name: /PSD Fault/ }).click()
     await exercise2.getByRole('button', { name: 'Load scenario', exact: true }).click()
     await expect(exercise2.getByRole('region', { name: 'Scenario status' }).getByText('RUNNING', { exact: true })).toBeVisible()
+    await expect(tab('Exercise 2')).toContainText('running')
+    await tab('Exercise 1').click()
     await expect(exercise1.getByRole('region', { name: 'Scenario status' }).getByText('IDLE', { exact: true })).toBeVisible()
+    await tab('Exercise 2').click()
     await expect(trainee.getByRole('status')).toContainText('Exercise running')
 
     // The trainee's monitors show their exercise, and follow them when moved.
@@ -371,8 +377,10 @@ test.describe.serial('OCC monitor regressions', () => {
     await trainee.goto('/screen/alarms')
     await expect(incidentAlarm).toHaveCount(1)
     await exercise2.getByRole('button', { name: 'Move to Exercise 1' }).click()
+    await tab('Exercise 1').click()
     await expect(exercise1.getByLabel('Session').getByText(TRAINEE.name)).toBeVisible()
     await expect(incidentAlarm).toHaveCount(0)
+    await tab('Exercise 2').click()
 
     // Exercise 2's list says where she is now, and assigning her moves her back.
     await expect(exercise2.getByRole('button', { name: 'Move here' })).toBeVisible()
@@ -546,7 +554,9 @@ test.describe.serial('OCC monitor regressions', () => {
     const doorsStep = page.locator('.trainer-console-tasks li', { hasText: 'Close all train doors & PSDs for train clear' })
 
     await doorsStep.getByRole('button', { name: 'Confirm' }).click()
-    await expect(doorsStep).toHaveClass(/is-done/)
+    // Done steps fold into a count; the trainer step no longer waits on the trainer.
+    await expect(doorsStep).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /6 steps done/ })).toBeVisible()
     await expect(status).toContainText('6 / 10')
 
     // Completing before the train is selected, routed and moved is refused.
@@ -678,7 +688,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(report.locator('.report-kpi', { hasText: 'Aids used' })).toContainText('Show me 4 · Locate 1')
     // Signed off by the signed-in trainer; the timeline names people, not system sources.
     await expect(report.locator('.report-signoff')).toContainText('Test Trainer')
-    await expect(report.locator('.report-event', { hasText: 'Action rejected' }).first()).toContainText('Test Trainer')
+    await expect(report.locator('.report-event', { hasText: 'Refused' }).first()).toContainText('Test Trainer')
     await expect(report.locator('.report-event').filter({ hasText: /Scenario Guard|IOS Scenario/ })).toHaveCount(0)
     await report.request.post('/api/reports', { data: { notes: 'E2E aids check' }, headers: trainerHeaders() })
     await report.goto('/history')
@@ -696,9 +706,9 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(alarmsCoach).toBeVisible()
 
     // Assessment: no coach, and the switch cannot turn it on. During a run the
-    // scenario picker is folded to a summary.
-    await expect(page.locator('.trainer-console-scenario-summary')).toContainText('Train Door Fault')
-    await page.getByRole('button', { name: 'Change scenario' }).click()
+    // scenario picker is behind New run.
+    await expect(page.getByRole('region', { name: 'Scenario status' })).toContainText('Train Door Fault')
+    await page.getByRole('button', { name: 'New run' }).click()
     await page.locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
     await page.getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
@@ -747,7 +757,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await timetable.close()
 
     // PSD fault: once the train is held and the calls are made, DISPATCH on the fault station's panel.
-    await page.getByRole('button', { name: 'Change scenario' }).click()
+    await page.getByRole('button', { name: 'New run' }).click()
     await page.getByRole('radio', { name: /PSD Fault/ }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
     await expect.poll(async () => (await getSession(page)).activeScenario.id).toBe('psd-fault-obstructed')

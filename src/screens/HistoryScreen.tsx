@@ -7,7 +7,7 @@ import SelectField from '../components/SelectField'
 import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
 import { describeAction } from '../history'
-import { getScenarioTaskPlaceLabel } from '../iosScenarioRoles'
+import { getScenarioTaskPlaceTag } from '../iosScenarioRoles'
 import type { RunDetail, RunSummary } from '../history'
 import { downloadCsv, formatResult, formatRunTime, historyApi } from '../historyClient'
 import { exportFileName, runsToCsv, runToCsv } from '../historyExport'
@@ -208,10 +208,8 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
                 {shownDetail.tasks.map((task) => (
                   <li className={task.complete ? 'is-done' : ''} key={task.label}>
                     <i aria-hidden="true">{task.complete ? '✓' : '✗'}</i>
-                    <div>
-                      <strong>{task.label}{task.critical && <b title="Critical SOP step"> ★</b>}</strong>
-                      {task.monitor && <small>{getScenarioTaskPlaceLabel(task.monitor)}</small>}
-                    </div>
+                    <strong>{task.label}{task.critical && <b title="Critical SOP step"> ★</b>}</strong>
+                    {task.monitor && <small className="trainer-console-task-tag">{getScenarioTaskPlaceTag(task.monitor)}</small>}
                   </li>
                 ))}
               </ol>

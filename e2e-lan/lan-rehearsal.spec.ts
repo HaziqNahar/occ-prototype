@@ -69,9 +69,13 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   await consolePage.getByRole('button', { name: 'Add Exercise 2' }).click()
 
   const exercises = [1, 2].map((number) => consolePage.getByRole('region', { name: `Exercise ${number}` }))
+  // One exercise shows at a time: bring one to the front by its tab.
+  const show = (index: number) => consolePage.getByRole('tab', { name: new RegExp(`Exercise ${index + 1}`) }).click()
   const codes: string[] = []
 
-  for (const exercise of exercises) {
+  for (const [index, exercise] of exercises.entries()) {
+    await show(index)
+
     const code = exercise.locator('.trainer-console-code')
 
     await expect(code).toHaveText(/^[A-Z2-9]{4}$/)
@@ -115,15 +119,18 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
       timetable: monitor('/screen/timetable'),
       token: token!,
     })
+    await show(index)
     await expect(exercises[index].getByLabel('Session').getByText(trainee.name)).toBeVisible()
   }
 
   // The trainer loads the same incident into both exercises: Exercise 1 in
   // Practice, Exercise 2 in Assessment.
+  await show(1)
   await exercises[1].locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
   await exercises[1].getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
 
-  for (const exercise of exercises) {
+  for (const [index, exercise] of exercises.entries()) {
+    await show(index)
     await exercise.getByRole('radio', { name: /PSD Fault/ }).click()
     await exercise.getByRole('button', { name: 'Load scenario', exact: true }).click()
     await expect(exercise.getByRole('region', { name: 'Scenario status' }).getByText('RUNNING', { exact: true })).toBeVisible()
@@ -136,6 +143,7 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   // Practice (trainee 1): the coach is on every monitor and helps on the Line Map.
   const practice = trainees[0]
 
+  await show(0)
   await expect(aidsSwitch(0)).toHaveText('Aids on')
 
   for (const page of [practice.alarms, practice.lineMap, practice.timetable]) {
@@ -165,6 +173,7 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   // Assessment (trainee 2): no aids anywhere, and the switch is locked off.
   const assessed = trainees[1]
 
+  await show(1)
   await expect(aidsSwitch(1)).toBeDisabled()
   await expect(aidsSwitch(1)).toHaveText('Aids off')
   await expect(assessed.lineMap.locator('.line-map-dom-root')).toBeVisible()
@@ -212,7 +221,8 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   }
 
   // The console follows both exercises live; the trainer completes each.
-  for (const exercise of exercises) {
+  for (const [index, exercise] of exercises.entries()) {
+    await show(index)
     await expect(exercise.locator('.trainer-console-checklist .trainer-console-panel-head span')).toHaveText(/^7 of 8$/)
     await exercise.getByRole('button', { name: 'Complete', exact: true }).click()
     await expect(exercise.getByRole('region', { name: 'Scenario status' }).getByText('COMPLETE', { exact: true })).toBeVisible()

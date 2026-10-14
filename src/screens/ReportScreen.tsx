@@ -4,7 +4,8 @@ import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { archiveOccReport } from '../backendClient'
 import { formatEvidenceLine, getEvidenceWhoLabel } from '../iosEvidenceTrail'
-import { getScenarioTaskOwnerLabel, getScenarioTaskPlaceLabel } from '../iosScenarioRoles'
+import { getTrainingScenarioDefinition } from '../trainingScenarios'
+import { getScenarioTaskPlaceTag } from '../iosScenarioRoles'
 import { getSessionId } from '../sessionCode'
 import { buildScenarioReport } from '../scenarioReport'
 import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
@@ -21,6 +22,10 @@ const trainingModeSummary = {
   PRACTICE: 'Guided practice',
   ASSESSMENT: 'Scored assessment',
   PLAYER: 'Playback review',
+}
+
+function formatSeconds(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
 }
 
 function compactReportText(value: string, limit = 110) {
@@ -42,6 +47,7 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
   const aidsUsed = assessmentMetrics.aidsUsed ?? { locate: 0, showMe: 0 }
   const rejectedActionCount = scenarioReport.rejectedActionCount
   const hasScenario = scenarioScore.totalTasks > 0
+  const stepLabels = new Set(getTrainingScenarioDefinition(session.activeScenario.id).tasks.map((task) => task.label))
   const targetTrainId = getActiveTrainingScenarioTargetTrainId(session)
   const resultLabel = hasScenario ? scenarioScore.result : 'NO SCENARIO'
   const resultTone = !hasScenario
@@ -144,6 +150,8 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
           {assessmentRows.map((task, index) => {
             const complete = task.complete
             const taskMetric = task.mappedTaskId ? assessmentMetrics?.tasks?.[task.mappedTaskId] : undefined
+            // One short line: where it is done and, once done, how long it took.
+            const status = complete ? 'Done' : session.scenarioMode === 'COMPLETE' ? 'Missed' : 'Open'
 
             return (
               <div className={`report-task ${complete ? 'is-complete' : ''}`} key={task.id}>
@@ -151,12 +159,12 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
                 <div>
                   <strong>{task.label}</strong>
                   <small>
-                    {getScenarioTaskPlaceLabel(task.monitor)} | Owner: {getScenarioTaskOwnerLabel(task.owner)} | {task.completionSource === 'Instructor review' ? 'Trainer review' : task.completionSource}
-                    {taskMetric?.completedAt ? ` | ${taskMetric.responseSeconds}s / ${taskMetric.thresholdSeconds}s` : ''}
-                    {task.evidenceCount > 0 ? ` | ${task.evidenceCount} evidence` : ''}
+                    {getScenarioTaskPlaceTag(task.monitor)}
+                    {task.critical ? ' · critical' : ''}
+                    {taskMetric?.completedAt ? ` · done after ${formatSeconds(taskMetric.responseSeconds ?? 0)}` : ''}
                   </small>
                 </div>
-                <em>{task.statusLabel}</em>
+                <em className={`report-task-status is-${status.toLowerCase()}`}>{status}</em>
               </div>
             )
           })}
@@ -167,12 +175,12 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
             <p>Latest action timeline</p>
             <span>{session.scenarioMode}</span>
           </div>
-          {scenarioReport.timeline.map((event) => (
+          {/* One line per action; step-completion records repeat the checklist. */}
+          {scenarioReport.timeline.filter((event) => event.result === 'rejected' || !stepLabels.has(event.title)).map((event) => (
             <div className={`report-event ${event.result === 'rejected' ? 'is-rejected' : ''}`} key={event.id}>
               <span>{event.time}</span>
               <strong>{getEvidenceWhoLabel(event)}</strong>
-              <p>{compactReportText(formatEvidenceLine({ action: event.title, detail: event.detail }))}</p>
-              <small>{event.categoryLabel}</small>
+              <p>{event.result === 'rejected' ? `Refused: ${compactReportText(event.detail || event.title)}` : event.title}</p>
             </div>
           ))}
         </article>

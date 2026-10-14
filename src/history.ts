@@ -179,7 +179,7 @@ const ACTION_LABELS: Partial<Record<SessionCommandType, string>> = {
   OPEN_TRAIN_VIEW: 'Opened a train view',
   RESET_SCENARIO: 'Stopped the scenario',
   RESET_SESSION: 'Reset the session',
-  SCADA_TRAIN_COMMAND: 'SCADA train command',
+  SCADA_TRAIN_COMMAND: 'Station panel command',
   SELECT_TRAIN: 'Selected a train',
   SET_SCENARIO_STATE: 'Changed scenario state',
   SET_TIMETABLE_VIEW: 'Changed the timetable view',

@@ -4519,8 +4519,12 @@
   color: #6dffb7;
 }
 
+.report-task em.is-missed {
+  color: #fca5a5;
+}
+
 .report-event {
-  grid-template-columns: 94px 165px 1fr 90px;
+  grid-template-columns: 94px 165px 1fr;
 }
 
 .report-evidence-row {
@@ -12938,12 +12942,6 @@
   font-size: 12px;
 }
 
-.trainer-console-notice-label {
-  margin-right: 6px;
-  color: #9fb3ca;
-  font-weight: 800;
-}
-
 .trainer-console-notice.is-success {
   border-left-color: #4ade80;
 }
@@ -13112,7 +13110,7 @@
 
 .trainer-console-tasks li {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   border-radius: 8px;
@@ -13161,9 +13159,31 @@
   color: #facc15;
 }
 
-.trainer-console-tasks small {
-  color: #64748b;
-  font-size: 12px;
+/* Where a step is done: a short tag at the end of its line. */
+.trainer-console-tasks .trainer-console-task-tag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #9fb3ca;
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.trainer-console-tasks .trainer-console-task-tag.is-trainer {
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.14);
+}
+
+.trainer-console-feed-tag {
+  margin-right: 6px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.25);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .trainer-console-feed {
@@ -13178,7 +13198,7 @@
 
 .trainer-console-feed li {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 8px;
   border-left: 2px solid transparent;
   padding: 6px 8px;
@@ -14303,4 +14323,229 @@
   .training-coach-feedback {
     animation: none;
   }
+}
+
+/* Trainer Console, one exercise at a time (ExercisePanel.tsx): who and where,
+   the run's numbers, the step the trainee is on, and what just happened. */
+.trainer-exercise[hidden] {
+  display: none;
+}
+
+.tc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tc-muted {
+  margin: 0;
+  color: #8193a8;
+  font-size: 13px;
+}
+
+.tc-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tc-tab {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border: 1px solid var(--control-line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: #9fb3ca;
+  background: rgba(13, 26, 44, 0.75);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tc-tab strong {
+  color: #e2e8f0;
+}
+
+.tc-tab span {
+  font-size: 13px;
+}
+
+.tc-tab.is-active {
+  border-color: #60a5fa;
+  box-shadow: inset 0 -3px 0 #60a5fa;
+}
+
+.tc-tab-flag {
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: #422006;
+  background: #facc15;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.tc-exercise-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--control-line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: rgba(13, 26, 44, 0.85);
+}
+
+.tc-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0;
+}
+
+.tc-facts dt {
+  color: #8193a8;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tc-facts dd {
+  margin: 2px 0 0;
+  font-weight: 800;
+}
+
+.tc-facts .is-ok {
+  color: #4ade80;
+}
+
+.tc-facts .is-warn {
+  color: #facc15;
+}
+
+.tc-exercise-bar nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tc-exercise-bar nav button,
+.tc-setup-actions button,
+.tc-fold {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--ink);
+  background: var(--control-button);
+  font-weight: 800;
+}
+
+.tc-exercise-bar nav .is-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: #9fb3ca;
+}
+
+.tc-run.trainer-console-status {
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  row-gap: 12px;
+}
+
+.tc-run .trainer-console-progress {
+  grid-column: 1 / -1;
+  height: 6px;
+}
+
+.tc-brief {
+  display: block;
+  max-width: 60ch;
+  margin-top: 4px;
+  color: #fde68a !important;
+}
+
+.tc-setup .trainer-console-scenario-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tc-setup-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.tc-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.tc-setup-actions .trainer-console-load {
+  border-color: rgba(99, 179, 237, 0.65);
+  background: var(--control-action);
+}
+
+.tc-setup-actions .trainer-console-reset {
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+}
+
+.tc-run-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.tc-fold {
+  align-self: flex-start;
+  padding: 4px 10px;
+  color: #9fb3ca;
+  background: transparent;
+  font-size: 13px;
+}
+
+.trainer-console-checklist .trainer-console-tasks li.is-next {
+  padding: 12px 12px;
+}
+
+.trainer-console-checklist .trainer-console-tasks li.is-next strong {
+  font-size: 16px;
+}
+
+.tc-now-label {
+  display: block;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .tc-run.trainer-console-status,
+  .tc-run-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tc-setup .trainer-console-scenario-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tc-setup-actions .trainer-console-reset {
+  color: #f87171;
+  font-weight: 700;
+}
+
+/* One line per event; the full text is in the tooltip. */
+.trainer-console-activity .trainer-console-feed strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

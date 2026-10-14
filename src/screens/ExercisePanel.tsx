@@ -4,7 +4,7 @@ import { nelTimetableOptions } from '../data/nelTimetable'
 import type { NelTimetableName } from '../data/nelTimetable'
 import type { ExerciseSummary, TraineeAccount } from '../exerciseClient'
 import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
-import { getScenarioTaskOwner } from '../iosScenarioRoles'
+import { getScenarioTaskOwner, getScenarioTaskPlaceTag } from '../iosScenarioRoles'
 import { openOccMonitors } from '../occMonitors'
 import { scenarioTemplates } from '../scenarioLibrary'
 import type { SessionActor, SessionCommand } from '../session-commands/types'
@@ -13,6 +13,7 @@ import {
   findTrainingScenarioDefinition,
   getActiveTrainingScenarioTargetTrainId,
   getEligibleLaunchScenarioTargetOptions,
+  getTrainingScenarioArmNotice,
   getTrainingScenarioDefinition,
   resolveFaultText,
   scoreTrainingScenario,
@@ -26,7 +27,11 @@ type ExercisePanelProps = {
   exercise: ExerciseSummary | null
   exercises: ExerciseSummary[]
   getActor: () => SessionActor
+  // Hidden behind another exercise's tab: it keeps following its session.
+  hidden?: boolean
   onAssign: (traineeId: string, sessionId: string) => void
+  // Whether this exercise is waiting on the trainer (a step to confirm, a run to complete).
+  onAttention?: (needsTrainer: boolean) => void
   onClose: (sessionId: string) => void
   onOpenReport: (sessionCode: string) => void
   onSignedOut: () => void
@@ -39,6 +44,9 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
   { label: 'Assessment', value: 'ASSESSMENT' },
   { label: 'Player', value: 'PLAYER' },
 ]
+
+// Upcoming steps shown under the current one; the rest fold behind "+N more".
+const UPCOMING_SHOWN = 2
 
 // Scenario families the console can arm; fault families pick their SOP variant by incident.
 const consoleTemplates = scenarioTemplates.filter((template) => template.trainingScenarioKind)
@@ -67,13 +75,16 @@ function getTemplateIdForScenario(scenarioId: string) {
   return consoleTemplates.find((template) => template.trainingScenarioKind === definition.kind)?.id ?? consoleTemplates[0].id
 }
 
-// One exercise on the Trainer Console: its trainee, status, score, scenario,
-// checklist and activity. It follows its own session live.
+// One exercise on the Trainer Console, built to read at a glance: who and
+// where, the run's numbers, the step the trainee is on, and what just
+// happened. Choosing a scenario is a separate "New run" card.
 function ExercisePanel({
   exercise,
   exercises,
   getActor,
+  hidden = false,
   onAssign,
+  onAttention,
   onClose,
   onOpenReport,
   onSignedOut,
@@ -106,35 +117,67 @@ function ExercisePanel({
   const [timeTarget, setTimeTarget] = useState('')
   const [traineeChoice, setTraineeChoice] = useState('')
   const [now, setNow] = useState(() => Date.now())
-  // During a run the scenario picker folds to a summary, leaving room for the checklist.
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [showDone, setShowDone] = useState(false)
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false)
 
   const score = scoreTrainingScenario(session)
   const completedTasks = score.taskResults.filter((task) => task.complete).length
-  const nextTask = score.taskResults.find((task) => !task.complete)
+  const isComplete = session.scenarioMode === 'COMPLETE'
   const targetTrainId = getActiveTrainingScenarioTargetTrainId(session)
   const needsLaunchTrain = activeDefinition.kind === 'TRAIN_LAUNCH' && !session.activeScenario.targetTrainId && !isIdle
   const startedAt = session.sessionMeta?.startedAt ? Date.parse(session.sessionMeta.startedAt) : undefined
   const isRunning = session.scenarioMode === 'RUNNING'
   const aidsOn = areTrainingAidsOn(session)
-  // The session's last message is often just a step's label ("Acknowledge door
-  // failure alarm"), which reads like an order: say what it is.
   const notice = session.scenarioNotice
-  const noticeLabel = notice.tone === 'warning' || isIdle
-    ? ''
-    : score.taskResults.some((task) => task.complete && task.label === notice.text) ? 'Step done' : 'Latest'
   const onlineMonitors = getOnlineMonitors(session, now)
   // Trainees type this code: never show the placeholder one.
   const sessionCode = synced ? session.sessionMeta.code : '----'
   const timeTargetValue = timeTarget || selectedDefinition.duration
   const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
   // A completed run's time stops at completion.
-  const completedAt = session.scenarioMode === 'COMPLETE' && session.sessionMeta?.completedAt ? Date.parse(session.sessionMeta.completedAt) : undefined
+  const completedAt = isComplete && session.sessionMeta?.completedAt ? Date.parse(session.sessionMeta.completedAt) : undefined
   const elapsedSeconds = !isIdle && startedAt ? ((completedAt ?? now) - startedAt) / 1000 : 0
   const elapsed = !isIdle && startedAt ? formatElapsed(elapsedSeconds) : '--:--'
   const overTarget = !isIdle && Boolean(startedAt) && elapsedSeconds > durationSeconds(session.activeScenario.duration)
+  const brief = activeDefinition.armNotice
+    ? getTrainingScenarioArmNotice(activeDefinition, session.activeScenario.faultLocation
+      ? { ...session.activeScenario.faultLocation, trainId: targetTrainId }
+      : undefined)
+    : ''
+  const subtitle = [
+    session.activeScenario.incident.toLowerCase() !== activeDefinition.title.toLowerCase() ? session.activeScenario.incident : '',
+    targetTrainId ? `Train ${targetTrainId}` : activeDefinition.noTargetTrain ? 'line-wide' : 'train not chosen yet',
+    session.trainingMode.toLowerCase(),
+  ].filter(Boolean).join(' · ')
+
+  // Steps: the one the trainee is on, a couple ahead, and every step the
+  // trainer has to confirm; finished steps fold into a count.
+  const isTrainerStep = (task: (typeof score.taskResults)[number]) => getScenarioTaskOwner(task.monitor) === 'Instructor'
+  const canConfirm = (task: (typeof score.taskResults)[number]) => (
+    !task.complete && isTrainerStep(task) && !(task.runtimeOnly || task.commsMessageIds?.length || task.mappedTaskId)
+  )
+  const doneSteps = score.taskResults.filter((task) => task.complete)
+  const openSteps = score.taskResults.filter((task) => !task.complete)
+  const currentStep = isComplete ? undefined : openSteps[0]
+  const upcoming = openSteps.slice(1)
+  const upcomingShown = showAllUpcoming || isComplete
+    ? upcoming
+    : upcoming.filter((task, index) => index < UPCOMING_SHOWN || canConfirm(task))
+  const hiddenUpcoming = upcoming.length - upcomingShown.length
+  const waitingOnTrainer = !isIdle && !isComplete && (
+    needsLaunchTrain
+    || openSteps.some(canConfirm)
+    || (openSteps.length > 0 && openSteps.every((task) => task.mappedTaskId === 'completeScenario'))
+  )
+
+  // One line per thing that happened. Step-completion records repeat the action
+  // that completed the step (the steps already show it), so they are left out.
+  const stepLabels = new Set(activeDefinition.tasks.map((task) => task.label))
+  const traineeNames = new Set(session.trainees.map((trainee) => trainee.name))
   const activity = categoriseScenarioEvidence(session.evidenceLog)
     .filter((evidence) => evidence.category !== 'trainer' || evidence.result === 'rejected')
+    .filter((evidence) => evidence.result === 'rejected' || !stepLabels.has(evidence.action))
     .slice(0, 14)
   const launchTrainOptions = useMemo(() => (
     getEligibleLaunchScenarioTargetOptions(session).map((option) => ({
@@ -163,8 +206,14 @@ function ExercisePanel({
     return () => window.clearInterval(timer)
   }, [isRunning])
 
+  useEffect(() => {
+    onAttention?.(waitingOnTrainer)
+  }, [onAttention, waitingOnTrainer])
+
   const loadScenario = () => {
-    setPickerOpen(false)
+    setSetupOpen(false)
+    setShowDone(false)
+    setShowAllUpcoming(false)
     void dispatch({
       duration: timeTargetValue,
       incident: selectedDefinition.incident,
@@ -189,15 +238,34 @@ function ExercisePanel({
     void dispatch({ label, taskId, type: 'CONFIRM_TASK' })
   }
 
+  const renderStep = (task: (typeof score.taskResults)[number], isNow = false) => (
+    <li className={`${task.complete ? 'is-done' : ''} ${isNow ? 'is-next' : ''}`} key={task.id}>
+      <i aria-hidden="true">{task.complete ? '✓' : isNow ? '▶' : ''}</i>
+      <strong>
+        {isNow && <small className="tc-now-label">Now</small>}
+        {task.label}
+        {task.critical && <b title="Critical SOP step"> ★</b>}
+      </strong>
+      <small
+        className={`trainer-console-task-tag ${isTrainerStep(task) ? 'is-trainer' : ''}`}
+        title={isTrainerStep(task)
+          ? task.mappedTaskId === 'completeScenario' ? 'Click Complete when the trainee is done' : 'Click Confirm when the trainee has done it'
+          : task.monitor}
+      >
+        {isTrainerStep(task) ? 'Trainer' : getScenarioTaskPlaceTag(task.monitor)}
+      </small>
+      {canConfirm(task) && (
+        <button type="button" onClick={() => confirmTask(task.id, task.label)}>Confirm</button>
+      )}
+    </li>
+  )
+
   return (
-    <section className="trainer-exercise" aria-labelledby={headingId}>
-      <header className="trainer-console-header trainer-exercise-head">
-        <h2 id={headingId}>Exercise {number}</h2>
-        <dl className="trainer-console-session" aria-label="Session">
-          <div>
-            <dt>Session code</dt>
-            <dd className="trainer-console-code">{sessionCode}</dd>
-          </div>
+    <section className="trainer-exercise" aria-labelledby={headingId} hidden={hidden}>
+      <h2 className="tc-sr-only" id={headingId}>Exercise {number}</h2>
+
+      <header className="tc-exercise-bar">
+        <dl className="tc-facts" aria-label="Session">
           <div>
             <dt>Trainee</dt>
             <dd>
@@ -219,13 +287,17 @@ function ExercisePanel({
                     </button>
                   </span>
                 </span>
-              )) : 'None joined yet'}
+              )) : <span className="tc-muted">Waiting for a trainee</span>}
             </dd>
+          </div>
+          <div>
+            <dt>Code</dt>
+            <dd className="trainer-console-code">{sessionCode}</dd>
           </div>
           <div>
             <dt>Monitors</dt>
             <dd className={onlineMonitors.length === occMonitors.length ? 'is-ok' : 'is-warn'}>
-              {onlineMonitors.length}/{occMonitors.length} open
+              {onlineMonitors.length}/{occMonitors.length}
             </dd>
           </div>
         </dl>
@@ -252,244 +324,194 @@ function ExercisePanel({
         </nav>
       </header>
 
-      <section className={`trainer-console-status is-${session.scenarioMode.toLowerCase()}`} aria-label="Scenario status">
+      {commandProblem && (
+        <p className="trainer-console-notice is-warning" role="alert">{commandProblem}</p>
+      )}
+      {notice.text && notice.tone === 'warning' && (
+        <p className="trainer-console-notice is-warning" role="status">{notice.text}</p>
+      )}
+
+      <section className={`tc-run trainer-console-status is-${session.scenarioMode.toLowerCase()}`} aria-label="Scenario status">
         <div className="trainer-console-status-title">
           <span className="trainer-console-chip">{isIdle ? 'IDLE' : session.scenarioMode}</span>
           <div>
             <strong>{isIdle ? 'No scenario running' : activeDefinition.title}</strong>
-            <small>
-              {isIdle
-                ? 'Choose a scenario below and load it.'
-                : `${session.trainingMode.toLowerCase()} · ${targetTrainId ? `Train ${targetTrainId}` : activeDefinition.noTargetTrain ? 'line-wide' : 'train not chosen yet'} · ${session.timetableName.replace('NEL_OTES_', '')}`}
-            </small>
+            <small>{isIdle ? 'Choose a scenario below.' : subtitle}</small>
+            {brief && <small className="tc-brief">{brief}</small>}
           </div>
         </div>
-        <dl className="trainer-console-figures">
-          <div>
-            <dt>Time</dt>
-            <dd className={overTarget ? 'is-over' : undefined} title={overTarget ? 'Past the time target' : undefined}>
-              {elapsed}<em> / {isIdle ? '--:--' : session.activeScenario.duration}</em>
-            </dd>
+        {!isIdle && (
+          <dl className="trainer-console-figures">
+            <div>
+              <dt>Time</dt>
+              <dd className={overTarget ? 'is-over' : undefined} title={overTarget ? 'Past the time target' : undefined}>
+                {elapsed}<em> / {session.activeScenario.duration}</em>
+              </dd>
+            </div>
+            <div><dt>Steps</dt><dd>{completedTasks}<em> / {score.totalTasks}</em></dd></div>
+            <div><dt>Score</dt><dd>{score.score}%</dd></div>
+            <div><dt>Wrong</dt><dd className={score.rejectedActions > 0 ? 'is-bad' : undefined}>{score.rejectedActions}</dd></div>
+          </dl>
+        )}
+        {!isIdle && (
+          <div className="trainer-console-controls">
+            <button
+              type="button"
+              disabled={isComplete}
+              onClick={() => setScenarioRuntimeState(session.scenarioMode === 'PAUSED' ? 'RESUME' : 'PAUSE')}
+            >
+              {session.scenarioMode === 'PAUSED' ? 'Resume' : 'Pause'}
+            </button>
+            <button type="button" className="is-primary" disabled={isComplete} onClick={() => setScenarioRuntimeState('COMPLETE')}>
+              Complete
+            </button>
+            <button type="button" onClick={() => void dispatch({ type: 'RESET_SCENARIO' })}>Stop</button>
+            <button type="button" aria-expanded={setupOpen} onClick={() => setSetupOpen((open) => !open)}>New run</button>
+            <button
+              aria-pressed={aidsOn}
+              className="trainer-console-aids"
+              disabled={session.trainingMode !== 'PRACTICE'}
+              onClick={() => void dispatch({ enabled: !session.trainingAids, type: 'SET_TRAINING_AIDS' })}
+              title={session.trainingMode === 'PRACTICE'
+                ? 'Next-step hints on the trainee monitors'
+                : 'Training aids are always off outside Practice'}
+              type="button"
+            >
+              Aids {aidsOn ? 'on' : 'off'}
+            </button>
           </div>
-          <div><dt>Tasks</dt><dd>{completedTasks}<em> / {score.totalTasks}</em></dd></div>
-          <div><dt>Score</dt><dd>{score.score}%</dd></div>
-          <div><dt>Wrong actions</dt><dd className={score.rejectedActions > 0 ? 'is-bad' : undefined}>{score.rejectedActions}</dd></div>
-        </dl>
-        <div className="trainer-console-controls">
-          <button
-            type="button"
-            disabled={isIdle || session.scenarioMode === 'COMPLETE'}
-            onClick={() => setScenarioRuntimeState(session.scenarioMode === 'PAUSED' ? 'RESUME' : 'PAUSE')}
-          >
-            {session.scenarioMode === 'PAUSED' ? 'Resume' : 'Pause'}
-          </button>
-          <button
-            type="button"
-            className="is-primary"
-            disabled={isIdle || session.scenarioMode === 'COMPLETE'}
-            onClick={() => setScenarioRuntimeState('COMPLETE')}
-          >
-            Complete
-          </button>
-          <button type="button" disabled={isIdle} onClick={() => void dispatch({ type: 'RESET_SCENARIO' })}>
-            Stop
-          </button>
-          <button
-            aria-pressed={aidsOn}
-            className="trainer-console-aids"
-            disabled={session.trainingMode !== 'PRACTICE'}
-            onClick={() => void dispatch({ enabled: !session.trainingAids, type: 'SET_TRAINING_AIDS' })}
-            title={session.trainingMode === 'PRACTICE'
-              ? 'Next-step hints on the trainee monitors'
-              : 'Training aids are always off outside Practice'}
-            type="button"
-          >
-            Aids {aidsOn ? 'on' : 'off'}
-          </button>
-        </div>
+        )}
+        {!isIdle && (
+          <div className="trainer-console-progress" aria-hidden="true">
+            <span style={{ width: `${score.totalTasks ? (completedTasks / score.totalTasks) * 100 : 0}%` }} />
+          </div>
+        )}
       </section>
 
-      {commandProblem && (
-        <p className="trainer-console-notice is-warning" role="alert">{commandProblem}</p>
-      )}
-      {session.scenarioNotice.text && (
-        <p className={`trainer-console-notice is-${notice.tone}`} role="status">
-          {noticeLabel && <strong className="trainer-console-notice-label">{noticeLabel}:</strong>}
-          {notice.text}
-        </p>
-      )}
-
-      <div className="trainer-console-grid">
-        <section className="trainer-console-panel trainer-console-scenarios" aria-labelledby={`${headingId}-scenario`}>
+      {(isIdle || setupOpen) && (
+        <section className="trainer-console-panel tc-setup trainer-console-scenarios" aria-labelledby={`${headingId}-scenario`}>
           <div className="trainer-console-panel-head">
-            <h2 id={`${headingId}-scenario`}>Scenario</h2>
-            {!isIdle && pickerOpen && (
-              <button type="button" className="trainer-console-picker-toggle" onClick={() => setPickerOpen(false)}>Hide</button>
+            <h2 id={`${headingId}-scenario`}>{isIdle ? 'Choose a scenario' : 'New run'}</h2>
+            {!isIdle && <button type="button" className="trainer-console-picker-toggle" onClick={() => setSetupOpen(false)}>Cancel</button>}
+          </div>
+          <div className="trainer-console-scenario-list" role="radiogroup" aria-label="Scenario">
+            {consoleTemplates.map((item) => (
+              <button
+                aria-checked={item.id === template.id}
+                className={item.id === template.id ? 'is-selected' : undefined}
+                key={item.id}
+                onClick={() => setTemplateId(item.id)}
+                role="radio"
+                type="button"
+              >
+                <strong>{item.title}</strong>
+                {item.incidents.length > 1 && <small>{item.incidents.length} incidents</small>}
+              </button>
+            ))}
+          </div>
+          <div className="tc-setup-fields">
+            {template.incidents.length > 1 && (
+              <label className="trainer-console-field">
+                <span>Incident</span>
+                <SelectField
+                  ariaLabel="Incident"
+                  value={selectedIncident}
+                  options={template.incidents.map((value) => ({ label: value, value }))}
+                  onChange={setIncident}
+                />
+              </label>
             )}
+            <label className="trainer-console-field">
+              <span>Mode</span>
+              <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
+            </label>
+            <label className="trainer-console-field">
+              <span>Time target</span>
+              <input
+                aria-invalid={!timeTargetIsValid}
+                className="trainer-console-input"
+                onChange={(event) => setTimeTarget(event.target.value)}
+                placeholder="mm:ss"
+                value={timeTargetValue}
+              />
+            </label>
+            <label className="trainer-console-field">
+              <span>Timetable</span>
+              <SelectField
+                ariaLabel="Timetable"
+                value={timetableName}
+                options={nelTimetableOptions.map((option) => ({ label: option.label, value: option.value }))}
+                onChange={setTimetableName}
+              />
+            </label>
           </div>
-          {!isIdle && !pickerOpen ? (
-            <div className="trainer-console-scenario-summary">
-              <strong>{activeDefinition.title}</strong>
-              <span>{session.activeScenario.incident}</span>
-              <small>
-                {session.trainingMode.toLowerCase()} · target {session.activeScenario.duration} · {session.timetableName.replace('NEL_OTES_', '').replace('_', ' ')}
-              </small>
-              <button type="button" onClick={() => setPickerOpen(true)}>Change scenario</button>
-            </div>
-          ) : (
-            <>
-              <div className="trainer-console-scenario-list" role="radiogroup" aria-label="Scenario">
-                {consoleTemplates.map((item) => (
-                  <button
-                    aria-checked={item.id === template.id}
-                    className={item.id === template.id ? 'is-selected' : undefined}
-                    key={item.id}
-                    onClick={() => setTemplateId(item.id)}
-                    role="radio"
-                    type="button"
-                  >
-                    <strong>{item.title}</strong>
-                    {item.incidents.length > 1 && <small>{item.incidents.length} incidents</small>}
-                  </button>
-                ))}
-              </div>
-              {template.incidents.length > 1 && (
-                <label className="trainer-console-field">
-                  <span>Incident</span>
-                  <SelectField
-                    ariaLabel="Incident"
-                    value={selectedIncident}
-                    options={template.incidents.map((value) => ({ label: value, value }))}
-                    onChange={setIncident}
-                  />
-                </label>
-              )}
-              <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
-              <div className="trainer-console-field-row">
-                <label className="trainer-console-field">
-                  <span>Mode</span>
-                  <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
-                </label>
-                <label className="trainer-console-field">
-                  <span>Time target</span>
-                  <input
-                    aria-invalid={!timeTargetIsValid}
-                    className="trainer-console-input"
-                    onChange={(event) => setTimeTarget(event.target.value)}
-                    placeholder="mm:ss"
-                    value={timeTargetValue}
-                  />
-                </label>
-                <label className="trainer-console-field">
-                  <span>Timetable</span>
-                  <SelectField
-                    ariaLabel="Timetable"
-                    value={timetableName}
-                    options={nelTimetableOptions.map((option) => ({ label: option.label, value: option.value }))}
-                    onChange={setTimetableName}
-                  />
-                </label>
-              </div>
-              <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
-                {isIdle ? 'Load scenario' : 'Restart with this scenario'}
-              </button>
-              {timetableName !== session.timetableName && (
-                <small className="trainer-console-hint">Changing timetable resets all trains.</small>
-              )}
-              <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
-                Reset whole session
-              </button>
-            </>
-          )}
+          <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
+          <div className="tc-setup-actions">
+            <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
+              {isIdle ? 'Load scenario' : 'Restart with this scenario'}
+            </button>
+            {timetableName !== session.timetableName && (
+              <small className="trainer-console-hint">Changing timetable resets all trains.</small>
+            )}
+            <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
+              Reset whole session
+            </button>
+          </div>
         </section>
+      )}
 
-        <section className="trainer-console-panel trainer-console-checklist" aria-labelledby={`${headingId}-checklist`}>
-          <div className="trainer-console-panel-head">
-            <h2 id={`${headingId}-checklist`}>Checklist</h2>
-            {!isIdle && <span>{completedTasks} of {score.totalTasks}</span>}
-          </div>
-          {!isIdle && (
-            <div className="trainer-console-progress" aria-hidden="true">
-              <span style={{ width: `${score.totalTasks ? (completedTasks / score.totalTasks) * 100 : 0}%` }} />
+      {!isIdle && (
+        <div className="tc-run-grid">
+          <section className="trainer-console-panel trainer-console-checklist" aria-labelledby={`${headingId}-checklist`}>
+            <div className="trainer-console-panel-head">
+              <h2 id={`${headingId}-checklist`}>Steps</h2>
+              <span>{completedTasks} of {score.totalTasks}</span>
             </div>
-          )}
-          {needsLaunchTrain && (
-            <div className="trainer-console-launch">
-              <SelectField ariaLabel="Launch train" value={launchTrainId} options={launchTrainOptions} onChange={setLaunchTrainChoice} />
-              <button type="button" disabled={!launchTrainId} onClick={assignLaunchTrain}>Assign train</button>
-            </div>
-          )}
-          {isIdle ? (
-            <div className="trainer-console-empty">
-              <strong>No checklist yet</strong>
-              <span>Load a scenario to see its SOP steps here.</span>
-            </div>
-          ) : (
+            {needsLaunchTrain && (
+              <div className="trainer-console-launch">
+                <SelectField ariaLabel="Launch train" value={launchTrainId} options={launchTrainOptions} onChange={setLaunchTrainChoice} />
+                <button type="button" disabled={!launchTrainId} onClick={assignLaunchTrain}>Assign train</button>
+              </div>
+            )}
+            {doneSteps.length > 0 && !isComplete && (
+              <button type="button" className="tc-fold" aria-expanded={showDone} onClick={() => setShowDone((show) => !show)}>
+                ✓ {doneSteps.length} {doneSteps.length === 1 ? 'step' : 'steps'} done
+              </button>
+            )}
             <ol className="trainer-console-tasks">
-              {score.taskResults.map((task) => {
-                const isNext = task.id === nextTask?.id && session.scenarioMode !== 'COMPLETE'
-                const isLive = Boolean(task.runtimeOnly || task.commsMessageIds?.length || task.mappedTaskId)
-                const owner = getScenarioTaskOwner(task.monitor)
-                const canConfirm = !task.complete && !isLive && owner === 'Instructor'
-                // Trainer steps say how the trainer completes them.
-                const place = owner !== 'Instructor'
-                  ? task.monitor
-                  : task.mappedTaskId === 'completeScenario'
-                    ? 'Trainer: click Complete when the trainee is done'
-                    : task.complete || isLive ? 'Trainer' : 'Trainer: click Confirm when the trainee has done it'
-
-                return (
-                  <li
-                    className={`${task.complete ? 'is-done' : ''} ${isNext ? 'is-next' : ''}`}
-                    key={task.id}
-                  >
-                    <i aria-hidden="true">{task.complete ? '✓' : isNext ? '▶' : ''}</i>
-                    <div>
-                      <strong>
-                        {task.label}
-                        {task.critical && <b title="Critical SOP step"> ★</b>}
-                      </strong>
-                      <small>{place}</small>
-                    </div>
-                    {canConfirm && (
-                      <button type="button" onClick={() => confirmTask(task.id, task.label)}>Confirm</button>
-                    )}
-                  </li>
-                )
-              })}
+              {(showDone || isComplete) && doneSteps.map((task) => renderStep(task))}
+              {currentStep && renderStep(currentStep, true)}
+              {upcomingShown.map((task) => renderStep(task))}
             </ol>
-          )}
-        </section>
+            {hiddenUpcoming > 0 && (
+              <button type="button" className="tc-fold" onClick={() => setShowAllUpcoming(true)}>+{hiddenUpcoming} more</button>
+            )}
+          </section>
 
-        <section className="trainer-console-panel trainer-console-activity" aria-labelledby={`${headingId}-activity`}>
-          <div className="trainer-console-panel-head">
-            <h2 id={`${headingId}-activity`}>Trainee activity</h2>
-            <span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span>
-          </div>
-          {activity.length > 0 ? (
-            <ul className="trainer-console-feed">
-              {activity.map((item) => (
-                <li className={`is-${item.result}`} key={item.id}>
-                  <time>{item.time}</time>
-                  <div>
-                    <strong>{item.action}</strong>
-                    {item.actor && <small>{item.actor}</small>}
-                    {item.detail && <small>{item.detail}</small>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="trainer-console-empty">
-              <strong>Nothing yet</strong>
-              <span>Trainee actions on the monitors appear here as they happen.</span>
+          <section className="trainer-console-panel trainer-console-activity" aria-labelledby={`${headingId}-activity`}>
+            <div className="trainer-console-panel-head">
+              <h2 id={`${headingId}-activity`}>Live</h2>
             </div>
-          )}
-          <button type="button" className="trainer-console-report" disabled={isIdle} onClick={() => onOpenReport(sessionCode)}>
-            Open report
-          </button>
-        </section>
-      </div>
+            {activity.length > 0 ? (
+              <ul className="trainer-console-feed">
+                {activity.map((item) => (
+                  <li className={`is-${item.result}`} key={item.id} title={item.detail || undefined}>
+                    <time>{item.time.replace(/:\d{2}(\s*[ap]m)?$/i, '$1')}</time>
+                    <div>
+                      {item.result === 'rejected'
+                        ? <strong><em className="trainer-console-feed-tag">Refused</em>{item.detail || item.action}</strong>
+                        : <strong>{item.action}</strong>}
+                      {item.actor && !traineeNames.has(item.actor) && <small>{item.actor}</small>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="tc-muted">The trainee's actions appear here.</p>
+            )}
+          </section>
+        </div>
+      )}
     </section>
   )
 }
