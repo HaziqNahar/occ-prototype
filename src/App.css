@@ -14186,3 +14186,40 @@
     animation: none;
   }
 }
+
+/* Instant feedback on a refused action (TrainingCoach.tsx, piece 4). */
+.training-coach-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid rgba(248, 113, 113, 0.5);
+  padding: 7px 10px;
+  color: #fee2e2;
+  background: rgba(127, 29, 29, 0.55);
+  animation: training-coach-feedback-in 0.25s ease-out;
+}
+
+.training-coach-feedback span {
+  flex: 1;
+}
+
+.training-coach-feedback button {
+  border: 0;
+  padding: 0 2px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@keyframes training-coach-feedback-in {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .training-coach-feedback {
+    animation: none;
+  }
+}

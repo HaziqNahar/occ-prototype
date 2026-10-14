@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { areTrainingAidsOn } from '../trainingAids'
 import { coachMonitorLabels, getCoachState } from '../training-scenarios/hints'
@@ -7,11 +7,17 @@ import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
 import type { OccSessionState } from '../types'
 import CoachHighlight from './CoachHighlight'
 import { findTargetElement, getTargetWorldX, requestLineMapPan } from './coachTargets'
+import type { CommandFeedback } from './useCommandFeedback'
 
 type TrainingCoachProps = {
+  // This monitor's last refused action (piece 4).
+  feedback?: CommandFeedback | null
   monitor: CoachMonitor
+  onDismissFeedback?: () => void
   session: OccSessionState
 }
+
+const FEEDBACK_FOR_MS = 10000
 
 type Position = { left: number; top: number }
 
@@ -48,13 +54,23 @@ function clampPosition(position: Position, width: number, height: number): Posit
   }
 }
 
-function TrainingCoach({ monitor, session }: TrainingCoachProps) {
+function TrainingCoach({ feedback, monitor, onDismissFeedback, session }: TrainingCoachProps) {
   const [expanded, setExpanded] = useState(false)
   const [position, setPosition] = useState<Position | null>(() => readPosition(monitor))
   const [highlight, setHighlight] = useState<Highlight | null>(null)
   const [missing, setMissing] = useState('')
   const panelRef = useRef<HTMLElement>(null)
   const dragRef = useRef<{ moved: boolean; offsetX: number; offsetY: number; startX: number; startY: number } | null>(null)
+
+  useEffect(() => {
+    if (!feedback || !onDismissFeedback) {
+      return undefined
+    }
+
+    const timer = window.setTimeout(onDismissFeedback, FEEDBACK_FOR_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [feedback, onDismissFeedback])
 
   if (!areTrainingAidsOn(session)) {
     return null
@@ -167,6 +183,14 @@ function TrainingCoach({ monitor, session }: TrainingCoachProps) {
         <span className="training-coach-summary">{summary}</span>
         <i aria-hidden="true">{expanded ? '▴' : '▾'}</i>
       </button>
+      {feedback && (
+        <div className="training-coach-feedback" key={feedback.id} role="alert">
+          <span>{feedback.text}</span>
+          {onDismissFeedback && (
+            <button aria-label="Dismiss" onClick={onDismissFeedback} type="button">×</button>
+          )}
+        </div>
+      )}
       {expanded && hint && state.kind === 'step' && (
         <div className="training-coach-body">
           <small>Step {state.stepNumber} of {state.totalSteps}</small>

@@ -600,6 +600,15 @@ test.describe.serial('OCC monitor regressions', () => {
 
     await expect(alarmsCoach).toContainText('Next step is on Monitor 02 Line Map')
     await expect(lineMapCoach).toContainText('Next: Select affected train')
+
+    // Out of order: acknowledging before selecting the train is refused, and the coach says why.
+    const alarmsFeedback = alarmsCoach.getByRole('alert')
+
+    await alarms.locator('.alarm-dom-row--data', { hasText: `Train ${trainId} Car 3` }).click()
+    await alarms.getByRole('button', { name: 'Ack. selection' }).click()
+    await expect(alarmsFeedback).toContainText(`Select Train ${trainId} before acknowledging its alarm.`)
+    await alarmsFeedback.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(alarmsFeedback).toHaveCount(0)
     await lineMapCoach.getByRole('button').click()
     await expect(lineMapCoach).toContainText(`Right-click Train ${trainId} on the Line Map`)
 
@@ -663,5 +672,13 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(aids).toHaveText('Aids off')
     await expect(alarmsCoach).toHaveCount(0)
     await expect(lineMapCoach).toHaveCount(0)
+
+    // The same wrong action gets no message in Assessment.
+    await alarms.locator('.alarm-dom-row--data', { hasText: 'Car 3' }).first().click()
+    const refused = alarms.waitForResponse((response) => response.url().endsWith('/api/session/commands'))
+
+    await alarms.getByRole('button', { name: 'Ack. selection' }).click()
+    expect((await (await refused).json()).accepted).toBe(false)
+    await expect(alarms.locator('.training-coach-feedback')).toHaveCount(0)
   })
 })

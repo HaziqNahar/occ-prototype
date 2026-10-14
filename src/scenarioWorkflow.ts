@@ -221,7 +221,7 @@ export function getScenarioTaskBlocker(
   const isDoorFault = activeScenarioId === 'door-fault' || activeScenarioId === 'idle' || !activeScenarioId
 
   if (taskId === 'ackAlarm' && isDoorFault && !currentTasks.selectTrain) {
-    return `Select ${trainLabel} before acknowledging the injected alarm.`
+    return `Select ${trainLabel} before acknowledging its alarm.`
   }
 
   if (taskId === 'setRoute') {

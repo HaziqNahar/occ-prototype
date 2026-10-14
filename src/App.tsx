@@ -124,6 +124,7 @@ import {
 import LoginPage, { AccessNotice } from './screens/LoginPage'
 import SignInPage from './screens/SignInPage'
 import TrainingCoach from './components/TrainingCoach'
+import { useCommandFeedback } from './components/useCommandFeedback'
 import { exerciseApi } from './exerciseClient'
 import { useAuth } from './useAuth'
 import type {
@@ -262,6 +263,8 @@ function App() {
     simulate,
     subscribeMonitorLaunch,
   } = useOccSession(getActor, CONSOLE_ROUTES.has(route) ? null : token, auth.handleSignedOut, sessionRef)
+  // The trainee monitors send through this, so the Practice coach can say why an action was refused.
+  const { clearFeedback, dispatch: monitorDispatch, feedback } = useCommandFeedback(dispatch)
 
   useEffect(() => {
     const handlePopState = () => {
@@ -358,13 +361,13 @@ function App() {
           onNavigate={navigate}
           requestMonitorPeerLaunch={requestMonitorPeerLaunch}
           claimSimulation={claimSimulation}
-          dispatch={dispatch}
+          dispatch={monitorDispatch}
           isSimulationOwner={isSimulationOwner}
           session={session}
           simulate={simulate}
           subscribeMonitorLaunch={subscribeMonitorLaunch}
         />
-        <TrainingCoach monitor="LINE_MAP" session={session} />
+        <TrainingCoach feedback={feedback} monitor="LINE_MAP" onDismissFeedback={clearFeedback} session={session} />
       </OperatorNameContext.Provider>
     )
   }
@@ -372,8 +375,8 @@ function App() {
   if (route === '/screen/alarms') {
     return (
       <OperatorNameContext.Provider value={user?.id ?? ''}>
-        <AlarmsScreen dispatch={dispatch} onNavigate={navigate} session={session} />
-        <TrainingCoach monitor="ALARMS" session={session} />
+        <AlarmsScreen dispatch={monitorDispatch} onNavigate={navigate} session={session} />
+        <TrainingCoach feedback={feedback} monitor="ALARMS" onDismissFeedback={clearFeedback} session={session} />
       </OperatorNameContext.Provider>
     )
   }
@@ -381,8 +384,8 @@ function App() {
   if (route === '/screen/timetable') {
     return (
       <OperatorNameContext.Provider value={user?.id ?? ''}>
-        <TimetableScreen dispatch={dispatch} onNavigate={navigate} session={session} />
-        <TrainingCoach monitor="TIMETABLE" session={session} />
+        <TimetableScreen dispatch={monitorDispatch} onNavigate={navigate} session={session} />
+        <TrainingCoach feedback={feedback} monitor="TIMETABLE" onDismissFeedback={clearFeedback} session={session} />
       </OperatorNameContext.Provider>
     )
   }
