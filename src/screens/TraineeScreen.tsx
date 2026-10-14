@@ -63,12 +63,13 @@ function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, u
   const openMonitors = () => openOccMonitors()
 
   const status = session.scenarioMode === 'RUNNING'
-    ? { label: 'Exercise running', text: 'Work from the OCC monitors. Respond to what you see as per SOP.', tone: 'running' }
+    ? { label: 'Exercise running', text: 'Work from your monitors, as per SOP.', tone: 'running' }
     : session.scenarioMode === 'PAUSED'
-      ? { label: 'Paused', text: 'Your trainer has paused the exercise. Wait for it to resume.', tone: 'paused' }
+      ? { label: 'Paused', text: 'Wait for your trainer to resume.', tone: 'paused' }
       : session.scenarioMode === 'COMPLETE'
-        ? { label: 'Exercise complete', text: 'Well done. Your trainer will go through the results with you.', tone: 'complete' }
-        : { label: 'Waiting for trainer', text: 'Open your monitors now. The exercise starts when your trainer loads a scenario.', tone: 'idle' }
+        ? { label: 'Exercise complete', text: 'Your trainer will go through the result with you.', tone: 'complete' }
+        : { label: 'Waiting for trainer', text: 'Open your monitors now.', tone: 'idle' }
+  const modeLabel = session.trainingMode.charAt(0) + session.trainingMode.slice(1).toLowerCase()
 
   return (
     <main
@@ -109,16 +110,11 @@ function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, u
               <span>{status.text}</span>
             </div>
 
-            <dl className="trainee-facts">
-              <div><dt>Role</dt><dd>Traffic Controller</dd></div>
-              <div><dt>Exercise</dt><dd>{session.sessionMeta.exercise ?? 1}</dd></div>
-              <div><dt>Session</dt><dd>{sessionCode}</dd></div>
-              <div><dt>Mode</dt><dd>{session.trainingMode.toLowerCase()}</dd></div>
-            </dl>
-
+            <p className="trainee-facts">
+              Exercise {session.sessionMeta.exercise ?? 1} · {modeLabel} · Code {sessionCode}
+            </p>
             <div className="trainee-monitors">
-              <span>Your monitors</span>
-              <ul>
+              <ul aria-label="Your monitors">
                 {occMonitors.map((monitor) => (
                   <li className={onlineMonitors.includes(monitor) ? 'is-online' : undefined} key={monitor.role}>
                     {monitor.label}
@@ -130,11 +126,13 @@ function TraineeScreen({ dispatch, onJoin, onOpenProgress, onSignOut, session, u
               </button>
             </div>
 
-            <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>
           </div>
         )}
-        {onOpenProgress && <button type="button" className="trainee-leave" onClick={onOpenProgress}>My progress</button>}
-        <button type="button" className="trainee-leave" onClick={onSignOut}>Sign out</button>
+        <nav className="trainee-links" aria-label="More">
+          {joined && <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>}
+          {onOpenProgress && <button type="button" className="trainee-leave" onClick={onOpenProgress}>My progress</button>}
+          <button type="button" className="trainee-leave" onClick={onSignOut}>Sign out</button>
+        </nav>
       </section>
     </main>
   )

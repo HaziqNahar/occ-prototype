@@ -423,6 +423,9 @@ test.describe.serial('OCC monitor regressions', () => {
 
     const actions = page.locator('.history-actions')
 
+    // Every action is one click away.
+    await page.getByText(/^All actions/).click()
+
     await expect(actions.getByRole('row', { name: /Aisyah \(trainee\).*Acknowledged alarms/ })).toBeVisible()
     await expect(actions.getByRole('row', { name: /Loaded the scenario/ })).toBeVisible()
 
@@ -697,7 +700,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await report.goto('/history')
     await report.getByRole('button', { name: /Train Door Fault/ }).first().click()
     await expect(report.getByText('E2E aids check')).toBeVisible()
-    await expect(report.locator('.trainer-console-figures div', { hasText: 'Aids used' })).toContainText('Show me 4 · Locate 1')
+    await expect(report.locator('.history-detail .report-discuss')).toContainText('Show me 4 · Locate 1')
     await report.close()
 
     // The trainer's switch hides it everywhere.

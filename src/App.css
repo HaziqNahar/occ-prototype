@@ -13523,11 +13523,10 @@
 }
 
 .trainee-facts {
-  display: grid;
-  grid-template-columns: auto auto auto;
-  justify-content: space-between;
-  gap: 12px;
   margin: 0;
+  color: #cbd5e1;
+  font-weight: 700;
+  text-align: center;
 }
 
 .trainee-facts dt,
@@ -13591,6 +13590,14 @@
 
 .trainee-leave:hover {
   color: #f87171;
+}
+
+/* Leave, progress and sign out: one quiet row under the card's main action. */
+.trainee-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 18px;
 }
 
 /* Trainer Console: session code, trainees and monitors in the header. */
@@ -14674,4 +14681,52 @@
   border: 0;
   padding: 0;
   color: #9fb3ca;
+}
+
+/* History run, as a scorecard like the report (HistoryScreen.tsx). */
+.history-scorecard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.history-scorecard .report-result {
+  min-width: 130px;
+  padding: 0.6rem 0.9rem;
+}
+
+.history-scorecard .report-result strong {
+  font-size: 2rem;
+}
+
+.history-scorecard h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 1.3rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.history-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 4px 0 0;
+  color: #cbd5e1;
+}
+
+.history-summary button {
+  border: 0;
+  padding: 0;
+  color: #93c5fd;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.history-detail .report-discuss h3 {
+  margin: 0.25rem 0 0.5rem;
 }

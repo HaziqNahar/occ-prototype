@@ -243,13 +243,15 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
 
   // The Practice run records the aids used (not taken off the score); the
   // Assessment run has none to show.
-  const figures = consolePage.locator('.trainer-console-figures').first()
+  const summary = consolePage.locator('.history-summary')
+  const discuss = consolePage.locator('.history-detail .report-discuss')
 
   await runs.getByRole('button', { name: new RegExp(TRAINEES[0].name) }).click()
-  await expect(figures).toContainText('Show me 1 · Locate 1')
+  await expect(discuss).toContainText('Show me 1 · Locate 1')
   await runs.getByRole('button', { name: new RegExp(TRAINEES[1].name) }).click()
-  await expect(figures).toContainText('Wrong actions')
-  await expect(figures).not.toContainText('Aids used')
+  await expect(summary).toContainText('wrong actions')
+  await expect(summary).not.toContainText('hint')
+  await expect(discuss).not.toContainText('Used hints')
 
   // A trainee's progress shows only their own run.
   await trainees[1].lobby.getByRole('button', { name: 'My progress' }).click()

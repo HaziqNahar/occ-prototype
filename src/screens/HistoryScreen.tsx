@@ -20,6 +20,44 @@ type HistoryScreenProps = {
 
 const ALL_TRAINEES = ''
 
+function historyTone(run: RunDetail) {
+  if (!run.completed) return 'running'
+  return run.result === 'PASS' ? 'pass' : 'review'
+}
+
+// One line under the run's title: when, how and how it went.
+function summaryLine(run: RunDetail) {
+  const hints = run.mode === 'PRACTICE' && run.aidsUsed ? run.aidsUsed.showMe + run.aidsUsed.locate : undefined
+
+  return [
+    formatRunTime(run.startedAt ?? run.completedAt),
+    run.mode ? run.mode.charAt(0) + run.mode.slice(1).toLowerCase() : '',
+    run.durationLabel ?? '',
+    `${run.rejectedActions} wrong ${run.rejectedActions === 1 ? 'action' : 'actions'}`,
+    hints === undefined ? '' : `${hints} ${hints === 1 ? 'hint' : 'hints'}`,
+    run.exercise ? `Exercise ${run.exercise}` : '',
+  ].filter(Boolean).join(' · ')
+}
+
+// What to debrief, from the saved run: refusals, missed steps and hints.
+function discussPoints(run: RunDetail) {
+  const points: Array<{ text: string; tone: 'bad' | 'info' }> = []
+  const refusals = new Set(run.actions.filter((action) => action.accepted === false).map((action) => action.detail ?? describeAction(action.actionType)))
+
+  refusals.forEach((text) => points.push({ text: `Refused: ${text}`, tone: 'bad' }))
+  run.tasks
+    .filter((task) => !task.complete && task.monitor !== 'IOS')
+    .forEach((task) => points.push({ text: `${run.completed ? 'Missed' : 'Not done'}: ${task.label}${task.critical ? ' (critical)' : ''}`, tone: 'bad' }))
+
+  if (run.mode === 'PRACTICE' && run.aidsUsed && run.aidsUsed.showMe + run.aidsUsed.locate > 0) {
+    const total = run.aidsUsed.showMe + run.aidsUsed.locate
+
+    points.push({ text: `Used hints ${total} ${total === 1 ? 'time' : 'times'} (Show me ${run.aidsUsed.showMe} · Locate ${run.aidsUsed.locate})`, tone: 'info' })
+  }
+
+  return points
+}
+
 function readParam(name: string) {
   return new URLSearchParams(window.location.search).get(name) ?? ''
 }
@@ -154,48 +192,37 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
             </div>
           ) : (
             <>
-              <div className="trainer-console-panel-head">
-                <h2 id="history-detail-heading">{shownDetail.scenarioTitle}</h2>
-                <span>{formatRunTime(shownDetail.startedAt ?? shownDetail.completedAt)}</span>
+              <div className="history-scorecard">
+                <div className={`report-result ${historyTone(shownDetail)}`}>
+                  <span>{formatResult(shownDetail.result)}</span>
+                  <strong>{shownDetail.score}%</strong>
+                </div>
+                <div>
+                  <h2 id="history-detail-heading">{shownDetail.scenarioTitle}</h2>
+                  <p className="history-summary">
+                    {shownDetail.trainees.length > 0 ? shownDetail.trainees.map((trainee) => (
+                      isTrainer
+                        ? <button key={trainee.id} type="button" onClick={() => onNavigate('/progress', `?trainee=${encodeURIComponent(trainee.id)}`)}>{trainee.name}</button>
+                        : <span key={trainee.id}>{trainee.name}</span>
+                    )) : <span>No trainee</span>}
+                    <span>{summaryLine(shownDetail)}</span>
+                  </p>
+                </div>
+                <div className="history-export-row">
+                  <button
+                    type="button"
+                    className="history-export"
+                    onClick={() => downloadCsv(
+                      exportFileName('occ-run', shownDetail.trainees.map((trainee) => trainee.id).join('-'), (shownDetail.startedAt ?? '').slice(0, 10), shownDetail.scenarioTitle),
+                      runToCsv(shownDetail),
+                    )}
+                  >
+                    Export CSV
+                  </button>
+                  <button type="button" className="history-export" onClick={() => window.print()}>Print / PDF</button>
+                </div>
               </div>
-              <div className="history-export-row">
-                <button
-                  type="button"
-                  className="history-export"
-                  onClick={() => downloadCsv(
-                    exportFileName('occ-run', shownDetail.trainees.map((trainee) => trainee.id).join('-'), (shownDetail.startedAt ?? '').slice(0, 10), shownDetail.scenarioTitle),
-                    runToCsv(shownDetail),
-                  )}
-                >
-                  Export CSV
-                </button>
-                <button type="button" className="history-export" onClick={() => window.print()}>Print / PDF</button>
-              </div>
-              <dl className="trainer-console-figures">
-                <div><dt>Result</dt><dd>{formatResult(shownDetail.result)}</dd></div>
-                <div><dt>Score</dt><dd>{shownDetail.score}%</dd></div>
-                <div><dt>Time</dt><dd>{shownDetail.durationLabel ?? '—'}</dd></div>
-                <div><dt>Wrong actions</dt><dd className={shownDetail.rejectedActions > 0 ? 'is-bad' : undefined}>{shownDetail.rejectedActions}</dd></div>
-                {shownDetail.aidsUsed && shownDetail.mode === 'PRACTICE' && (
-                  <div title="Practice aids are recorded, not taken off the score.">
-                    <dt>Aids used</dt>
-                    <dd>
-                      {shownDetail.aidsUsed.showMe + shownDetail.aidsUsed.locate}
-                      <em> Show me {shownDetail.aidsUsed.showMe} · Locate {shownDetail.aidsUsed.locate}</em>
-                    </dd>
-                  </div>
-                )}
-              </dl>
-              <p className="history-facts">
-                {shownDetail.trainees.length > 0 ? shownDetail.trainees.map((trainee) => (
-                  isTrainer
-                    ? <button key={trainee.id} type="button" onClick={() => onNavigate('/progress', `?trainee=${encodeURIComponent(trainee.id)}`)}>{trainee.name}</button>
-                    : <span key={trainee.id}>{trainee.name}</span>
-                )) : 'No trainee joined'}
-                {shownDetail.exercise && <span>Exercise {shownDetail.exercise}</span>}
-                {shownDetail.sessionCode && <span>Code {shownDetail.sessionCode}</span>}
-                {shownDetail.mode && <span>{shownDetail.mode.toLowerCase()}</span>}
-              </p>
+
               {shownDetail.notes && (
                 <blockquote className="history-notes">
                   <strong>Trainer notes</strong>
@@ -203,33 +230,48 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
                 </blockquote>
               )}
 
-              <h3>Checklist</h3>
-              <ol className="trainer-console-tasks">
-                {shownDetail.tasks.map((task) => (
-                  <li className={task.complete ? 'is-done' : ''} key={task.label}>
-                    <i aria-hidden="true">{task.complete ? '✓' : '✗'}</i>
-                    <strong>{task.label}{task.critical && <b title="Critical SOP step"> ★</b>}</strong>
-                    {task.monitor && <small className="trainer-console-task-tag">{getScenarioTaskPlaceTag(task.monitor)}</small>}
-                  </li>
-                ))}
-              </ol>
+              <section className="report-discuss" aria-label="To discuss">
+                <h3>To discuss</h3>
+                {discussPoints(shownDetail).length > 0 ? (
+                  <ul>
+                    {discussPoints(shownDetail).map((point) => <li className={`is-${point.tone}`} key={point.text}>{point.text}</li>)}
+                  </ul>
+                ) : (
+                  <p className="tc-muted">{shownDetail.completed ? 'Nothing to flag: a clean run.' : 'Nothing to flag.'}</p>
+                )}
+              </section>
 
-              <h3>Actions ({shownDetail.actions.length})</h3>
-              <table className="people-table history-actions">
-                <thead>
-                  <tr><th>Time</th><th>Who</th><th>Action</th><th>Result</th></tr>
-                </thead>
-                <tbody>
-                  {shownDetail.actions.map((action, index) => (
-                    <tr className={action.accepted === false ? 'is-refused' : undefined} key={`${action.at}-${index}`}>
-                      <td>{new Date(action.at).toLocaleTimeString()}</td>
-                      <td>{action.actor ?? '—'}{action.actorRole ? ` (${action.actorRole})` : ''}</td>
-                      <td>{describeAction(action.actionType)}{action.subject && <small> · {action.subject}</small>}</td>
-                      <td>{action.accepted === false ? `Refused${action.detail ? `: ${action.detail}` : ''}` : 'Done'}</td>
-                    </tr>
+              <details className="report-fold">
+                <summary>Steps · {shownDetail.tasks.filter((task) => task.complete).length} of {shownDetail.tasks.length} done</summary>
+                <ol className="trainer-console-tasks">
+                  {shownDetail.tasks.map((task) => (
+                    <li className={task.complete ? 'is-done' : ''} key={task.label}>
+                      <i aria-hidden="true">{task.complete ? '✓' : '✗'}</i>
+                      <strong>{task.label}{task.critical && <b title="Critical SOP step"> ★</b>}</strong>
+                      {task.monitor && <small className="trainer-console-task-tag">{getScenarioTaskPlaceTag(task.monitor)}</small>}
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ol>
+              </details>
+
+              <details className="report-fold">
+                <summary>All actions ({shownDetail.actions.length})</summary>
+                <table className="people-table history-actions">
+                  <thead>
+                    <tr><th>Time</th><th>Who</th><th>Action</th><th>Result</th></tr>
+                  </thead>
+                  <tbody>
+                    {shownDetail.actions.map((action, index) => (
+                      <tr className={action.accepted === false ? 'is-refused' : undefined} key={`${action.at}-${index}`}>
+                        <td>{new Date(action.at).toLocaleTimeString()}</td>
+                        <td>{action.actor ?? '—'}{action.actorRole ? ` (${action.actorRole})` : ''}</td>
+                        <td>{describeAction(action.actionType)}{action.subject && <small> · {action.subject}</small>}</td>
+                        <td>{action.accepted === false ? `Refused${action.detail ? `: ${action.detail}` : ''}` : 'Done'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
             </>
           )}
         </section>
