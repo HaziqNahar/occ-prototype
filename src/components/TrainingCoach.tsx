@@ -2,8 +2,11 @@ import { useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { areTrainingAidsOn } from '../trainingAids'
 import { coachMonitorLabels, getCoachState } from '../training-scenarios/hints'
-import type { CoachMonitor } from '../training-scenarios/hints'
+import type { CoachMonitor, CoachTarget } from '../training-scenarios/hints'
+import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
 import type { OccSessionState } from '../types'
+import CoachHighlight from './CoachHighlight'
+import { findTargetElement, getTargetWorldX, requestLineMapPan } from './coachTargets'
 
 type TrainingCoachProps = {
   monitor: CoachMonitor
@@ -11,6 +14,8 @@ type TrainingCoachProps = {
 }
 
 type Position = { left: number; top: number }
+
+type Highlight = { id: number; target: CoachTarget; variant: 'outline' | 'ring' }
 
 // Practice-mode next-step coach (docs/training-layer-plan.md, piece 2). It sits
 // over the SCADA window and never changes it. Collapsed to one line until
@@ -46,6 +51,8 @@ function clampPosition(position: Position, width: number, height: number): Posit
 function TrainingCoach({ monitor, session }: TrainingCoachProps) {
   const [expanded, setExpanded] = useState(false)
   const [position, setPosition] = useState<Position | null>(() => readPosition(monitor))
+  const [highlight, setHighlight] = useState<Highlight | null>(null)
+  const [missing, setMissing] = useState('')
   const panelRef = useRef<HTMLElement>(null)
   const dragRef = useRef<{ moved: boolean; offsetX: number; offsetY: number; startX: number; startY: number } | null>(null)
 
@@ -61,6 +68,19 @@ function TrainingCoach({ monitor, session }: TrainingCoachProps) {
 
   const hint = state.kind === 'step' ? state.hint : null
   const here = hint ? hint.monitors.length === 0 || hint.monitors.includes(monitor) : true
+  const showMeTarget = hint && here && hint.monitors.includes(monitor) ? hint.target : undefined
+  const scenarioTrainId = monitor === 'LINE_MAP' ? getActiveTrainingScenarioTargetTrainId(session) : ''
+
+  const show = (target: CoachTarget, variant: Highlight['variant']) => {
+    const worldX = monitor === 'LINE_MAP' ? getTargetWorldX(session, target) : undefined
+
+    if (worldX !== undefined) {
+      requestLineMapPan(worldX)
+    }
+
+    setMissing('')
+    setHighlight({ id: Date.now(), target, variant })
+  }
   const elsewhere = hint && !here
     ? `Next step is on ${hint.monitors.map((item) => coachMonitorLabels[item]).join(' or ')}`
     : ''
@@ -158,7 +178,31 @@ function TrainingCoach({ monitor, session }: TrainingCoachProps) {
           ) : (
             <p>{elsewhere}.</p>
           )}
+          {(showMeTarget || scenarioTrainId) && (
+            <div className="training-coach-actions">
+              {showMeTarget && (
+                <button type="button" onClick={() => show(showMeTarget, 'outline')}>Show me</button>
+              )}
+              {scenarioTrainId && (
+                <button type="button" onClick={() => show({ kind: 'train', trainId: scenarioTrainId }, 'ring')}>
+                  Locate Train {scenarioTrainId}
+                </button>
+              )}
+            </div>
+          )}
+          {missing && <p className="training-coach-missing" role="status">{missing}</p>}
         </div>
+      )}
+      {highlight && (
+        <CoachHighlight
+          find={() => findTargetElement(session, highlight.target)}
+          key={highlight.id}
+          onDone={(found) => {
+            setHighlight(null)
+            setMissing(found ? '' : 'Not on this screen right now.')
+          }}
+          variant={highlight.variant}
+        />
       )}
     </aside>
   )

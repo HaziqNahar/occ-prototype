@@ -1,4 +1,6 @@
 import { getCommsMessage, getCommsRecipient, hasCommsEvidence } from '../comms/commsCatalog'
+import type { CommsChannel } from '../comms/commsCatalog'
+import { platformData } from '../screens/line-map/model'
 import type { OccSessionState } from '../types'
 import { scoreTrainingScenario } from './assessment'
 import { getTrainingScenarioDefinition } from './definitions'
@@ -18,12 +20,21 @@ export const coachMonitorLabels: Record<CoachMonitor, string> = {
   TIMETABLE: 'Monitor 03 Timetable',
 }
 
+// What Show me outlines: the first thing to click for the step.
+export type CoachTarget =
+  | { kind: 'alarmRow'; trainId: string }
+  | { channel: CommsChannel; kind: 'calls' }
+  | { command: 'DISPATCH' | 'ROUTE'; kind: 'stationButton'; station: string }
+  | { kind: 'timetableRow'; trainId: string }
+  | { kind: 'train'; trainId: string }
+
 export type StepHint = {
   // How to do it, one click path per line.
   how: string[]
   label: string
   // Monitors the step is done on. Empty: the trainer does it on the console.
   monitors: CoachMonitor[]
+  target?: CoachTarget
   taskId: string
 }
 
@@ -54,6 +65,19 @@ function timeDialogIn(label: string) {
   return ''
 }
 
+// The station panel nearest the scenario train (or the fault station).
+function stationFor(session: OccSessionState, trainId: string) {
+  const train = session.trains.find((item) => item.id === trainId)
+
+  if (!train) {
+    return session.activeScenario.faultLocation?.station ?? ''
+  }
+
+  return platformData.reduce((nearest, platform) => (
+    Math.abs(platform.x - train.x) < Math.abs(nearest.x - train.x) ? platform : nearest
+  )).code
+}
+
 function callPath(messageId: string, trainLabel: string, station?: string) {
   const message = getCommsMessage(messageId)
 
@@ -74,36 +98,62 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
   const label = resolveFaultText(task.label, { ...session.activeScenario.faultLocation, trainId: trainId || undefined })
   const base = { label, monitors: monitorsFor(task.monitor), taskId: task.id }
   const timeDialog = timeDialogIn(label)
+  const train = trainId ? { kind: 'train' as const, trainId } : undefined
 
   if (task.commsMessageIds?.length) {
     const open = task.commsMessageIds.filter((id) => !hasCommsEvidence(session.evidenceLog, id))
+    const first = open.map((id) => getCommsMessage(id)).find(Boolean)
 
-    return { ...base, how: open.map((id) => callPath(id, trainLabel, station)).filter(Boolean) }
+    return {
+      ...base,
+      how: open.map((id) => callPath(id, trainLabel, station)).filter(Boolean),
+      target: first ? { channel: getCommsRecipient(first.recipient).channel, kind: 'calls' } : undefined,
+    }
   }
 
   if (task.completesOnHold) {
-    return { ...base, how: [`Click ${trainLabel} → ${INSPECTOR} → Train Hold`, `or HII on the station panel`] }
+    return { ...base, how: [`Right-click ${trainLabel} → ${INSPECTOR} → Train Hold`, `or HII on the station panel`], target: train }
   }
 
   if (task.doorCommandLabels?.length) {
     return {
       ...base,
-      how: [`Click ${trainLabel} → ${INSPECTOR} → Door Open/Close Request → ${task.doorCommandLabels.join(' or ')}`],
+      how: [`Right-click ${trainLabel} → ${INSPECTOR} → Door Open/Close Request → ${task.doorCommandLabels.join(' or ')}`],
+      target: train,
     }
+  }
+
+  const panelStep = (command: 'DISPATCH' | 'ROUTE'): StepHint => {
+    const panelStation = trainId ? stationFor(session, trainId) : station ?? ''
+
+    if (timeDialog) {
+      return { ...base, how: [`Right-click ${trainLabel} → ${INSPECTOR} → ${timeDialog}`], target: train }
+    }
+
+    return panelStation
+      ? {
+          ...base,
+          how: [`Right-click ${trainLabel} to select it, then ${command} on the ${panelStation} station panel`],
+          target: { command, kind: 'stationButton', station: panelStation },
+        }
+      : { ...base, how: [`Right-click ${trainLabel} to select it, then ${command} on the station panel`] }
   }
 
   switch (task.mappedTaskId) {
     case 'selectTrain':
+      return base.monitors.includes('TIMETABLE')
+        ? { ...base, how: [`Click ${trainLabel}'s row in the timetable`], target: trainId ? { kind: 'timetableRow', trainId } : undefined }
+        : { ...base, how: [`Right-click ${trainLabel} on the Line Map`], target: train }
+    case 'ackAlarm':
       return {
         ...base,
-        how: [base.monitors.includes('TIMETABLE') ? `Click ${trainLabel}'s row in the timetable` : `Click ${trainLabel} on the Line Map`],
+        how: [`Select the red incident row for ${trainLabel}`, 'then Ack. selection'],
+        target: trainId ? { kind: 'alarmRow', trainId } : undefined,
       }
-    case 'ackAlarm':
-      return { ...base, how: [`Select the red incident row for ${trainLabel}`, 'then Ack. selection'] }
     case 'setRoute':
-      return { ...base, how: [timeDialog ? `Click ${trainLabel} → ${INSPECTOR} → ${timeDialog}` : `ROUTE on the station panel for ${trainLabel}`] }
+      return panelStep('ROUTE')
     case 'dispatchTrain':
-      return { ...base, how: [timeDialog ? `Click ${trainLabel} → ${INSPECTOR} → ${timeDialog}` : `DISPATCH on the station panel for ${trainLabel}`] }
+      return panelStep('DISPATCH')
     case 'completeScenario':
       return { ...base, how: ['The trainer completes the run on the console'], monitors: [] }
   }
@@ -113,7 +163,7 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
   }
 
   if (timeDialog && base.monitors.includes('LINE_MAP')) {
-    return { ...base, how: [`Click ${trainLabel} → ${INSPECTOR} → ${timeDialog}`] }
+    return { ...base, how: [`Right-click ${trainLabel} → ${INSPECTOR} → ${timeDialog}`], target: train }
   }
 
   return { ...base, how: [`On ${base.monitors.map((monitor) => coachMonitorLabels[monitor]).join(' or ')}`] }

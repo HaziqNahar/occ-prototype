@@ -601,7 +601,51 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(alarmsCoach).toContainText('Next step is on Monitor 02 Line Map')
     await expect(lineMapCoach).toContainText('Next: Select affected train')
     await lineMapCoach.getByRole('button').click()
-    await expect(lineMapCoach).toContainText(`Click Train ${trainId} on the Line Map`)
+    await expect(lineMapCoach).toContainText(`Right-click Train ${trainId} on the Line Map`)
+
+    // Show me outlines the train; Locate rings it. Neither takes clicks.
+    const highlight = lineMap.getByTestId('coach-highlight')
+    const hotspot = lineMap.locator(`[data-testid^="train-hotspot-${trainId}-"]`)
+    const covers = async () => {
+      const [ring, train] = [await highlight.boundingBox(), await hotspot.boundingBox()]
+
+      return Boolean(ring && train && ring.x <= train.x && ring.y <= train.y
+        && ring.x + ring.width >= train.x + train.width && ring.y + ring.height >= train.y + train.height)
+    }
+
+    await lineMapCoach.getByRole('button', { name: 'Show me' }).click()
+    await expect(highlight).toHaveClass(/coach-highlight--outline/)
+    await expect.poll(covers).toBe(true)
+    await lineMapCoach.getByRole('button', { name: `Locate Train ${trainId}` }).click()
+    await expect(highlight).toHaveClass(/coach-highlight--ring/)
+    await expect.poll(covers).toBe(true)
+    await hotspot.click({ button: 'right' })
+
+    // Next step is on Alarms: Show me outlines the red row, or Ack. selection once it is selected.
+    const incidentRow = alarms.locator('.alarm-dom-row--data', { hasText: `Train ${trainId} Car 3` })
+    const expected = await incidentRow.getAttribute('aria-pressed') === 'true'
+      ? alarms.getByRole('button', { name: 'Ack. selection' })
+      : incidentRow
+
+    await alarmsCoach.locator('.training-coach-head').click()
+    await expect(alarmsCoach).toContainText('Acknowledge door failure alarm')
+    await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
+    await expect.poll(async () => {
+      const [ring, target] = [await alarms.getByTestId('coach-highlight').boundingBox(), await expected.boundingBox()]
+
+      return Boolean(ring && target && Math.abs(ring.x + 4 - target.x) < 2 && Math.abs(ring.y + 4 - target.y) < 2)
+    }).toBe(true)
+
+    // Acknowledged: the next step is a call, and Show me outlines the Calls tab.
+    await incidentRow.click()
+    await alarms.getByRole('button', { name: 'Ack. selection' }).click()
+    await expect(alarmsCoach).toContainText('Alert CC and WC')
+    await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
+    await expect.poll(async () => {
+      const [ring, tab] = [await alarms.getByTestId('coach-highlight').boundingBox(), await alarms.locator('#line-map-calls-tab').boundingBox()]
+
+      return Boolean(ring && tab && Math.abs(ring.x + 4 - tab.x) < 2 && Math.abs(ring.y + 4 - tab.y) < 2)
+    }).toBe(true)
 
     // The trainer's switch hides it everywhere.
     await aids.click()

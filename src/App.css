@@ -14122,3 +14122,67 @@
 .training-coach-body p {
   margin: 0;
 }
+
+.training-coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.training-coach-actions button {
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: #fef3c7;
+  background: rgba(245, 158, 11, 0.15);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.training-coach-actions button:hover {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+.training-coach-missing {
+  color: #fca5a5;
+}
+
+/* Show me outline and Locate ring (CoachHighlight.tsx). */
+.coach-highlight {
+  position: fixed;
+  z-index: 8999;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.coach-highlight--outline {
+  border: 3px solid #f59e0b;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.55), 0 0 18px rgba(245, 158, 11, 0.8);
+  animation: coach-highlight-blink 1s ease-in-out infinite;
+}
+
+.coach-highlight--ring {
+  border: 3px solid #f59e0b;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.55);
+  animation: coach-highlight-pulse 1.2s ease-out infinite;
+}
+
+@keyframes coach-highlight-blink {
+  50% { opacity: 0.45; }
+}
+
+@keyframes coach-highlight-pulse {
+  0% { transform: scale(0.85); opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-highlight--outline,
+  .coach-highlight--ring {
+    animation: none;
+  }
+}

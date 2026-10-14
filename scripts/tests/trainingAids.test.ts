@@ -64,12 +64,14 @@ function loadDoorFault(trainingMode: TrainingMode) {
   assert.equal(state.kind, 'step')
   assert.equal(state.kind === 'step' && state.hint.taskId, 'select-door-fault-train')
   assert.deepEqual(state.kind === 'step' && state.hint.monitors, ['LINE_MAP'])
-  assert.deepEqual(state.kind === 'step' && state.hint.how, ['Click Train 345 on the Line Map'])
+  assert.deepEqual(state.kind === 'step' && state.hint.how, ['Right-click Train 345 on the Line Map'])
+  assert.deepEqual(state.kind === 'step' && state.hint.target, { kind: 'train', trainId: '345' })
 
   session = apply(session, trainee, { trainId: '345', type: 'SELECT_TRAIN', view: 'menu' })
   state = getCoachState(session)
   assert.equal(state.kind === 'step' && state.hint.taskId, 'acknowledge-door-fault')
   assert.deepEqual(state.kind === 'step' && state.hint.monitors, ['ALARMS'])
+  assert.deepEqual(state.kind === 'step' && state.hint.target, { kind: 'alarmRow', trainId: '345' })
 
   // A call step lists only the calls still to make.
   const callTask = trainingScenarioDefinitions.find((item) => item.id === 'door-fault')!.tasks.find((task) => task.id === 'alert-cc-wc-door-fault')!
@@ -81,6 +83,12 @@ function loadDoorFault(trainingMode: TrainingMode) {
   session = apply(session, trainee, { request: { messageId: 'cc-alert-incident' }, type: 'LOG_CALL' })
   assert.deepEqual(getStepHint(session, callTask).how, ['Calls → Teleph. → Works Coordinator (WC) → Alert WC of the fault'])
   assert.deepEqual(getStepHint(session, callTask).monitors, ['ALARMS', 'LINE_MAP'])
+  assert.deepEqual(getStepHint(session, callTask).target, { channel: 'TELEPHONE', kind: 'calls' })
+
+  // ROUTE and DISPATCH point at the station panel where the train is.
+  const routeTask = trainingScenarioDefinitions.find((item) => item.id === 'door-fault')!.tasks.find((task) => task.mappedTaskId === 'setRoute')!
+
+  assert.deepEqual(getStepHint(session, routeTask).target, { command: 'ROUTE', kind: 'stationButton', station: 'PGL' })
 }
 
 // Every step of every scenario gets a hint, without text written per step.

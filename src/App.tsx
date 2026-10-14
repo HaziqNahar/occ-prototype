@@ -5,6 +5,8 @@ import controlTabIcon from './assets/control-tab-icon.png'
 import { getCommsLog } from './comms/commsCatalog'
 import type { CommsChannel } from './comms/commsCatalog'
 import MonitorWorkspace from './components/MonitorWorkspace'
+import { LINE_MAP_PAN_EVENT } from './components/coachTargets'
+import type { LineMapPanRequest } from './components/coachTargets'
 import { OperatorNameContext } from './components/operatorName'
 import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
 import CommsDialog from './components/CommsDialog'
@@ -180,6 +182,13 @@ function snapLineMapPan(value: number) {
   return LINE_VIEWPORT_PANS.reduce((closest, pan) => (
     Math.abs(pan - clamped) < Math.abs(closest - clamped) ? pan : closest
   ), LINE_VIEWPORT_PANS[0])
+}
+
+// The section view (as the pan arrows give) that shows world x nearest the middle.
+function lineMapPanShowing(x: number) {
+  const distance = (pan: number) => Math.abs(x - (clampPan(pan) + MONITOR_WIDTH / 2))
+
+  return clampPan(LINE_VIEWPORT_PANS.reduce((best, pan) => (distance(pan) < distance(best) ? pan : best), LINE_VIEWPORT_PANS[0]))
 }
 
 type TrainItamaDisplayStatus = ReturnType<typeof getTrainItamaStatusValue>
@@ -1937,6 +1946,21 @@ function MonitorCanvas({
 
     return () => document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
   }, [])
+
+  // Practice coach Show me / Locate (TrainingCoach.tsx) asks to bring a target into view.
+  useEffect(() => {
+    const handlePanRequest = (event: Event) => {
+      const { x } = (event as CustomEvent<LineMapPanRequest>).detail
+
+      if (Number.isFinite(x)) {
+        panTo(lineMapPanShowing(x))
+      }
+    }
+
+    window.addEventListener(LINE_MAP_PAN_EVENT, handlePanRequest)
+
+    return () => window.removeEventListener(LINE_MAP_PAN_EVENT, handlePanRequest)
+  }, [panTo])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
