@@ -121,6 +121,7 @@ import {
 } from './trainingScenarios'
 import LoginPage, { AccessNotice } from './screens/LoginPage'
 import SignInPage from './screens/SignInPage'
+import TrainingCoach from './components/TrainingCoach'
 import { exerciseApi } from './exerciseClient'
 import { useAuth } from './useAuth'
 import type {
@@ -354,6 +355,7 @@ function App() {
           simulate={simulate}
           subscribeMonitorLaunch={subscribeMonitorLaunch}
         />
+        <TrainingCoach monitor="LINE_MAP" session={session} />
       </OperatorNameContext.Provider>
     )
   }
@@ -362,6 +364,7 @@ function App() {
     return (
       <OperatorNameContext.Provider value={user?.id ?? ''}>
         <AlarmsScreen dispatch={dispatch} onNavigate={navigate} session={session} />
+        <TrainingCoach monitor="ALARMS" session={session} />
       </OperatorNameContext.Provider>
     )
   }
@@ -370,6 +373,7 @@ function App() {
     return (
       <OperatorNameContext.Provider value={user?.id ?? ''}>
         <TimetableScreen dispatch={dispatch} onNavigate={navigate} session={session} />
+        <TrainingCoach monitor="TIMETABLE" session={session} />
       </OperatorNameContext.Provider>
     )
   }

@@ -86,6 +86,7 @@ function keepSessionPeople(reset: OccSessionState, loaded: OccSessionState): Occ
       screens: loaded.sessionMeta.screens,
     },
     trainees: loaded.trainees,
+    trainingAids: loaded.trainingAids,
   }
 }
 
@@ -184,6 +185,27 @@ export function confirmTask(current: OccSessionState, taskId: string, label: str
   const event = createConsoleEvent(`IOS scenario task confirmed: ${label}`, 'DONE', 'yellow', getActiveTrainingScenarioTargetTrainId(current))
 
   return accepted(prependConsoleEvent(guard.next, event))
+}
+
+// The trainer's Aids switch. Aids never show in Assessment or Player, so the
+// switch only exists for Practice runs.
+export function setTrainingAids(current: OccSessionState, enabled: boolean): SessionCommandResult {
+  if (current.trainingMode !== 'PRACTICE') {
+    return { accepted: false, reason: 'Training aids are only for Practice runs.', session: current }
+  }
+
+  if (current.trainingAids === enabled) {
+    return accepted(current)
+  }
+
+  return accepted({
+    ...current,
+    evidenceLog: appendScenarioEvidence(
+      current.evidenceLog,
+      createScenarioEvidence(CONSOLE, `Training aids ${enabled ? 'on' : 'off'}`, 'info', `Training aids switched ${enabled ? 'on' : 'off'} by the trainer.`),
+    ),
+    trainingAids: enabled,
+  })
 }
 
 export function resetScenario(current: OccSessionState): SessionCommandResult {

@@ -333,6 +333,8 @@ export type OccSessionState = {
   timetableName: NelTimetableName
   timetableRows: TimetableRow[]
   timetableView: TimetableViewState
+  // The trainer's Aids switch. Aids only show in Practice (see trainingAids.ts).
+  trainingAids: boolean
   trainingMode: TrainingMode
   trainees: TraineeParticipant[]
   trains: TrainState[]

@@ -99,6 +99,7 @@ export type SessionCommand =
   | { label: string; taskId: string; type: 'CONFIRM_TASK' }
   | { type: 'RESET_SCENARIO' }
   | { timetableName: NelTimetableName; trainingMode: TrainingMode; type: 'RESET_SESSION' }
+  | { enabled: boolean; type: 'SET_TRAINING_AIDS' }
   // Trainee page
   | { code: string; type: 'TRAINEE_JOIN' }
   | { traineeId: string; type: 'TRAINEE_LEAVE' }

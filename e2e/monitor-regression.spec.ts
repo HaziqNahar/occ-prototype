@@ -575,4 +575,49 @@ test.describe.serial('OCC monitor regressions', () => {
     await second.close()
     await expect(page.getByTestId('line-map-view-only')).toHaveCount(0)
   })
+
+  test('the Practice coach shows the next step, and nothing in Assessment', async ({ context, page }) => {
+    await clearRuntime(page)
+    await page.goto('/ios/modules')
+    await page.getByRole('radio', { name: /Train Door Fault/ }).click()
+    await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
+
+    const aids = page.getByRole('button', { name: /^Aids (on|off)$/ })
+
+    await expect(aids).toHaveText('Aids on')
+    await expect(aids).toHaveAttribute('aria-pressed', 'true')
+
+    const trainId = (await getSession(page)).activeScenario.targetTrainId as string
+    const alarms = await context.newPage()
+    const lineMap = await context.newPage()
+
+    await alarms.goto('/screen/alarms')
+    await lineMap.goto('/screen/line-map')
+
+    // The first step is on the Line Map; the other monitors point there.
+    const alarmsCoach = alarms.getByRole('complementary', { name: 'Practice coach' })
+    const lineMapCoach = lineMap.getByRole('complementary', { name: 'Practice coach' })
+
+    await expect(alarmsCoach).toContainText('Next step is on Monitor 02 Line Map')
+    await expect(lineMapCoach).toContainText('Next: Select affected train')
+    await lineMapCoach.getByRole('button').click()
+    await expect(lineMapCoach).toContainText(`Click Train ${trainId} on the Line Map`)
+
+    // The trainer's switch hides it everywhere.
+    await aids.click()
+    await expect(aids).toHaveText('Aids off')
+    await expect(alarmsCoach).toHaveCount(0)
+    await expect(lineMapCoach).toHaveCount(0)
+    await aids.click()
+    await expect(alarmsCoach).toBeVisible()
+
+    // Assessment: no coach, and the switch cannot turn it on.
+    await page.locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
+    await page.getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
+    await page.getByRole('button', { name: 'Restart with this scenario' }).click()
+    await expect(aids).toBeDisabled()
+    await expect(aids).toHaveText('Aids off')
+    await expect(alarmsCoach).toHaveCount(0)
+    await expect(lineMapCoach).toHaveCount(0)
+  })
 })

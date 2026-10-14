@@ -45,6 +45,7 @@ import {
   resetScenario,
   resetSession,
   setScenarioState,
+  setTrainingAids,
 } from './trainerCommands'
 import type {
   SessionCommand,
@@ -65,6 +66,7 @@ const TRAINER_COMMANDS = new Set<SessionCommandType>([
   'RESET_SCENARIO',
   'RESET_SESSION',
   'SET_SCENARIO_STATE',
+  'SET_TRAINING_AIDS',
 ])
 
 const TRAIN_COMMANDS = new Set<SessionCommandType>([
@@ -125,6 +127,8 @@ export function validateSessionCommand(command: unknown): string | null {
       return null
     case 'RESET_SESSION':
       return isTrainingMode(value.trainingMode) && TIMETABLE_NAMES.has(String(value.timetableName)) ? null : 'Unknown mode or timetable.'
+    case 'SET_TRAINING_AIDS':
+      return typeof value.enabled === 'boolean' ? null : 'Expected aids on or off.'
     case 'TRAINEE_JOIN':
       return typeof value.code === 'string' ? null : 'Expected a session code.'
     case 'TRAINEE_LEAVE':
@@ -237,6 +241,8 @@ function runCommand(session: OccSessionState, command: SessionCommand, context: 
       return resetScenario(session)
     case 'RESET_SESSION':
       return resetSession(session, command.trainingMode, command.timetableName)
+    case 'SET_TRAINING_AIDS':
+      return setTrainingAids(session, command.enabled)
     case 'TRAINEE_JOIN':
       return joinTrainee(session, command.code, context.actor)
     case 'TRAINEE_LEAVE':

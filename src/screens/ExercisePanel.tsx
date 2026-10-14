@@ -17,6 +17,7 @@ import {
   resolveFaultText,
   scoreTrainingScenario,
 } from '../trainingScenarios'
+import { areTrainingAidsOn } from '../trainingAids'
 import type { TrainingMode } from '../types'
 import { useOccSession } from '../useOccSession'
 
@@ -101,6 +102,7 @@ function ExercisePanel({
   const needsLaunchTrain = activeDefinition.kind === 'TRAIN_LAUNCH' && !session.activeScenario.targetTrainId && !isIdle
   const startedAt = session.sessionMeta?.startedAt ? Date.parse(session.sessionMeta.startedAt) : undefined
   const isRunning = session.scenarioMode === 'RUNNING'
+  const aidsOn = areTrainingAidsOn(session)
   const onlineMonitors = getOnlineMonitors(session, now)
   // Trainees type this code: never show the placeholder one.
   const sessionCode = synced ? session.sessionMeta.code : '----'
@@ -249,6 +251,18 @@ function ExercisePanel({
           </button>
           <button type="button" disabled={isIdle} onClick={() => void dispatch({ type: 'RESET_SCENARIO' })}>
             Stop
+          </button>
+          <button
+            aria-pressed={aidsOn}
+            className="trainer-console-aids"
+            disabled={session.trainingMode !== 'PRACTICE'}
+            onClick={() => void dispatch({ enabled: !session.trainingAids, type: 'SET_TRAINING_AIDS' })}
+            title={session.trainingMode === 'PRACTICE'
+              ? 'Next-step hints on the trainee monitors'
+              : 'Training aids are always off outside Practice'}
+            type="button"
+          >
+            Aids {aidsOn ? 'on' : 'off'}
           </button>
         </div>
       </section>
