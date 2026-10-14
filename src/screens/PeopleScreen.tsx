@@ -22,6 +22,7 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
   const [error, setError] = useState('')
   const [form, setForm] = useState({ admin: false, name: '', password: '', role: 'trainee' as UserRole, username: '' })
   const [backups, setBackups] = useState<BackupFile[]>([])
+  const [adding, setAdding] = useState(false)
 
   const refresh = useCallback(() => {
     void authApi.listUsers()
@@ -85,34 +86,84 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
     void run(() => authApi.updateUser(person.id, { password }), `Password for ${person.name} changed. They are signed out everywhere.`)
   }
 
+  const latestBackup = backups[0]
+
   return (
-    <main className="trainee-shell people-shell" style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}>
-      <section className="trainee-card people-card" aria-labelledby="people-title">
-        <header className="start-brand">
+    <main className="trainer-console people-page" style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}>
+      <header className="trainer-console-header">
+        <div className="trainer-console-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
-            <p>Signed in as {user.name} (admin)</p>
+            <p>Admin · {user.name}</p>
             <h1 id="people-title">People</h1>
           </div>
-        </header>
+        </div>
+        <nav aria-label="People tools">
+          <button type="button" aria-expanded={adding} onClick={() => setAdding((open) => !open)}>Add person</button>
+          <button type="button" className="is-quiet" onClick={() => onNavigate('/ios/modules')}>Trainer Console</button>
+        </nav>
+      </header>
 
+      {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
+      {note && <p className="trainer-console-notice is-success" role="status">{note}</p>}
+
+      {adding && (
+        <form className="trainer-console-panel people-add-row" onSubmit={addPerson} aria-label="Add a person">
+          <label className="trainer-console-field">
+            <span>Name</span>
+            <input className="trainer-console-input" onChange={(event) => setForm({ ...form, name: event.target.value })} value={form.name} />
+          </label>
+          <label className="trainer-console-field">
+            <span>Username</span>
+            <input
+              autoCapitalize="none"
+              className="trainer-console-input"
+              onChange={(event) => setForm({ ...form, username: event.target.value })}
+              spellCheck={false}
+              value={form.username}
+            />
+          </label>
+          <label className="trainer-console-field">
+            <span>Password</span>
+            <input autoComplete="new-password" className="trainer-console-input" onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder={`${PASSWORD_MIN_LENGTH}+ characters`} value={form.password} />
+          </label>
+          <label className="trainer-console-field">
+            <span>Role</span>
+            <select className="trainer-console-input" onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })} value={form.role}>
+              <option value="trainee">Trainee</option>
+              <option value="trainer">Trainer</option>
+            </select>
+          </label>
+          {form.role === 'trainer' && (
+            <label className="people-check">
+              <input checked={form.admin} onChange={(event) => setForm({ ...form, admin: event.target.checked })} type="checkbox" />
+              <span>Admin</span>
+            </label>
+          )}
+          <button type="submit">Add</button>
+        </form>
+      )}
+
+      <section className="trainer-console-panel" aria-labelledby="people-list-heading">
+        <div className="trainer-console-panel-head">
+          <h2 id="people-list-heading">Accounts</h2>
+          <span>{users.filter((person) => !person.disabled).length} active</span>
+        </div>
         <table className="people-table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Username</th>
               <th>Role</th>
-              <th>Status</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {users.map((person) => (
               <tr key={person.id} className={person.disabled ? 'is-disabled' : undefined}>
-                <td>{person.name}</td>
+                <td>{person.name}{person.disabled && <small className="people-off"> · switched off</small>}</td>
                 <td>{person.id}</td>
-                <td>{person.role}{person.admin ? ' (admin)' : ''}</td>
-                <td>{person.disabled ? 'Switched off' : 'Active'}</td>
+                <td>{person.role === 'trainer' ? (person.admin ? 'Trainer (admin)' : 'Trainer') : 'Trainee'}</td>
                 <td className="people-actions">
                   <button type="button" onClick={() => resetPassword(person)}>Reset password</button>
                   {person.id !== user.id && (
@@ -142,59 +193,20 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
             ))}
           </tbody>
         </table>
+      </section>
 
-        <form className="trainee-join people-add" onSubmit={addPerson} aria-label="Add a person">
-          <h2>Add a person</h2>
-          <label>
-            <span>Name</span>
-            <input onChange={(event) => setForm({ ...form, name: event.target.value })} value={form.name} />
-          </label>
-          <label>
-            <span>Username</span>
-            <input
-              autoCapitalize="none"
-              onChange={(event) => setForm({ ...form, username: event.target.value })}
-              spellCheck={false}
-              value={form.username}
-            />
-          </label>
-          <label>
-            <span>Password</span>
-            <input autoComplete="new-password" onChange={(event) => setForm({ ...form, password: event.target.value })} value={form.password} />
-          </label>
-          <label>
-            <span>Role</span>
-            <select onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })} value={form.role}>
-              <option value="trainee">Trainee</option>
-              <option value="trainer">Trainer</option>
-            </select>
-          </label>
-          {form.role === 'trainer' && (
-            <label className="people-check">
-              <input checked={form.admin} onChange={(event) => setForm({ ...form, admin: event.target.checked })} type="checkbox" />
-              <span>Admin (can manage people)</span>
-            </label>
-          )}
-          {error && <p className="trainee-error" role="alert">{error}</p>}
-          {note && <p className="sign-in-note" role="status">{note}</p>}
-          <button type="submit">Add person</button>
-        </form>
-
-        <section className="trainee-join people-add" aria-labelledby="people-backups-heading">
-          <h2 id="people-backups-heading">Data backups</h2>
-          <p className="sign-in-note">
-            The server copies its data once a day and keeps the most recent copies on the host PC
-            (server\data\backups). Back up before a big change, and copy that folder to a USB drive now and then.
-          </p>
-          <p className="sign-in-note" data-testid="latest-backup">
-            {backups[0]
-              ? `Latest: ${new Date(backups[0].createdAt).toLocaleString()} (${Math.max(1, Math.round(backups[0].bytes / 1024))} KB)`
-              : 'No backup yet.'}
-          </p>
-          <button type="button" onClick={backUpNow}>Back up now</button>
-        </section>
-
-        <button type="button" className="trainee-leave" onClick={() => onNavigate('/ios/modules')}>Back to the Trainer Console</button>
+      <section
+        className="trainer-console-panel people-backups"
+        aria-label="Data backups"
+        title="The server copies its data every day to server\data\backups on the host PC. Copy that folder to a USB drive now and then."
+      >
+        <strong>Backups</strong>
+        <span data-testid="latest-backup">
+          {latestBackup
+            ? `Latest: ${new Date(latestBackup.createdAt).toLocaleString()} (${Math.max(1, Math.round(latestBackup.bytes / 1024))} KB) · daily on the host`
+            : 'No backup yet · daily on the host'}
+        </span>
+        <button type="button" onClick={backUpNow}>Back up now</button>
       </section>
     </main>
   )

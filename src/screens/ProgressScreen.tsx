@@ -87,38 +87,29 @@ function ProgressScreen({ onNavigate, user }: ProgressScreenProps) {
         </nav>
       </header>
 
-      {isTrainer && (
-        <section className="trainer-console-panel history-choose">
-          <label className="trainer-console-field">
-            <span>Trainee</span>
+      {(isTrainer || (shown && totals)) && (
+        <section className="trainer-console-panel progress-summary" aria-label="Totals">
+          {isTrainer ? (
             <SelectField
               ariaLabel="Trainee"
               value={chosenId}
               options={trainees.map((trainee) => ({ label: trainee.name, value: trainee.id }))}
               onChange={setTraineeId}
             />
-          </label>
-          {trainees.length === 0 && <span>No trainee accounts yet. Add them on the People page.</span>}
+          ) : shown && <strong>{shown.trainee.name}</strong>}
+          {isTrainer && trainees.length === 0 && <span>No trainee accounts yet. Add them on the People page.</span>}
+          {totals && (
+            <span>
+              {totals.runs} {totals.runs === 1 ? 'run' : 'runs'} on record · {totals.completed} completed · {totals.passed} passed
+              {totals.completed ? ` · average ${totals.averageScore}%` : ''}
+            </span>
+          )}
         </section>
       )}
 
       {shown && totals && (
         <>
-          <section className="trainer-console-status" aria-label="Totals">
-            <div className="trainer-console-status-title">
-              <div>
-                <strong>{shown.trainee.name}</strong>
-                <small>{totals.runs} {totals.runs === 1 ? 'run' : 'runs'} on record</small>
-              </div>
-            </div>
-            <dl className="trainer-console-figures">
-              <div><dt>Completed</dt><dd>{totals.completed}</dd></div>
-              <div><dt>Passed</dt><dd>{totals.passed}<em> / {totals.completed}</em></dd></div>
-              <div><dt>Average score</dt><dd>{totals.completed ? `${totals.averageScore}%` : '—'}</dd></div>
-            </dl>
-          </section>
-
-          <div className="history-grid">
+          <div className="history-grid progress-grid">
             <section className="trainer-console-panel" aria-labelledby="progress-scenarios-heading">
               <h2 id="progress-scenarios-heading">By scenario</h2>
               {shown.byScenario.length === 0 ? (
@@ -139,7 +130,7 @@ function ProgressScreen({ onNavigate, user }: ProgressScreenProps) {
                         <td>{scenario.passes}</td>
                         <td>{scenario.bestScore}%</td>
                         <td>{scenario.averageScore}%</td>
-                        <td>{formatResult(scenario.lastResult)} · {formatRunTime(scenario.lastRunAt)}</td>
+                        <td title={formatRunTime(scenario.lastRunAt)}>{formatResult(scenario.lastResult)}</td>
                       </tr>
                     ))}
                   </tbody>

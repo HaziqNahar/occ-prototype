@@ -14761,3 +14761,74 @@
   font-weight: 800;
   cursor: pointer;
 }
+
+/* Progress: the trainee and their totals on one bar (ProgressScreen.tsx). */
+.progress-summary {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-summary .select-field {
+  min-width: 220px;
+}
+
+.progress-summary > span {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+/* People (PeopleScreen.tsx): accounts, a one-row add form, backups on one line. */
+.people-page .trainer-console-panel {
+  flex: none;
+}
+
+.people-add-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.people-add-row .trainer-console-field {
+  flex: 1 1 160px;
+}
+
+.people-add-row button[type='submit'] {
+  border: 1px solid rgba(99, 179, 237, 0.65);
+  border-radius: 8px;
+  padding: 8px 18px;
+  color: #ffffff;
+  background: var(--control-action);
+  font-weight: 800;
+}
+
+.people-off {
+  color: #f87171;
+}
+
+.people-backups {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.people-backups span {
+  flex: 1;
+  color: #cbd5e1;
+}
+
+.people-backups button {
+  border: 1px solid var(--control-line-strong);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--ink);
+  background: var(--control-button);
+  font-weight: 800;
+}
+
+.progress-grid {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+}
