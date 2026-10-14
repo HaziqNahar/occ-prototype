@@ -13792,21 +13792,6 @@
   font-size: 16px;
 }
 
-.trainee-join label.people-check {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.people-check input {
-  width: 18px;
-  height: 18px;
-}
-
-.people-check span {
-  text-transform: none;
-}
-
 /* Trainer Console: one column per exercise (phase 5). */
 .trainer-console-exercises {
   flex: 1;
@@ -14784,26 +14769,6 @@
   flex: none;
 }
 
-.people-add-row {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.people-add-row .trainer-console-field {
-  flex: 1 1 160px;
-}
-
-.people-add-row button[type='submit'] {
-  border: 1px solid rgba(99, 179, 237, 0.65);
-  border-radius: 8px;
-  padding: 8px 18px;
-  color: #ffffff;
-  background: var(--control-action);
-  font-weight: 800;
-}
-
 .people-off {
   color: #f87171;
 }
@@ -15434,4 +15399,189 @@
   color: #9fb3ca;
   font-weight: 500;
   text-align: left;
+}
+
+/* Side panel (People: add a person, reset a password). */
+.side-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(2, 8, 18, 0.55);
+}
+
+.side-panel {
+  width: min(400px, 100%);
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 22px 24px;
+  color: #f8fafc;
+  background: #0d1a2c;
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.4);
+  animation: side-panel-in 0.18s ease-out;
+}
+
+@keyframes side-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+.side-panel-form {
+  display: grid;
+  gap: 18px;
+}
+
+.side-panel-form header,
+.side-panel-form footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.side-panel-form footer {
+  justify-content: flex-end;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding-top: 16px;
+}
+
+.side-panel-form h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.app-shell .app-shell-main .side-panel-close {
+  border: 0;
+  padding: 2px 8px;
+  color: #9fb3ca;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.side-panel-lead {
+  margin: -8px 0 0;
+  color: #9fb3ca;
+}
+
+.side-panel-field {
+  display: grid;
+  gap: 6px;
+}
+
+.side-panel-field > span {
+  color: #9fb3ca;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.side-panel-field input {
+  height: 40px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  color: #f8fafc;
+  background: #081321;
+  font: inherit;
+}
+
+.side-panel-field input:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.side-panel-field small,
+.side-panel-switch small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 4px;
+  background: #081321;
+}
+
+.app-shell .app-shell-main .segmented button {
+  border: 0;
+  padding: 7px 10px;
+  color: #9fb3ca;
+  background: transparent;
+}
+
+.app-shell .app-shell-main .segmented button.is-active {
+  color: #ffffff;
+  background: #132238;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.3);
+}
+
+.side-panel-switch {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.side-panel-switch input {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: 999px;
+  background: #24344f;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.side-panel-switch input::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.15s ease;
+}
+
+.side-panel-switch input:checked {
+  background: #3b82f6;
+}
+
+.side-panel-switch input:checked::after {
+  transform: translateX(14px);
+}
+
+.side-panel-switch span {
+  display: grid;
+  gap: 2px;
+}
+
+.side-panel-switch strong {
+  font-weight: 500;
+}
+
+.side-panel-error {
+  margin: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.14);
 }

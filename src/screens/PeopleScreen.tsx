@@ -22,7 +22,24 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
   const [error, setError] = useState('')
   const [form, setForm] = useState({ admin: false, name: '', password: '', role: 'trainee' as UserRole, username: '' })
   const [backups, setBackups] = useState<BackupFile[]>([])
-  const [adding, setAdding] = useState(false)
+  // The side panel: adding a person, or a new password for one.
+  const [panel, setPanel] = useState<{ kind: 'add' } | { kind: 'reset'; person: PublicUser } | null>(null)
+  const [panelError, setPanelError] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+
+  const openPanel = (next: typeof panel) => {
+    setPanel(next)
+    setPanelError('')
+    setNewPassword('')
+  }
+
+  useEffect(() => {
+    if (!panel) return
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPanel(null) }
+
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [panel])
 
   const refresh = useCallback(() => {
     void authApi.listUsers()
@@ -59,38 +76,46 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
     const problem = getDisplayNameProblem(form.name) ?? getUsernameProblem(form.username) ?? getPasswordProblem(form.password)
 
     if (problem) {
-      setError(problem)
+      setPanelError(problem)
       return
     }
 
-    void run(async () => {
-      await authApi.createUser({ ...form, admin: form.role === 'trainer' && form.admin })
-      setForm({ admin: false, name: '', password: '', role: form.role, username: '' })
-    }, `${form.name.trim()} added. Give them their username and password.`)
+    setPanelError('')
+    void authApi.createUser({ ...form, admin: form.role === 'trainer' && form.admin })
+      .then(() => {
+        setNote(`${form.name.trim()} added. Give them their username and password.`)
+        setError('')
+        setForm({ admin: false, name: '', password: '', role: form.role, username: '' })
+        setPanel(null)
+        refresh()
+      })
+      .catch((addError: Error) => setPanelError(addError.message))
   }
 
-  const resetPassword = (person: PublicUser) => {
-    const password = window.prompt(`New password for ${person.name} (at least ${PASSWORD_MIN_LENGTH} characters):`)
+  const resetPassword = (event: FormEvent, person: PublicUser) => {
+    event.preventDefault()
 
-    if (password === null) {
-      return
-    }
-
-    const problem = getPasswordProblem(password)
+    const problem = getPasswordProblem(newPassword)
 
     if (problem) {
-      setError(problem)
+      setPanelError(problem)
       return
     }
 
-    void run(() => authApi.updateUser(person.id, { password }), `Password for ${person.name} changed. They are signed out everywhere.`)
+    void authApi.updateUser(person.id, { password: newPassword })
+      .then(() => {
+        setNote(`Password for ${person.name} changed. They are signed out everywhere.`)
+        setError('')
+        setPanel(null)
+      })
+      .catch((resetError: Error) => setPanelError(resetError.message))
   }
 
   const latestBackup = backups[0]
 
   return (
     <AppShell
-      actions={<button type="button" aria-expanded={adding} onClick={() => setAdding((open) => !open)}>Add person</button>}
+      actions={<button type="button" className="is-primary" onClick={() => openPanel({ kind: 'add' })}>Add person</button>}
       active="people"
       onNavigate={onNavigate}
       onSignOut={onSignOut}
@@ -102,41 +127,90 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
       {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
       {note && <p className="trainer-console-notice is-success" role="status">{note}</p>}
 
-      {adding && (
-        <form className="trainer-console-panel people-add-row" onSubmit={addPerson} aria-label="Add a person">
-          <label className="trainer-console-field">
-            <span>Name</span>
-            <input className="trainer-console-input" onChange={(event) => setForm({ ...form, name: event.target.value })} value={form.name} />
-          </label>
-          <label className="trainer-console-field">
-            <span>Username</span>
-            <input
-              autoCapitalize="none"
-              className="trainer-console-input"
-              onChange={(event) => setForm({ ...form, username: event.target.value })}
-              spellCheck={false}
-              value={form.username}
-            />
-          </label>
-          <label className="trainer-console-field">
-            <span>Password</span>
-            <input autoComplete="new-password" className="trainer-console-input" onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder={`${PASSWORD_MIN_LENGTH}+ characters`} value={form.password} />
-          </label>
-          <label className="trainer-console-field">
-            <span>Role</span>
-            <select className="trainer-console-input" onChange={(event) => setForm({ ...form, role: event.target.value as UserRole })} value={form.role}>
-              <option value="trainee">Trainee</option>
-              <option value="trainer">Trainer</option>
-            </select>
-          </label>
-          {form.role === 'trainer' && (
-            <label className="people-check">
-              <input checked={form.admin} onChange={(event) => setForm({ ...form, admin: event.target.checked })} type="checkbox" />
-              <span>Admin</span>
-            </label>
-          )}
-          <button type="submit">Add</button>
-        </form>
+      {panel && (
+        <div className="side-panel-backdrop" onClick={() => setPanel(null)}>
+          <aside
+            aria-labelledby="side-panel-title"
+            aria-modal="true"
+            className="side-panel"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            {panel.kind === 'add' ? (
+              <form className="side-panel-form" onSubmit={addPerson}>
+                <header>
+                  <h2 id="side-panel-title">Add person</h2>
+                  <button type="button" className="side-panel-close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
+                </header>
+                <div className="segmented" role="radiogroup" aria-label="Role">
+                  {(['trainee', 'trainer'] as const).map((role) => (
+                    <button
+                      aria-checked={form.role === role}
+                      className={form.role === role ? 'is-active' : undefined}
+                      key={role}
+                      onClick={() => setForm({ ...form, role })}
+                      role="radio"
+                      type="button"
+                    >
+                      {role === 'trainee' ? 'Trainee' : 'Trainer'}
+                    </button>
+                  ))}
+                </div>
+                <label className="side-panel-field">
+                  <span>Full name</span>
+                  <input autoFocus onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Aisyah Rahman" value={form.name} />
+                </label>
+                <label className="side-panel-field">
+                  <span>Username</span>
+                  <input
+                    autoCapitalize="none"
+                    onChange={(event) => setForm({ ...form, username: event.target.value })}
+                    placeholder="e.g. aisyah"
+                    spellCheck={false}
+                    value={form.username}
+                  />
+                </label>
+                <label className="side-panel-field">
+                  <span>Password</span>
+                  <input autoComplete="new-password" onChange={(event) => setForm({ ...form, password: event.target.value })} value={form.password} />
+                  <small>At least {PASSWORD_MIN_LENGTH} characters. Give it to them in person.</small>
+                </label>
+                {form.role === 'trainer' && (
+                  <label className="side-panel-switch">
+                    <input checked={form.admin} onChange={(event) => setForm({ ...form, admin: event.target.checked })} type="checkbox" />
+                    <span>
+                      <strong>Admin</strong>
+                      <small>Can add people and reset passwords.</small>
+                    </span>
+                  </label>
+                )}
+                {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
+                <footer>
+                  <button type="button" onClick={() => setPanel(null)}>Cancel</button>
+                  <button type="submit" className="is-primary">Add person</button>
+                </footer>
+              </form>
+            ) : (
+              <form className="side-panel-form" onSubmit={(event) => resetPassword(event, panel.person)}>
+                <header>
+                  <h2 id="side-panel-title">Reset password</h2>
+                  <button type="button" className="side-panel-close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
+                </header>
+                <p className="side-panel-lead">{panel.person.name} · {panel.person.id}</p>
+                <label className="side-panel-field">
+                  <span>New password</span>
+                  <input autoComplete="new-password" autoFocus onChange={(event) => setNewPassword(event.target.value)} value={newPassword} />
+                  <small>At least {PASSWORD_MIN_LENGTH} characters. They are signed out everywhere.</small>
+                </label>
+                {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
+                <footer>
+                  <button type="button" onClick={() => setPanel(null)}>Cancel</button>
+                  <button type="submit" className="is-primary">Set password</button>
+                </footer>
+              </form>
+            )}
+          </aside>
+        </div>
       )}
 
       <section className="trainer-console-panel" aria-labelledby="people-list-heading">
@@ -160,7 +234,7 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
                 <td>{person.id}</td>
                 <td>{person.role === 'trainer' ? (person.admin ? 'Trainer (admin)' : 'Trainer') : 'Trainee'}</td>
                 <td className="people-actions">
-                  <button type="button" onClick={() => resetPassword(person)}>Reset password</button>
+                  <button type="button" onClick={() => openPanel({ kind: 'reset', person })}>Reset password</button>
                   {person.id !== user.id && (
                     <button
                       type="button"
