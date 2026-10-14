@@ -288,10 +288,11 @@ npm.cmd run build:server
 - `npm.cmd run test:ui` runs the Playwright browser tests in `e2e/`. They start
   their own backend (port 8797) and app (port 5183), so they do not touch a
   running session.
-- `npm.cmd run test:lan` is the LAN rehearsal: it builds the production app,
-  runs the bundled server on port 8799 with fresh data, and takes one trainer
-  and two trainees (separate browser profiles) through both exercises, from
-  sign-in to history and a backup.
+- `npm.cmd run test:lan` is the LAN rehearsal: it builds the production app
+  into `.lan-build/` (never the `dist/` a running host serves), runs the
+  bundled server on port 8799 with fresh data, and takes one trainer and two
+  trainees (separate browser profiles) through both exercises, from sign-in to
+  history and a backup: Exercise 1 in Practice, Exercise 2 in Assessment.
 
 ## Known Limits
 

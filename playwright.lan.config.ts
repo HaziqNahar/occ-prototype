@@ -21,7 +21,8 @@ export default defineConfig({
     viewport: { height: 900, width: 1440 },
   },
   webServer: {
-    command: 'npm run host:build && node scripts/lan-test-host.mjs',
+    // Its own build folder, so a live host's dist/ is never replaced mid-class.
+    command: 'npx tsc -b && npx vite build --outDir .lan-build/app && npx vite build -c vite.server.config.ts --outDir .lan-build/server && node scripts/lan-test-host.mjs',
     name: 'OCC LAN host (production build)',
     reuseExistingServer: false,
     timeout: 240_000,

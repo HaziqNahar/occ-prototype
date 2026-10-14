@@ -38,6 +38,8 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
   const traineeActivity = evidenceGroups.trainee
   const assessmentRows = scenarioReport.assessmentRows
   const assessmentMetrics = session.assessmentMetrics
+  // Sessions from a server older than 1.0.0 have no aid counts: read them as none.
+  const aidsUsed = assessmentMetrics.aidsUsed ?? { locate: 0, showMe: 0 }
   const rejectedActionCount = scenarioReport.rejectedActionCount
   const hasScenario = scenarioScore.totalTasks > 0
   const targetTrainId = getActiveTrainingScenarioTargetTrainId(session)
@@ -125,8 +127,8 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
             <div className="report-kpi" title="Practice aids are recorded, not taken off the score.">
               <span>Aids used</span>
               <strong>
-                {assessmentMetrics.aidsUsed.showMe + assessmentMetrics.aidsUsed.locate}
-                <em className="report-kpi-detail">Show me {assessmentMetrics.aidsUsed.showMe} · Locate {assessmentMetrics.aidsUsed.locate}</em>
+                {aidsUsed.showMe + aidsUsed.locate}
+                <em className="report-kpi-detail">Show me {aidsUsed.showMe} · Locate {aidsUsed.locate}</em>
               </strong>
             </div>
           )}

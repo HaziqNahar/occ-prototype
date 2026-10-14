@@ -15,6 +15,7 @@ tmp/
 outputs/
 .playwright-data/
 .playwright-lan-data/
+.lan-build/
 playwright-report/
 test-results/
 
