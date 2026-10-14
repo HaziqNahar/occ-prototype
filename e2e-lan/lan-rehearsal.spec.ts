@@ -238,7 +238,7 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   const runs = consolePage.locator('.history-runs')
 
   for (const trainee of TRAINEES) {
-    await expect(runs.getByRole('button', { name: new RegExp(`Pass · 100%.*${trainee.name}`) })).toHaveCount(1)
+    await expect(runs.getByRole('row', { name: new RegExp(`${trainee.name}.*Pass.*100%`) })).toHaveCount(1)
   }
 
   // The Practice run records the aids used (not taken off the score); the
@@ -246,16 +246,17 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   const summary = consolePage.locator('.history-summary')
   const discuss = consolePage.locator('.history-detail .report-discuss')
 
-  await runs.getByRole('button', { name: new RegExp(TRAINEES[0].name) }).click()
+  await runs.getByRole('row', { name: new RegExp(TRAINEES[0].name) }).click()
   await expect(discuss).toContainText('Show me 1 · Locate 1')
-  await runs.getByRole('button', { name: new RegExp(TRAINEES[1].name) }).click()
+  await consolePage.keyboard.press('Escape')
+  await runs.getByRole('row', { name: new RegExp(TRAINEES[1].name) }).click()
   await expect(summary).toContainText('wrong actions')
   await expect(summary).not.toContainText('hint')
   await expect(discuss).not.toContainText('Used hints')
 
   // A trainee's progress shows only their own run.
   await trainees[1].lobby.getByRole('button', { name: 'My progress' }).click()
-  await expect(trainees[1].lobby.getByRole('region', { name: 'Totals' })).toContainText('1 run on record')
+  await expect(trainees[1].lobby.getByRole('region', { name: 'Totals' }).locator('dd').first()).toHaveText('1')
 
   // The admin makes a backup from the People page.
   await consolePage.goto('/admin')

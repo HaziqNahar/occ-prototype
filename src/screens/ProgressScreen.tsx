@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { PublicUser } from '../accounts'
 import AppShell from '../components/AppShell'
+import ResultPill from '../components/ResultPill'
 import SelectField from '../components/SelectField'
 import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
-import type { TraineeProgress } from '../history'
-import { downloadCsv, formatResult, formatRunTime, historyApi } from '../historyClient'
+import { getRunTime } from '../history'
+import type { RunSummary, TraineeProgress } from '../history'
+import { downloadCsv, formatRunTime, historyApi } from '../historyClient'
 import { exportFileName, progressToCsv } from '../historyExport'
 import type { AppRoute } from '../types'
 
@@ -15,8 +17,53 @@ type ProgressScreenProps = {
   user: PublicUser
 }
 
-// One trainee's record across completed runs: totals, each scenario's best and
-// latest result, and recent runs. Trainees see their own; trainers choose.
+const TREND_RUNS = 20
+
+// Scores of the last completed runs, oldest on the left: green dots passed,
+// amber ones need review.
+function ScoreTrend({ onOpen, runs }: { onOpen: (runId: string) => void; runs: RunSummary[] }) {
+  const points = runs
+    .filter((run) => run.completed)
+    .slice(0, TREND_RUNS)
+    .sort((left, right) => getRunTime(left).localeCompare(getRunTime(right)))
+
+  if (points.length < 2) {
+    return <p className="empty-note">The trend shows after two completed runs.</p>
+  }
+
+  const width = 1100
+  const height = 200
+  const pad = { bottom: 22, left: 34, right: 12, top: 12 }
+  const x = (index: number) => pad.left + (index * (width - pad.left - pad.right)) / (points.length - 1)
+  const y = (score: number) => pad.top + ((100 - score) * (height - pad.top - pad.bottom)) / 100
+
+  return (
+    <svg className="score-trend" role="img" aria-label={`Scores of the last ${points.length} completed runs`} viewBox={`0 0 ${width} ${height}`}>
+      {[0, 50, 100].map((score) => (
+        <g key={score}>
+          <line className="score-trend-grid" x1={pad.left} x2={width - pad.right} y1={y(score)} y2={y(score)} />
+          <text className="score-trend-axis" x={pad.left - 8} y={y(score) + 4} textAnchor="end">{score}</text>
+        </g>
+      ))}
+      <polyline className="score-trend-line" points={points.map((run, index) => `${x(index)},${y(run.score)}`).join(' ')} />
+      {points.map((run, index) => (
+        <circle
+          className={`score-trend-dot ${run.result === 'PASS' ? 'is-pass' : 'is-review'}`}
+          cx={x(index)}
+          cy={y(run.score)}
+          key={run.id}
+          onClick={() => onOpen(run.id)}
+          r={5}
+        >
+          <title>{`${run.scenarioTitle} · ${formatRunTime(getRunTime(run))} · ${run.score}%`}</title>
+        </circle>
+      ))}
+    </svg>
+  )
+}
+
+// One trainee's record: totals, the score trend, each scenario's pass rate and
+// recent runs. Trainees see their own; trainers choose.
 function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
   const isTrainer = user.role === 'trainer'
   const [traineeId, setTraineeId] = useState(() => (
@@ -56,6 +103,7 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
     '/history',
     `?run=${encodeURIComponent(runId)}${isTrainer ? `&trainee=${encodeURIComponent(chosenId)}` : ''}`,
   )
+  const passRate = totals?.completed ? Math.round((totals.passed / totals.completed) * 100) : 0
 
   return (
     <AppShell
@@ -71,57 +119,76 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
       onNavigate={onNavigate}
       onSignOut={onSignOut}
       pageClassName="history-page"
+      subtitle={!isTrainer && shown ? shown.trainee.name : undefined}
       title={isTrainer ? 'Trainee progress' : 'My progress'}
       user={user}
     >
       {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
 
-      {(isTrainer || (shown && totals)) && (
-        <section className="trainer-console-panel progress-summary" aria-label="Totals">
-          {isTrainer ? (
-            <SelectField
-              ariaLabel="Trainee"
-              value={chosenId}
-              options={trainees.map((trainee) => ({ label: trainee.name, value: trainee.id }))}
-              onChange={setTraineeId}
-            />
-          ) : shown && <strong>{shown.trainee.name}</strong>}
-          {isTrainer && trainees.length === 0 && <span>No trainee accounts yet. Add them on the People page.</span>}
-          {totals && (
-            <span>
-              {totals.runs} {totals.runs === 1 ? 'run' : 'runs'} on record · {totals.completed} completed · {totals.passed} passed
-              {totals.completed ? ` · average ${totals.averageScore}%` : ''}
-            </span>
-          )}
-        </section>
+      {isTrainer && (
+        <div className="table-filters">
+          <SelectField
+            ariaLabel="Trainee"
+            value={chosenId}
+            options={trainees.map((trainee) => ({ label: trainee.name, value: trainee.id }))}
+            onChange={setTraineeId}
+          />
+          {trainees.length === 0 && <span className="table-count">No trainee accounts yet. Add them on the People page.</span>}
+        </div>
       )}
 
       {shown && totals && (
         <>
-          <div className="history-grid progress-grid">
+          <section aria-label="Totals">
+            <span className="visually-hidden">{shown.trainee.name}</span>
+            <dl className="stat-tiles">
+              <div><dt>Runs</dt><dd>{totals.runs}</dd></div>
+              <div><dt>Completed</dt><dd>{totals.completed}</dd></div>
+              <div>
+                <dt>Passed</dt>
+                <dd>{totals.passed}{totals.completed > 0 && <small> · {passRate}%</small>}</dd>
+              </div>
+              <div><dt>Average score</dt><dd>{totals.completed ? `${totals.averageScore}%` : '—'}</dd></div>
+            </dl>
+          </section>
+
+          <section className="trainer-console-panel" aria-labelledby="progress-trend-heading">
+            <h2 id="progress-trend-heading">Score over time</h2>
+            <ScoreTrend onOpen={openRun} runs={shown.runs} />
+          </section>
+
+          <div className="progress-grid">
             <section className="trainer-console-panel" aria-labelledby="progress-scenarios-heading">
               <h2 id="progress-scenarios-heading">By scenario</h2>
               {shown.byScenario.length === 0 ? (
-                <div className="trainer-console-empty">
+                <div className="empty-state">
                   <strong>No completed runs yet</strong>
                   <span>Scores appear here once a run is completed.</span>
                 </div>
               ) : (
-                <table className="people-table">
+                <table className="data-table">
                   <thead>
-                    <tr><th>Scenario</th><th>Runs</th><th>Passed</th><th>Best</th><th>Average</th><th>Latest</th></tr>
+                    <tr><th>Scenario</th><th>Pass rate</th><th className="is-number">Best</th><th className="is-number">Average</th><th>Latest</th></tr>
                   </thead>
                   <tbody>
-                    {shown.byScenario.map((scenario) => (
-                      <tr key={scenario.scenarioTitle}>
-                        <td>{scenario.scenarioTitle}</td>
-                        <td>{scenario.runs}</td>
-                        <td>{scenario.passes}</td>
-                        <td>{scenario.bestScore}%</td>
-                        <td>{scenario.averageScore}%</td>
-                        <td title={formatRunTime(scenario.lastRunAt)}>{formatResult(scenario.lastResult)}</td>
-                      </tr>
-                    ))}
+                    {shown.byScenario.map((scenario) => {
+                      const rate = Math.round((scenario.passes / scenario.runs) * 100)
+
+                      return (
+                        <tr key={scenario.scenarioTitle}>
+                          <td>{scenario.scenarioTitle}</td>
+                          <td>
+                            <div className="rate-bar" title={`${rate}%`}>
+                              <span style={{ width: `${rate}%` }} />
+                            </div>
+                            <small className="rate-label">{scenario.passes} of {scenario.runs} passed</small>
+                          </td>
+                          <td className="is-number">{scenario.bestScore}%</td>
+                          <td className="is-number">{scenario.averageScore}%</td>
+                          <td title={formatRunTime(scenario.lastRunAt)}><ResultPill result={scenario.lastResult} /></td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               )}
@@ -129,19 +196,24 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
 
             <section className="trainer-console-panel" aria-labelledby="progress-runs-heading">
               <h2 id="progress-runs-heading">Recent runs</h2>
-              <ul className="history-runs">
-                {shown.runs.slice(0, 20).map((run) => (
-                  <li key={run.id}>
-                    <button type="button" onClick={() => openRun(run.id)}>
-                      <strong>{run.scenarioTitle}</strong>
-                      <span className={`history-result is-${run.result.toLowerCase().replace(/\s+/g, '-')}`}>
-                        {formatResult(run.result)} · {run.score}%
-                      </span>
-                      <small>{formatRunTime(run.startedAt ?? run.completedAt)}</small>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {shown.runs.length === 0 ? (
+                <p className="empty-note">No runs yet.</p>
+              ) : (
+                <ul className="recent-runs">
+                  {shown.runs.slice(0, 10).map((run) => (
+                    <li key={run.id}>
+                      <button type="button" onClick={() => openRun(run.id)}>
+                        <span>
+                          <strong>{run.scenarioTitle}</strong>
+                          <small>{formatRunTime(run.startedAt ?? run.completedAt)}</small>
+                        </span>
+                        <ResultPill completed={run.completed} result={run.result} />
+                        <b>{run.score}%</b>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           </div>
         </>

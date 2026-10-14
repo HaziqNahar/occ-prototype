@@ -13901,52 +13901,6 @@
   align-items: start;
 }
 
-.history-runs {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.history-runs button {
-  display: grid;
-  gap: 2px;
-  width: 100%;
-  border: 1px solid var(--control-line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  color: var(--ink);
-  background: rgba(8, 18, 32, 0.7);
-  text-align: left;
-}
-
-.history-runs button:hover,
-.history-runs button.is-selected {
-  border-color: #60a5fa;
-}
-
-.history-runs small {
-  color: #9fb3ca;
-}
-
-.history-result {
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.history-result.is-pass {
-  color: #4ade80;
-}
-
-.history-result.is-needs-review {
-  color: #facc15;
-}
-
-.history-result.is-in-progress {
-  color: #94a3b8;
-}
-
 .history-detail h3 {
   margin: 8px 0 0;
   font-size: 14px;
@@ -14039,8 +13993,7 @@
   .history-page .trainer-console-header,
   .history-page .trainer-console-panel,
   .history-page .trainer-console-status,
-  .history-page .trainer-console-tasks li,
-  .history-page .history-runs button {
+  .history-page .trainer-console-tasks li {
     border-color: #999999;
     background: #ffffff;
     box-shadow: none;
@@ -15123,15 +15076,13 @@
 }
 
 .app-shell .trainer-console-tasks li,
-.app-shell .history-runs button,
 .app-shell .trainer-console-scenario-list button {
   border: 1px solid transparent;
   border-radius: 8px;
   background: var(--shell-raised);
 }
 
-.app-shell .trainer-console-scenario-list button.is-selected,
-.app-shell .history-runs button.is-selected {
+.app-shell .trainer-console-scenario-list button.is-selected {
   border-color: var(--shell-accent);
   background: var(--shell-accent-soft);
   box-shadow: none;
@@ -15436,7 +15387,7 @@
   gap: 18px;
 }
 
-.side-panel-form header,
+.side-panel-head,
 .side-panel-form footer {
   display: flex;
   align-items: center;
@@ -15450,7 +15401,7 @@
   padding-top: 16px;
 }
 
-.side-panel-form h2 {
+.side-panel-head h2 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
@@ -15584,4 +15535,515 @@
   padding: 8px 12px;
   color: #fecaca;
   background: rgba(239, 68, 68, 0.14);
+}
+
+/* Side panel header and the wide panel for a record (SidePanel.tsx). */
+.side-panel {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.side-panel.is-wide {
+  width: min(760px, 100%);
+}
+
+.side-panel-head h2 {
+  flex: 1;
+  min-width: 0;
+}
+
+.side-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.side-panel button {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: #f8fafc;
+  background: #132238;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.side-panel button:hover {
+  background: #1b2d47;
+}
+
+.side-panel button.is-primary {
+  border-color: transparent;
+  background: #3b82f6;
+}
+
+.side-panel button.is-primary:hover {
+  background: #2563eb;
+}
+
+.side-panel .side-panel-close {
+  border: 0;
+  padding: 2px 8px;
+  color: #9fb3ca;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Section headings on the trainer pages: sentence case. */
+.app-shell .trainer-console-panel > h2 {
+  margin: 0 0 12px;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Filters above a table: trainee, result, search and a count. */
+.table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-filters .select-field {
+  min-width: 220px;
+}
+
+.segmented.is-inline {
+  display: inline-flex;
+}
+
+.segmented.is-inline button {
+  white-space: nowrap;
+}
+
+.table-search {
+  flex: 1 1 200px;
+  max-width: 320px;
+  height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  color: #f8fafc;
+  background: #081321;
+  font: inherit;
+}
+
+.table-search:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+
+.table-count {
+  margin-left: auto;
+  color: #9fb3ca;
+  font-size: 13px;
+}
+
+/* Data tables: quiet header, row hover, numbers on the right. */
+.app-shell .table-card {
+  padding: 4px 0;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  padding: 10px 16px;
+  color: #9fb3ca;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table td {
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 11px 16px;
+  vertical-align: middle;
+}
+
+.data-table .is-muted {
+  color: #9fb3ca;
+  white-space: nowrap;
+}
+
+.data-table .is-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.history-runs tbody tr {
+  cursor: pointer;
+}
+
+.history-runs tbody tr:hover td {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.history-runs tbody tr.is-selected td {
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.app-shell .app-shell-main .table-sort,
+.app-shell .app-shell-main .table-link {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+}
+
+.app-shell .app-shell-main .table-sort span {
+  margin-left: 4px;
+  color: #3b82f6;
+}
+
+.app-shell .app-shell-main .table-link {
+  font-weight: 500;
+}
+
+.app-shell .app-shell-main .table-link:hover {
+  color: #93c5fd;
+  background: none;
+}
+
+.trainer-console-panel .data-table th:first-child,
+.trainer-console-panel .data-table td:first-child {
+  padding-left: 0;
+}
+
+.trainer-console-panel .data-table th:last-child,
+.trainer-console-panel .data-table td:last-child {
+  padding-right: 0;
+}
+
+.app-shell .table-card .data-table th:first-child,
+.app-shell .table-card .data-table td:first-child {
+  padding-left: 16px;
+}
+
+.app-shell .table-card .data-table th:last-child,
+.app-shell .table-card .data-table td:last-child {
+  padding-right: 16px;
+}
+
+/* A run's result (ResultPill.tsx). */
+.result-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.result-pill.is-pass {
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.result-pill.is-review {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.result-pill.is-open {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+/* Nothing to show yet. */
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 40px 16px;
+  color: #9fb3ca;
+  text-align: center;
+}
+
+.empty-state strong {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.empty-note {
+  margin: 0;
+  color: #9fb3ca;
+}
+
+/* Run detail in the side panel (HistoryScreen.tsx). */
+.side-panel .history-scorecard {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.side-panel .history-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.history-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.side-panel .history-people button {
+  border: 0;
+  padding: 0;
+  color: #93c5fd;
+  background: none;
+  font-weight: 600;
+}
+
+.side-panel .history-people button:hover {
+  text-decoration: underline;
+  background: none;
+}
+
+.fact-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fact-chips li {
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #cbd5e1;
+  background: #132238;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.side-panel .report-fold summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Progress (ProgressScreen.tsx): tiles, trend, pass rates, recent runs. */
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.stat-tiles div {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #0d1a2c;
+}
+
+.stat-tiles dt {
+  color: #9fb3ca;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stat-tiles dd {
+  margin: 4px 0 0;
+  color: #f8fafc;
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tiles dd small {
+  color: #9fb3ca;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.score-trend {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.score-trend-grid {
+  stroke: rgba(148, 163, 184, 0.16);
+  stroke-dasharray: 3 4;
+}
+
+.score-trend-axis {
+  fill: #64748b;
+  font-size: 11px;
+}
+
+.score-trend-line {
+  fill: none;
+  stroke: #3b82f6;
+  stroke-width: 2;
+}
+
+.score-trend-dot {
+  stroke: #0d1a2c;
+  stroke-width: 2;
+  cursor: pointer;
+}
+
+.score-trend-dot.is-pass {
+  fill: #22c55e;
+}
+
+.score-trend-dot.is-review {
+  fill: #f59e0b;
+}
+
+.app-shell .progress-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.rate-bar {
+  width: 100%;
+  max-width: 140px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #24344f;
+}
+
+.rate-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #22c55e;
+}
+
+.rate-label {
+  display: block;
+  margin-top: 4px;
+  color: #9fb3ca;
+  font-size: 12px;
+}
+
+.recent-runs {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-runs li + li {
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.app-shell .app-shell-main .recent-runs button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 48px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 8px;
+  background: none;
+  text-align: left;
+}
+
+.app-shell .app-shell-main .recent-runs button:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.recent-runs button > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recent-runs strong {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-runs small {
+  color: #9fb3ca;
+  font-size: 12px;
+}
+
+.recent-runs b {
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .stat-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell .progress-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Printing a run prints the open panel only. */
+@media print {
+  .app-shell:has(.side-panel) .app-shell-main > :not(.side-panel-backdrop) {
+    display: none;
+  }
+
+  .side-panel-backdrop {
+    position: static;
+    display: block;
+    background: none;
+  }
+
+  .side-panel {
+    width: 100%;
+    height: auto;
+    border: 0;
+    padding: 0;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .side-panel-actions,
+  .side-panel-close {
+    display: none;
+  }
+
+  .side-panel details {
+    display: block;
+  }
+
+  .score-trend-line {
+    stroke: #000000;
+  }
 }

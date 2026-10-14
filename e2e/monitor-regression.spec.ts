@@ -437,12 +437,14 @@ test.describe.serial('OCC monitor regressions', () => {
     expect(runCsv.text).toContain('Trainer notes,E2E history check')
     expect(runCsv.text).toMatch(/Aisyah,trainee,Acknowledged alarms,.*,Done/)
 
-    const listCsv = await downloadText(page, () => page.locator('.history-runs').locator('..').getByRole('button', { name: 'Export CSV' }).click())
+    await expect(page.getByRole('button', { name: 'Print / PDF' })).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    const listCsv = await downloadText(page, () => page.locator('.app-shell-actions').getByRole('button', { name: 'Export CSV' }).click())
 
     expect(listCsv.name).toMatch(/^occ-runs-all-\d{4}-\d{2}-\d{2}\.csv$/)
     expect(listCsv.text).toContain('Date,Trainee,Scenario,Exercise')
     expect(listCsv.text).toMatch(/Aisyah,PSD Obstructed,1,[A-Z2-9]{4},practice,NOT COMPLETED/)
-    await expect(page.getByRole('button', { name: 'Print / PDF' })).toBeVisible()
 
     // The trainee's own progress.
     const traineeContext = await browser.newContext()

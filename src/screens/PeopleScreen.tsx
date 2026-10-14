@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { getDisplayNameProblem, getPasswordProblem, getUsernameProblem, PASSWORD_MIN_LENGTH } from '../accounts'
 import AppShell from '../components/AppShell'
+import SidePanel from '../components/SidePanel'
 import type { PublicUser, UserRole } from '../accounts'
 import { apiRequest, authApi } from '../authClient'
 import type { AppRoute } from '../types'
@@ -32,14 +33,7 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
     setPanelError('')
     setNewPassword('')
   }
-
-  useEffect(() => {
-    if (!panel) return
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPanel(null) }
-
-    window.addEventListener('keydown', close)
-    return () => window.removeEventListener('keydown', close)
-  }, [panel])
+  const closePanel = useCallback(() => setPanel(null), [])
 
   const refresh = useCallback(() => {
     void authApi.listUsers()
@@ -128,89 +122,73 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
       {note && <p className="trainer-console-notice is-success" role="status">{note}</p>}
 
       {panel && (
-        <div className="side-panel-backdrop" onClick={() => setPanel(null)}>
-          <aside
-            aria-labelledby="side-panel-title"
-            aria-modal="true"
-            className="side-panel"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            {panel.kind === 'add' ? (
-              <form className="side-panel-form" onSubmit={addPerson}>
-                <header>
-                  <h2 id="side-panel-title">Add person</h2>
-                  <button type="button" className="side-panel-close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
-                </header>
-                <div className="segmented" role="radiogroup" aria-label="Role">
-                  {(['trainee', 'trainer'] as const).map((role) => (
-                    <button
-                      aria-checked={form.role === role}
-                      className={form.role === role ? 'is-active' : undefined}
-                      key={role}
-                      onClick={() => setForm({ ...form, role })}
-                      role="radio"
-                      type="button"
-                    >
-                      {role === 'trainee' ? 'Trainee' : 'Trainer'}
-                    </button>
-                  ))}
-                </div>
-                <label className="side-panel-field">
-                  <span>Full name</span>
-                  <input autoFocus onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Aisyah Rahman" value={form.name} />
+        <SidePanel onClose={closePanel} title={panel.kind === 'add' ? 'Add person' : 'Reset password'}>
+          {panel.kind === 'add' ? (
+            <form className="side-panel-form" onSubmit={addPerson}>
+              <div className="segmented" role="radiogroup" aria-label="Role">
+                {(['trainee', 'trainer'] as const).map((role) => (
+                  <button
+                    aria-checked={form.role === role}
+                    className={form.role === role ? 'is-active' : undefined}
+                    key={role}
+                    onClick={() => setForm({ ...form, role })}
+                    role="radio"
+                    type="button"
+                  >
+                    {role === 'trainee' ? 'Trainee' : 'Trainer'}
+                  </button>
+                ))}
+              </div>
+              <label className="side-panel-field">
+                <span>Full name</span>
+                <input autoFocus onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Aisyah Rahman" value={form.name} />
+              </label>
+              <label className="side-panel-field">
+                <span>Username</span>
+                <input
+                  autoCapitalize="none"
+                  onChange={(event) => setForm({ ...form, username: event.target.value })}
+                  placeholder="e.g. aisyah"
+                  spellCheck={false}
+                  value={form.username}
+                />
+              </label>
+              <label className="side-panel-field">
+                <span>Password</span>
+                <input autoComplete="new-password" onChange={(event) => setForm({ ...form, password: event.target.value })} value={form.password} />
+                <small>At least {PASSWORD_MIN_LENGTH} characters. Give it to them in person.</small>
+              </label>
+              {form.role === 'trainer' && (
+                <label className="side-panel-switch">
+                  <input checked={form.admin} onChange={(event) => setForm({ ...form, admin: event.target.checked })} type="checkbox" />
+                  <span>
+                    <strong>Admin</strong>
+                    <small>Can add people and reset passwords.</small>
+                  </span>
                 </label>
-                <label className="side-panel-field">
-                  <span>Username</span>
-                  <input
-                    autoCapitalize="none"
-                    onChange={(event) => setForm({ ...form, username: event.target.value })}
-                    placeholder="e.g. aisyah"
-                    spellCheck={false}
-                    value={form.username}
-                  />
-                </label>
-                <label className="side-panel-field">
-                  <span>Password</span>
-                  <input autoComplete="new-password" onChange={(event) => setForm({ ...form, password: event.target.value })} value={form.password} />
-                  <small>At least {PASSWORD_MIN_LENGTH} characters. Give it to them in person.</small>
-                </label>
-                {form.role === 'trainer' && (
-                  <label className="side-panel-switch">
-                    <input checked={form.admin} onChange={(event) => setForm({ ...form, admin: event.target.checked })} type="checkbox" />
-                    <span>
-                      <strong>Admin</strong>
-                      <small>Can add people and reset passwords.</small>
-                    </span>
-                  </label>
-                )}
-                {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
-                <footer>
-                  <button type="button" onClick={() => setPanel(null)}>Cancel</button>
-                  <button type="submit" className="is-primary">Add person</button>
-                </footer>
-              </form>
-            ) : (
-              <form className="side-panel-form" onSubmit={(event) => resetPassword(event, panel.person)}>
-                <header>
-                  <h2 id="side-panel-title">Reset password</h2>
-                  <button type="button" className="side-panel-close" aria-label="Close" onClick={() => setPanel(null)}>×</button>
-                </header>
-                <p className="side-panel-lead">{panel.person.name} · {panel.person.id}</p>
-                <label className="side-panel-field">
-                  <span>New password</span>
-                  <input autoComplete="new-password" autoFocus onChange={(event) => setNewPassword(event.target.value)} value={newPassword} />
-                  <small>At least {PASSWORD_MIN_LENGTH} characters. They are signed out everywhere.</small>
-                </label>
-                {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
-                <footer>
-                  <button type="button" onClick={() => setPanel(null)}>Cancel</button>
-                  <button type="submit" className="is-primary">Set password</button>
-                </footer>
-              </form>
-            )}
-          </aside>
-        </div>
+              )}
+              {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
+              <footer>
+                <button type="button" onClick={closePanel}>Cancel</button>
+                <button type="submit" className="is-primary">Add person</button>
+              </footer>
+            </form>
+          ) : (
+            <form className="side-panel-form" onSubmit={(event) => resetPassword(event, panel.person)}>
+              <p className="side-panel-lead">{panel.person.name} · {panel.person.id}</p>
+              <label className="side-panel-field">
+                <span>New password</span>
+                <input autoComplete="new-password" autoFocus onChange={(event) => setNewPassword(event.target.value)} value={newPassword} />
+                <small>At least {PASSWORD_MIN_LENGTH} characters. They are signed out everywhere.</small>
+              </label>
+              {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
+              <footer>
+                <button type="button" onClick={closePanel}>Cancel</button>
+                <button type="submit" className="is-primary">Set password</button>
+              </footer>
+            </form>
+          )}
+        </SidePanel>
       )}
 
       <section className="trainer-console-panel" aria-labelledby="people-list-heading">
