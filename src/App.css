@@ -14832,3 +14832,431 @@
 .progress-grid {
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
 }
+
+/* ===== App shell and dark theme for the trainer pages (AppShell.tsx) =====
+   One look for Console, History, Progress, People and Report: a sidebar,
+   plain dark-grey surfaces, sentence-case labels, one accent colour. The
+   rules below are scoped to .app-shell, so the SCADA monitors are untouched. */
+.app-shell {
+  --shell-bg: #0e1013;
+  --shell-sidebar: #13161a;
+  --shell-surface: #171a1f;
+  --shell-raised: #1e2228;
+  --shell-border: rgba(255, 255, 255, 0.08);
+  --shell-border-strong: rgba(255, 255, 255, 0.16);
+  --shell-text: #e8eaed;
+  --shell-muted: #9aa3ad;
+  --shell-faint: #6b7480;
+  --shell-accent: #3b82f6;
+  --shell-accent-soft: rgba(59, 130, 246, 0.16);
+
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  color: var(--shell-text);
+  background: var(--shell-bg);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.app-shell-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+  border-right: 1px solid var(--shell-border);
+  padding: 18px 12px;
+  background: var(--shell-sidebar);
+}
+
+.app-shell-brand {
+  display: grid;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.app-shell-brand img {
+  width: 110px;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: #ffffff;
+}
+
+.app-shell-brand span {
+  color: var(--shell-muted);
+  font-size: 12px;
+}
+
+.app-shell-sidebar nav {
+  display: grid;
+  gap: 2px;
+}
+
+.app-shell-sidebar nav button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--shell-muted);
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell-sidebar nav button:hover {
+  color: var(--shell-text);
+  background: var(--shell-raised);
+}
+
+.app-shell-sidebar nav button.is-active {
+  color: #ffffff;
+  background: var(--shell-accent-soft);
+  box-shadow: inset 2px 0 0 var(--shell-accent);
+}
+
+.app-shell-user {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: auto;
+  border-top: 1px solid var(--shell-border);
+  padding: 14px 8px 0;
+}
+
+.app-shell-avatar {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #bfdbfe;
+  background: var(--shell-accent-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell-user-name {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell-user button {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  color: var(--shell-muted);
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-shell-user button:hover {
+  color: var(--shell-text);
+}
+
+.app-shell-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  padding: 22px 28px 28px;
+  color: var(--shell-text);
+  background: none;
+}
+
+.app-shell-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-shell-header h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-shell-header p {
+  margin: 2px 0 0;
+  color: var(--shell-muted);
+}
+
+.app-shell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Surfaces: flat, one border, no gradients or background picture. */
+.app-shell .trainer-console-panel,
+.app-shell .trainer-console-status,
+.app-shell .tc-exercise-bar,
+.app-shell .report-card,
+.app-shell .app-shell-main .tc-tab {
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  background: var(--shell-surface);
+  box-shadow: none;
+}
+
+.app-shell .trainer-console-status {
+  border-left: 3px solid var(--shell-faint);
+}
+
+.app-shell .trainer-console-status.is-running {
+  border-left-color: #22c55e;
+}
+
+.app-shell .trainer-console-status.is-paused {
+  border-left-color: #f59e0b;
+}
+
+.app-shell .trainer-console-status.is-complete {
+  border-left-color: var(--shell-accent);
+}
+
+/* Labels in sentence case, not shouting. */
+.app-shell dt,
+.app-shell th,
+.app-shell .trainer-console-panel-head h2,
+.app-shell .trainer-console-field > span,
+.app-shell .report-section-title p,
+.app-shell .report-eyebrow {
+  color: var(--shell-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.app-shell .trainer-console-panel-head h2 {
+  color: var(--shell-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.app-shell strong,
+.app-shell b,
+.app-shell h2,
+.app-shell h3 {
+  font-weight: 600;
+}
+
+.app-shell .trainer-console-figures dd {
+  font-weight: 600;
+}
+
+/* Buttons: one quiet style, one accent for the main action. */
+.app-shell .app-shell-main button {
+  border: 1px solid var(--shell-border-strong);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--shell-text);
+  background: var(--shell-raised);
+  font-family: inherit;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.app-shell .app-shell-main button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #262b33;
+}
+
+.app-shell .app-shell-main button.is-primary,
+.app-shell .app-shell-main .trainer-console-load,
+.app-shell .app-shell-main button[type="submit"] {
+  border-color: transparent;
+  color: #ffffff;
+  background: var(--shell-accent);
+}
+
+.app-shell .app-shell-main button.is-primary:hover:not(:disabled),
+.app-shell .app-shell-main .trainer-console-load:hover:not(:disabled),
+.app-shell .app-shell-main button[type="submit"]:hover {
+  background: #2563eb;
+}
+
+.app-shell .app-shell-main button.is-quiet,
+.app-shell .app-shell-main .tc-fold,
+.app-shell .app-shell-main .trainer-console-reset {
+  border-color: transparent;
+  background: transparent;
+}
+
+.app-shell .app-shell-main .trainer-exercise-trainee-actions button,
+.app-shell .app-shell-main .history-summary button {
+  border: 0;
+  padding: 0;
+  color: #93c5fd;
+  background: none;
+  text-decoration: none;
+}
+
+.app-shell .app-shell-main .trainer-exercise-trainee-actions button:hover,
+.app-shell .app-shell-main .history-summary button:hover {
+  text-decoration: underline;
+  background: none;
+}
+
+.app-shell .app-shell-main .trainer-console-reset {
+  color: #f87171;
+}
+
+/* Fields: dark, not white boxes. */
+.app-shell .app-shell-main .select-field-trigger,
+.app-shell .app-shell-main .trainer-console-input,
+.app-shell .app-shell-main select,
+.app-shell .app-shell-main textarea {
+  border: 1px solid var(--shell-border-strong);
+  border-radius: 8px;
+  color: var(--shell-text);
+  background: #0f1216;
+  box-shadow: none;
+  font-family: inherit;
+  font-weight: 400;
+}
+
+.app-shell .app-shell-main .select-field-trigger {
+  height: 38px;
+}
+
+.app-shell .app-shell-main .select-field-menu {
+  border: 1px solid var(--shell-border-strong);
+  color: var(--shell-text);
+  background: var(--shell-raised);
+}
+
+.app-shell .app-shell-main .select-field-menu button {
+  color: var(--shell-text);
+  background: transparent;
+}
+
+.app-shell .app-shell-main .select-field-menu button:hover,
+.app-shell .app-shell-main .select-field-menu button.is-active {
+  background: var(--shell-accent-soft);
+}
+
+/* Lists and tables. */
+.app-shell .people-table th,
+.app-shell .people-table td {
+  border-bottom: 1px solid var(--shell-border);
+}
+
+.app-shell .trainer-console-tasks li,
+.app-shell .history-runs button,
+.app-shell .trainer-console-scenario-list button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--shell-raised);
+}
+
+.app-shell .trainer-console-scenario-list button.is-selected,
+.app-shell .history-runs button.is-selected {
+  border-color: var(--shell-accent);
+  background: var(--shell-accent-soft);
+  box-shadow: none;
+}
+
+.app-shell .trainer-console-tasks li.is-next {
+  background: var(--shell-accent-soft);
+  box-shadow: inset 3px 0 0 var(--shell-accent);
+}
+
+.app-shell .app-shell-main .tc-tab.is-active {
+  border-color: var(--shell-accent);
+  box-shadow: inset 0 -2px 0 var(--shell-accent);
+}
+
+.app-shell .trainer-console-notice {
+  border-radius: 8px;
+  background: var(--shell-surface);
+}
+
+/* The report and history pages had their own backgrounds and paddings. */
+.app-shell-main.report-shell,
+.app-shell-main.history-page,
+.app-shell-main.people-page {
+  min-height: 0;
+  padding: 22px 28px 28px;
+  background: none;
+}
+
+.app-shell .report-card {
+  margin-top: 0;
+}
+
+.app-shell .report-result {
+  border-color: transparent;
+}
+
+.app-shell .report-result.pass {
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.app-shell .report-result.review {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.app-shell .report-result.running,
+.app-shell .report-result.idle {
+  color: #bfdbfe;
+  background: var(--shell-accent-soft);
+}
+
+.app-shell .report-notes textarea {
+  min-height: 110px;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell-sidebar {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .app-shell-sidebar nav {
+    display: flex;
+  }
+
+  .app-shell-user {
+    margin: 0 0 0 auto;
+    border: 0;
+    padding: 0;
+  }
+}
+
+@media print {
+  .app-shell {
+    display: block;
+    color: #000000;
+    background: #ffffff;
+  }
+
+  .app-shell-sidebar,
+  .app-shell-actions {
+    display: none;
+  }
+}

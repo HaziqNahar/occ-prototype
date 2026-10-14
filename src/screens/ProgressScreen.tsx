@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import type { PublicUser } from '../accounts'
-import occMonitorBackground from '../assets/occ-monitor-bg.png'
-import sbsTransitLogo from '../assets/sbs-transit-logo.png'
+import AppShell from '../components/AppShell'
 import SelectField from '../components/SelectField'
 import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
@@ -13,12 +11,13 @@ import type { AppRoute } from '../types'
 
 type ProgressScreenProps = {
   onNavigate: (route: AppRoute, search?: string) => void
+  onSignOut?: () => void
   user: PublicUser
 }
 
 // One trainee's record across completed runs: totals, each scenario's best and
 // latest result, and recent runs. Trainees see their own; trainers choose.
-function ProgressScreen({ onNavigate, user }: ProgressScreenProps) {
+function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
   const isTrainer = user.role === 'trainer'
   const [traineeId, setTraineeId] = useState(() => (
     isTrainer ? new URLSearchParams(window.location.search).get('trainee') ?? '' : user.id
@@ -59,33 +58,23 @@ function ProgressScreen({ onNavigate, user }: ProgressScreenProps) {
   )
 
   return (
-    <main className="trainer-console history-page" style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}>
-      <header className="trainer-console-header">
-        <div className="trainer-console-brand">
-          <img src={sbsTransitLogo} alt="SBS Transit" />
-          <div>
-            <p>{isTrainer ? `Instructor station · ${user.name}` : user.name}</p>
-            <h1>{isTrainer ? 'Trainee progress' : 'My progress'}</h1>
-          </div>
-        </div>
-        {error && <p className="trainer-console-message" role="alert">{error}</p>}
-        <nav aria-label="Progress tools">
-          {shown && (
-            <>
-              <button type="button" onClick={() => downloadCsv(exportFileName('occ-progress', shown.trainee.id, new Date().toISOString().slice(0, 10)), progressToCsv(shown))}>
-                Export CSV
-              </button>
-              <button type="button" onClick={() => window.print()}>Print / PDF</button>
-            </>
-          )}
-          <button type="button" onClick={() => onNavigate('/history', isTrainer && chosenId ? `?trainee=${encodeURIComponent(chosenId)}` : '')}>
-            {isTrainer ? 'Run history' : 'My runs'}
+    <AppShell
+      actions={shown && (
+        <>
+          <button type="button" onClick={() => downloadCsv(exportFileName('occ-progress', shown.trainee.id, new Date().toISOString().slice(0, 10)), progressToCsv(shown))}>
+            Export CSV
           </button>
-          <button type="button" className="is-quiet" onClick={() => onNavigate(isTrainer ? '/ios/modules' : '/session/join')}>
-            {isTrainer ? 'Trainer Console' : 'Back'}
-          </button>
-        </nav>
-      </header>
+          <button type="button" onClick={() => window.print()}>Print / PDF</button>
+        </>
+      )}
+      active="progress"
+      onNavigate={onNavigate}
+      onSignOut={onSignOut}
+      pageClassName="history-page"
+      title={isTrainer ? 'Trainee progress' : 'My progress'}
+      user={user}
+    >
+      {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
 
       {(isTrainer || (shown && totals)) && (
         <section className="trainer-console-panel progress-summary" aria-label="Totals">
@@ -157,7 +146,7 @@ function ProgressScreen({ onNavigate, user }: ProgressScreenProps) {
           </div>
         </>
       )}
-    </main>
+    </AppShell>
   )
 }
 

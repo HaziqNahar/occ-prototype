@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import type { PublicUser } from '../accounts'
-import occMonitorBackground from '../assets/occ-monitor-bg.png'
-import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { AuthRequestError } from '../authClient'
+import AppShell from '../components/AppShell'
 import { exerciseApi } from '../exerciseClient'
 import type { ExerciseSummary, TraineeAccount } from '../exerciseClient'
 import type { SessionActor } from '../session-commands/types'
@@ -103,31 +101,17 @@ function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token,
   }, [])
 
   return (
-    <main
-      className="trainer-console"
-      style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
+    <AppShell
+      active="console"
+      actions={user && panels.length === 1 && (
+        <button type="button" onClick={() => run(exerciseApi.add)}>Add Exercise 2</button>
+      )}
+      onNavigate={onNavigate}
+      onSignOut={onSignOut}
+      title="Trainer Console"
+      user={user}
     >
-      <header className="trainer-console-header">
-        <div className="trainer-console-brand">
-          <img src={sbsTransitLogo} alt="SBS Transit" />
-          <div>
-            <p>{user ? `Instructor station · ${user.name}` : 'Instructor station'}</p>
-            <h1>Trainer Console</h1>
-          </div>
-        </div>
-        {message && <p className="trainer-console-message" role="alert">{message}</p>}
-        <nav aria-label="Trainer tools">
-          {user && panels.length === 1 && (
-            <button type="button" onClick={() => run(exerciseApi.add)}>Add Exercise 2</button>
-          )}
-          {user && <button type="button" onClick={() => onNavigate('/history')}>History</button>}
-          {user && <button type="button" onClick={() => onNavigate('/progress')}>Progress</button>}
-          {user?.admin && <button type="button" onClick={() => onNavigate('/admin')}>People</button>}
-          {user
-            ? <button type="button" className="is-quiet" onClick={onSignOut}>Sign out</button>
-            : <button type="button" className="is-quiet" onClick={() => onNavigate('/')}>Exit</button>}
-        </nav>
-      </header>
+      {message && <p className="trainer-console-notice is-warning" role="alert">{message}</p>}
 
       {user && exercises === null && (
         <section className="trainer-console-panel trainer-console-empty trainer-console-status-panel" role="status">
@@ -179,7 +163,7 @@ function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token,
           />
         ))}
       </div>
-    </main>
+    </AppShell>
   )
 }
 

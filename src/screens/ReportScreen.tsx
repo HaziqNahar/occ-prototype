@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import type { CSSProperties } from 'react'
-import occMonitorBackground from '../assets/occ-monitor-bg.png'
-import sbsTransitLogo from '../assets/sbs-transit-logo.png'
+import type { PublicUser } from '../accounts'
+import AppShell from '../components/AppShell'
 import { archiveOccReport } from '../backendClient'
 import { getEvidenceWhoLabel } from '../iosEvidenceTrail'
 import { getScenarioTaskPlaceTag } from '../iosScenarioRoles'
@@ -12,9 +11,10 @@ import type { AppRoute, OccSessionState } from '../types'
 
 type ReportScreenProps = {
   onNavigate: (route: AppRoute) => void
+  onSignOut?: () => void
   session: OccSessionState
   // The signed-in trainer, who signs the report off.
-  trainerName?: string
+  user?: PublicUser | null
 }
 
 type DiscussPoint = { text: string; tone: 'bad' | 'warn' | 'info' }
@@ -40,7 +40,8 @@ function targetSeconds(duration: string) {
 // Post-session report as a scorecard: the result on one line, then what the
 // trainer should debrief, worked out from the run. The steps and every action
 // are one click away.
-function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
+function ReportScreen({ onNavigate, onSignOut, session, user }: ReportScreenProps) {
+  const trainerName = user?.name
   const [archiveNote, setArchiveNote] = useState('')
   const [trainerNotes, setTrainerNotes] = useState('')
   const scenarioReport = buildScenarioReport(session)
@@ -107,20 +108,15 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
   }
 
   return (
-    <main className="report-shell" style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}>
-      <header className="report-header">
-        <div className="report-brand">
-          <img src={sbsTransitLogo} alt="SBS Transit" />
-          <div>
-            <p>OCC Training Simulator</p>
-            <h1>Report</h1>
-          </div>
-        </div>
-        <div className="report-actions">
-          <button type="button" onClick={() => onNavigate('/ios/modules')}>Back to console</button>
-          <button type="button" onClick={() => window.print()}>Print</button>
-        </div>
-      </header>
+    <AppShell
+      actions={<button type="button" onClick={() => window.print()}>Print</button>}
+      active="console"
+      onNavigate={onNavigate}
+      onSignOut={onSignOut}
+      pageClassName="report-shell"
+      title="Report"
+      user={user ?? null}
+    >
 
       {!hasScenario ? (
         <section className="report-card report-scorecard" aria-labelledby="report-title">
@@ -196,7 +192,7 @@ function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
           </section>
         </>
       )}
-    </main>
+    </AppShell>
   )
 }
 

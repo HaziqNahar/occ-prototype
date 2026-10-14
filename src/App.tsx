@@ -333,7 +333,7 @@ function App() {
 
   if (route === '/admin') {
     return user?.admin
-      ? <Suspense fallback={null}><PeopleScreen onNavigate={navigate} user={user} /></Suspense>
+      ? <Suspense fallback={null}><PeopleScreen onNavigate={navigate} onSignOut={signOut} user={user} /></Suspense>
       : user
         ? <AccessNotice onNavigate={navigate} onSignOut={signOut} text="Only an admin trainer can manage people." user={user} />
         : <LoginPage onNavigate={navigate} onSignOut={signOut} user={null} />
@@ -348,8 +348,8 @@ function App() {
     return (
       <Suspense fallback={null}>
         {route === '/history'
-          ? <HistoryScreen onNavigate={navigate} user={user} />
-          : <ProgressScreen onNavigate={navigate} user={user} />}
+          ? <HistoryScreen onNavigate={navigate} onSignOut={signOut} user={user} />
+          : <ProgressScreen onNavigate={navigate} onSignOut={signOut} user={user} />}
       </Suspense>
     )
   }
@@ -429,7 +429,7 @@ function App() {
   if (route === '/report') {
     return (
       <Suspense fallback={null}>
-        <ReportScreen onNavigate={navigate} session={session} trainerName={user?.name} />
+        <ReportScreen onNavigate={navigate} onSignOut={signOut} session={session} user={user} />
       </Suspense>
     )
   }

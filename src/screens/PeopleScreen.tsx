@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { CSSProperties, FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import { getDisplayNameProblem, getPasswordProblem, getUsernameProblem, PASSWORD_MIN_LENGTH } from '../accounts'
+import AppShell from '../components/AppShell'
 import type { PublicUser, UserRole } from '../accounts'
-import occMonitorBackground from '../assets/occ-monitor-bg.png'
-import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { apiRequest, authApi } from '../authClient'
 import type { AppRoute } from '../types'
 
@@ -11,12 +10,13 @@ type BackupFile = { bytes: number; createdAt: string; name: string }
 
 type PeopleScreenProps = {
   onNavigate: (route: AppRoute) => void
+  onSignOut?: () => void
   user: PublicUser
 }
 
 // Admin trainers add trainers and trainees, reset passwords and switch
 // accounts off. Accounts are never deleted, so past runs keep their names.
-function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
+function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
   const [users, setUsers] = useState<PublicUser[]>([])
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
@@ -89,20 +89,15 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
   const latestBackup = backups[0]
 
   return (
-    <main className="trainer-console people-page" style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}>
-      <header className="trainer-console-header">
-        <div className="trainer-console-brand">
-          <img src={sbsTransitLogo} alt="SBS Transit" />
-          <div>
-            <p>Admin · {user.name}</p>
-            <h1 id="people-title">People</h1>
-          </div>
-        </div>
-        <nav aria-label="People tools">
-          <button type="button" aria-expanded={adding} onClick={() => setAdding((open) => !open)}>Add person</button>
-          <button type="button" className="is-quiet" onClick={() => onNavigate('/ios/modules')}>Trainer Console</button>
-        </nav>
-      </header>
+    <AppShell
+      actions={<button type="button" aria-expanded={adding} onClick={() => setAdding((open) => !open)}>Add person</button>}
+      active="people"
+      onNavigate={onNavigate}
+      onSignOut={onSignOut}
+      pageClassName="people-page"
+      title="People"
+      user={user}
+    >
 
       {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
       {note && <p className="trainer-console-notice is-success" role="status">{note}</p>}
@@ -208,7 +203,7 @@ function PeopleScreen({ onNavigate, user }: PeopleScreenProps) {
         </span>
         <button type="button" onClick={backUpNow}>Back up now</button>
       </section>
-    </main>
+    </AppShell>
   )
 }
 
