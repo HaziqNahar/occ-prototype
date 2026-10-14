@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
 import type { BrowserContext, Page } from '@playwright/test'
+import { platformData } from '../src/screens/line-map/model'
 import { findTrainingScenarioDefinition } from '../src/trainingScenarios'
 
 // LAN rehearsal against the production build on the bundled server: one trainer
 // and two trainees, each in their own browser profile (as on separate PCs),
 // running both exercises at once from sign-in to history. The on-site check with
-// real PCs is docs/lan-test-checklist.md.
+// real PCs is docs/lan-test-checklist.md. Exercise 1 runs in Practice (with the
+// training aids) and Exercise 2 in Assessment (none).
 
 const PASSWORD = 'lan-rehearsal-1'
 const TRAINER = { name: 'Lan Trainer', username: 'lan.trainer' }
@@ -104,11 +106,23 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
 
     const token = await lobby.evaluate((key) => window.localStorage.getItem(key), TOKEN_KEY)
 
-    trainees.push({ ...trainee, alarms: monitor('/screen/alarms'), lineMap: monitor('/screen/line-map'), lobby, pc, token: token! })
+    trainees.push({
+      ...trainee,
+      alarms: monitor('/screen/alarms'),
+      lineMap: monitor('/screen/line-map'),
+      lobby,
+      pc,
+      timetable: monitor('/screen/timetable'),
+      token: token!,
+    })
     await expect(exercises[index].getByLabel('Session').getByText(trainee.name)).toBeVisible()
   }
 
-  // The trainer loads the same incident into both exercises.
+  // The trainer loads the same incident into both exercises: Exercise 1 in
+  // Practice, Exercise 2 in Assessment.
+  await exercises[1].locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
+  await exercises[1].getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
+
   for (const exercise of exercises) {
     await exercise.getByRole('radio', { name: /PSD Fault/ }).click()
     await exercise.getByRole('button', { name: 'Load scenario', exact: true }).click()
@@ -116,6 +130,48 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   }
 
   const definition = findTrainingScenarioDefinition('PSD_FAULT', 'PSD obstructed')
+  const coach = (page: Page) => page.getByRole('complementary', { name: 'Practice coach' })
+  const aidsSwitch = (index: number) => exercises[index].getByRole('button', { name: /^Aids (on|off)$/ })
+
+  // Practice (trainee 1): the coach is on every monitor and helps on the Line Map.
+  const practice = trainees[0]
+
+  await expect(aidsSwitch(0)).toHaveText('Aids on')
+
+  for (const page of [practice.alarms, practice.lineMap, practice.timetable]) {
+    await expect(coach(page)).toBeVisible()
+  }
+
+  await expect(coach(practice.lineMap)).toContainText('Next: Select affected train')
+  await coach(practice.lineMap).locator('.training-coach-head').click()
+  await coach(practice.lineMap).getByRole('button', { name: 'Show me' }).click()
+  await expect(practice.lineMap.getByTestId('coach-highlight')).toHaveClass(/coach-highlight--outline/)
+  await coach(practice.lineMap).getByRole('button', { name: /^Locate Train / }).click()
+  await expect(practice.lineMap.getByTestId('coach-highlight')).toHaveClass(/coach-highlight--ring/)
+
+  // A station panel with no train is refused, and the coach says so.
+  const practiceSession = (await (await request.get('/api/session', { headers: { authorization: `Bearer ${practice.token}` } })).json()).session as {
+    trains: Array<{ lineMapVisible?: boolean; x: number }>
+  }
+  const emptyStation = platformData.find((platform) => ['SKG', 'PGL', 'PGC'].includes(platform.code)
+    && !practiceSession.trains.some((train) => train.lineMapVisible !== false && Math.abs(train.x - platform.x) <= 45))
+
+  if (emptyStation) {
+    await practice.lineMap.getByTestId(`line-map-command-DISPATCH-${Math.round(emptyStation.x)}`).click()
+    await practice.lineMap.locator('.line-map-popup-window--command').getByRole('button', { name: 'Apply' }).click()
+    await expect(coach(practice.lineMap).getByRole('alert')).toContainText(`No train at ${emptyStation.code}.`)
+  }
+
+  // Assessment (trainee 2): no aids anywhere, and the switch is locked off.
+  const assessed = trainees[1]
+
+  await expect(aidsSwitch(1)).toBeDisabled()
+  await expect(aidsSwitch(1)).toHaveText('Aids off')
+  await expect(assessed.lineMap.locator('.line-map-dom-root')).toBeVisible()
+
+  for (const page of [assessed.alarms, assessed.lineMap, assessed.timetable]) {
+    await expect(coach(page)).toHaveCount(0)
+  }
 
   for (const trainee of trainees) {
     await expect(trainee.lobby.getByRole('status')).toContainText('Exercise running')
@@ -174,6 +230,16 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   for (const trainee of TRAINEES) {
     await expect(runs.getByRole('button', { name: new RegExp(`Pass · 100%.*${trainee.name}`) })).toHaveCount(1)
   }
+
+  // The Practice run records the aids used (not taken off the score); the
+  // Assessment run has none to show.
+  const figures = consolePage.locator('.trainer-console-figures').first()
+
+  await runs.getByRole('button', { name: new RegExp(TRAINEES[0].name) }).click()
+  await expect(figures).toContainText('Show me 1 · Locate 1')
+  await runs.getByRole('button', { name: new RegExp(TRAINEES[1].name) }).click()
+  await expect(figures).toContainText('Wrong actions')
+  await expect(figures).not.toContainText('Aids used')
 
   // A trainee's progress shows only their own run.
   await trainees[1].lobby.getByRole('button', { name: 'My progress' }).click()

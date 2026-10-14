@@ -175,7 +175,7 @@ function HistoryScreen({ onNavigate, user }: HistoryScreenProps) {
                 <div><dt>Score</dt><dd>{shownDetail.score}%</dd></div>
                 <div><dt>Time</dt><dd>{shownDetail.durationLabel ?? '—'}</dd></div>
                 <div><dt>Wrong actions</dt><dd className={shownDetail.rejectedActions > 0 ? 'is-bad' : undefined}>{shownDetail.rejectedActions}</dd></div>
-                {shownDetail.aidsUsed && (
+                {shownDetail.aidsUsed && shownDetail.mode === 'PRACTICE' && (
                   <div title="Practice aids are recorded, not taken off the score.">
                     <dt>Aids used</dt>
                     <dd>
