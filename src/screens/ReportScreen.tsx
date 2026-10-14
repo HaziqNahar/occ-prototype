@@ -3,12 +3,11 @@ import type { CSSProperties } from 'react'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
 import sbsTransitLogo from '../assets/sbs-transit-logo.png'
 import { archiveOccReport } from '../backendClient'
-import { formatEvidenceLine, getEvidenceWhoLabel } from '../iosEvidenceTrail'
-import { getTrainingScenarioDefinition } from '../trainingScenarios'
+import { getEvidenceWhoLabel } from '../iosEvidenceTrail'
 import { getScenarioTaskPlaceTag } from '../iosScenarioRoles'
 import { getSessionId } from '../sessionCode'
 import { buildScenarioReport } from '../scenarioReport'
-import { getActiveTrainingScenarioTargetTrainId } from '../trainingScenarios'
+import { getActiveTrainingScenarioTargetTrainId, getTrainingScenarioDefinition } from '../trainingScenarios'
 import type { AppRoute, OccSessionState } from '../types'
 
 type ReportScreenProps = {
@@ -18,270 +17,185 @@ type ReportScreenProps = {
   trainerName?: string
 }
 
-const trainingModeSummary = {
-  PRACTICE: 'Guided practice',
-  ASSESSMENT: 'Scored assessment',
-  PLAYER: 'Playback review',
+type DiscussPoint = { text: string; tone: 'bad' | 'warn' | 'info' }
+
+const modeLabels = {
+  ASSESSMENT: 'Assessment',
+  PLAYER: 'Player',
+  PRACTICE: 'Practice',
 }
 
 function formatSeconds(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
+  const whole = Math.max(0, Math.round(seconds))
+
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
 }
 
-function compactReportText(value: string, limit = 110) {
-  const normalized = value.replace(/\s+/g, ' ').trim()
-  return normalized.length > limit ? `${normalized.slice(0, limit - 1).trimEnd()}...` : normalized
+function targetSeconds(duration: string) {
+  const [minutes, seconds] = duration.split(':').map(Number)
+
+  return Number.isFinite(minutes) && Number.isFinite(seconds) ? minutes * 60 + seconds : 0
 }
 
+// Post-session report as a scorecard: the result on one line, then what the
+// trainer should debrief, worked out from the run. The steps and every action
+// are one click away.
 function ReportScreen({ onNavigate, session, trainerName }: ReportScreenProps) {
-  const [archiveNote, setArchiveNote] = useState('Not saved yet')
+  const [archiveNote, setArchiveNote] = useState('')
   const [trainerNotes, setTrainerNotes] = useState('')
   const scenarioReport = buildScenarioReport(session)
-  const scenarioScore = scenarioReport.scenarioScore
-  const evidenceLog = session.evidenceLog ?? []
-  const evidenceGroups = scenarioReport.evidenceGroups
-  const traineeActivity = evidenceGroups.trainee
-  const assessmentRows = scenarioReport.assessmentRows
-  const assessmentMetrics = session.assessmentMetrics
+  const score = scenarioReport.scenarioScore
+  const definition = getTrainingScenarioDefinition(session.activeScenario.id)
+  const metrics = session.assessmentMetrics
   // Sessions from a server older than 1.0.0 have no aid counts: read them as none.
-  const aidsUsed = assessmentMetrics.aidsUsed ?? { locate: 0, showMe: 0 }
-  const rejectedActionCount = scenarioReport.rejectedActionCount
-  const hasScenario = scenarioScore.totalTasks > 0
-  const stepLabels = new Set(getTrainingScenarioDefinition(session.activeScenario.id).tasks.map((task) => task.label))
-  const targetTrainId = getActiveTrainingScenarioTargetTrainId(session)
-  const resultLabel = hasScenario ? scenarioScore.result : 'NO SCENARIO'
-  const resultTone = !hasScenario
-    ? 'idle'
-    : resultLabel === 'PASS'
-      ? 'pass'
-      : resultLabel === 'NEEDS REVIEW'
-        ? 'review'
-        : session.scenarioMode === 'COMPLETE' ? 'incomplete' : 'running'
-  const generatedAt = new Date(session.updatedAt).toLocaleString()
+  const aidsUsed = metrics.aidsUsed ?? { locate: 0, showMe: 0 }
+  const aidsTotal = aidsUsed.showMe + aidsUsed.locate
+  const hasScenario = score.totalTasks > 0
+  const isComplete = session.scenarioMode === 'COMPLETE'
+  const trainId = getActiveTrainingScenarioTargetTrainId(session)
+  const traineeNames = session.trainees.map((trainee) => trainee.name).join(', ')
+  const result = !hasScenario ? 'No run' : isComplete ? (score.result === 'PASS' ? 'Pass' : 'Needs review') : 'In progress'
+  const resultTone = !hasScenario ? 'idle' : !isComplete ? 'running' : score.result === 'PASS' ? 'pass' : 'review'
+  const target = targetSeconds(session.activeScenario.duration)
+  const stepLabels = new Set(definition.tasks.map((task) => task.label))
+  const actions = scenarioReport.timeline.filter((event) => event.result === 'rejected' || !stepLabels.has(event.title))
+
+  const summary = [
+    modeLabels[session.trainingMode],
+    `${formatSeconds(scenarioReport.durationSeconds)} of ${session.activeScenario.duration}`,
+    `${score.rejectedActions} wrong ${score.rejectedActions === 1 ? 'action' : 'actions'}`,
+    session.trainingMode === 'PRACTICE' ? `${aidsTotal} ${aidsTotal === 1 ? 'hint' : 'hints'}` : '',
+    trainId ? `Train ${trainId}` : '',
+  ].filter(Boolean).join(' · ')
+
+  // What to debrief: mistakes first, then what was missed or slow.
+  const discuss: DiscussPoint[] = []
+  const refusals = new Set<string>()
+
+  scenarioReport.timeline
+    .filter((event) => event.result === 'rejected')
+    .forEach((event) => refusals.add(event.detail || event.title))
+  refusals.forEach((text) => discuss.push({ text: `Refused: ${text}`, tone: 'bad' }))
+  score.taskResults
+    .filter((task) => !task.complete && task.mappedTaskId !== 'completeScenario')
+    .forEach((task) => discuss.push({
+      text: `${isComplete ? 'Missed' : 'Still open'}: ${task.label}${task.critical ? ' (critical)' : ''}`,
+      tone: isComplete ? 'bad' : 'info',
+    }))
+  definition.tasks.forEach((task) => {
+    const metric = task.mappedTaskId ? metrics.tasks?.[task.mappedTaskId] : undefined
+
+    if (metric?.status === 'LATE') {
+      discuss.push({ text: `Slow: ${task.label} took ${formatSeconds(metric.responseSeconds ?? 0)} (target ${formatSeconds(metric.thresholdSeconds)})`, tone: 'warn' })
+    }
+  })
+
+  if (target > 0 && scenarioReport.durationSeconds > target) {
+    discuss.push({ text: `Over time: ${formatSeconds(scenarioReport.durationSeconds)} against a ${session.activeScenario.duration} target`, tone: 'warn' })
+  }
+
+  if (session.trainingMode === 'PRACTICE' && aidsTotal > 0) {
+    discuss.push({ text: `Used hints ${aidsTotal} ${aidsTotal === 1 ? 'time' : 'times'} (Show me ${aidsUsed.showMe} · Locate ${aidsUsed.locate})`, tone: 'info' })
+  }
+
   const archiveReport = () => {
-    setArchiveNote('Saving...')
+    setArchiveNote('Saving…')
     // The server scores the report from its own session; only the notes come from here.
     void archiveOccReport(getSessionId(session), trainerNotes)
-      .then((payload) => {
-        setArchiveNote(`Saved as ${payload.report.id}`)
-      })
-      .catch((error: Error) => {
-        setArchiveNote(error.message)
-      })
+      .then((payload) => setArchiveNote(`Saved as ${payload.report.id}`))
+      .catch((error: Error) => setArchiveNote(error.message))
   }
 
   return (
-    <main
-      className="report-shell"
-      style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}
-    >
+    <main className="report-shell" style={{ '--occ-bg': `url(${occMonitorBackground})` } as CSSProperties}>
       <header className="report-header">
         <div className="report-brand">
           <img src={sbsTransitLogo} alt="SBS Transit" />
           <div>
             <p>OCC Training Simulator</p>
-            <h1>Post-Session Report</h1>
-            <span>{session.activeScenario.title}</span>
+            <h1>Report</h1>
           </div>
         </div>
         <div className="report-actions">
           <button type="button" onClick={() => onNavigate('/ios/modules')}>Back to console</button>
-          <button type="button" className="is-primary" disabled={!hasScenario} onClick={archiveReport}>Save Report</button>
           <button type="button" onClick={() => window.print()}>Print</button>
         </div>
       </header>
 
-      <section className="report-card report-hero" aria-labelledby="report-title">
-        <div>
-          <p className="report-eyebrow">Scenario outcome</p>
-          <h2 id="report-title">{hasScenario ? session.activeScenario.title : 'No scenario run yet'}</h2>
-          <p className="report-copy">
-            {hasScenario
-              ? `${trainingModeSummary[session.trainingMode]} · Incident: ${session.activeScenario.incident} · Target ${session.activeScenario.duration}`
-              : 'Load and run a scenario from the Trainer Console. The score and evidence appear here.'}
-          </p>
-          {!hasScenario && (
-            <button type="button" className="report-hero-action" onClick={() => onNavigate('/ios/modules')}>Open Trainer Console</button>
-          )}
-        </div>
-        <div className={`report-result ${resultTone}`}>
-          <span>{resultLabel}</span>
-          <strong>{hasScenario ? `${scenarioScore.score}%` : '—'}</strong>
-          {hasScenario && <small>{scenarioScore.completedTasks} of {scenarioScore.totalTasks} tasks complete</small>}
-        </div>
-      </section>
-
-      {hasScenario && (
-        <section className="report-kpis" aria-label="Session summary">
-          <div className="report-kpi">
-            <span>Target train</span>
-            <strong>{targetTrainId ? `TRN ${targetTrainId}` : 'Not selected'}</strong>
+      {!hasScenario ? (
+        <section className="report-card report-scorecard" aria-labelledby="report-title">
+          <div>
+            <h2 id="report-title">No run yet</h2>
+            <p className="report-copy">Load a scenario from the Trainer Console. Its result appears here.</p>
           </div>
-          <div className="report-kpi">
-            <span>Rejected actions</span>
-            <strong>{rejectedActionCount}</strong>
-          </div>
-          <div className="report-kpi">
-            <span>{session.scenarioMode === 'COMPLETE' ? 'Missed tasks' : 'Open tasks'}</span>
-            <strong>{scenarioReport.missedTasks.length}</strong>
-          </div>
-          <div className="report-kpi">
-            <span>Trainee actions</span>
-            <strong>{evidenceGroups.trainee.length}</strong>
-          </div>
-          {session.trainingMode === 'PRACTICE' && (
-            <div className="report-kpi" title="Practice aids are recorded, not taken off the score.">
-              <span>Aids used</span>
-              <strong>
-                {aidsUsed.showMe + aidsUsed.locate}
-                <em className="report-kpi-detail">Show me {aidsUsed.showMe} · Locate {aidsUsed.locate}</em>
-              </strong>
-            </div>
-          )}
+          <button type="button" className="report-hero-action" onClick={() => onNavigate('/ios/modules')}>Open Trainer Console</button>
         </section>
-      )}
-
-      <section className="report-grid">
-        <article className="report-section">
-          <div className="report-section-title">
-            <p>Operator checklist</p>
-            <span>{generatedAt}</span>
-          </div>
-          {assessmentRows.map((task, index) => {
-            const complete = task.complete
-            const taskMetric = task.mappedTaskId ? assessmentMetrics?.tasks?.[task.mappedTaskId] : undefined
-            // One short line: where it is done and, once done, how long it took.
-            const status = complete ? 'Done' : session.scenarioMode === 'COMPLETE' ? 'Missed' : 'Open'
-
-            return (
-              <div className={`report-task ${complete ? 'is-complete' : ''}`} key={task.id}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <div>
-                  <strong>{task.label}</strong>
-                  <small>
-                    {getScenarioTaskPlaceTag(task.monitor)}
-                    {task.critical ? ' · critical' : ''}
-                    {taskMetric?.completedAt ? ` · done after ${formatSeconds(taskMetric.responseSeconds ?? 0)}` : ''}
-                  </small>
-                </div>
-                <em className={`report-task-status is-${status.toLowerCase()}`}>{status}</em>
-              </div>
-            )
-          })}
-        </article>
-
-        <article className="report-section">
-          <div className="report-section-title">
-            <p>Latest action timeline</p>
-            <span>{session.scenarioMode}</span>
-          </div>
-          {/* One line per action; step-completion records repeat the checklist. */}
-          {scenarioReport.timeline.filter((event) => event.result === 'rejected' || !stepLabels.has(event.title)).map((event) => (
-            <div className={`report-event ${event.result === 'rejected' ? 'is-rejected' : ''}`} key={event.id}>
-              <span>{event.time}</span>
-              <strong>{getEvidenceWhoLabel(event)}</strong>
-              <p>{event.result === 'rejected' ? `Refused: ${compactReportText(event.detail || event.title)}` : event.title}</p>
+      ) : (
+        <>
+          <section className="report-card report-scorecard" aria-labelledby="report-title">
+            <div className={`report-result ${resultTone}`}>
+              <span>{result}</span>
+              <strong>{score.score}%</strong>
             </div>
-          ))}
-        </article>
+            <div className="report-scorecard-text">
+              <h2 id="report-title">{traineeNames ? `${traineeNames} · ` : ''}{session.activeScenario.title}</h2>
+              <p className="report-copy">
+                {summary}
+              </p>
+            </div>
+          </section>
 
-        <details className="report-section report-evidence-details">
-          <summary>Full evidence log ({evidenceLog.length} records)</summary>
-        <article className="report-section report-trainee-activity">
-          <div className="report-section-title">
-            <p>Trainee activity</p>
-            <span>{traineeActivity.length} records</span>
-          </div>
-          <div className="report-trainee-roster">
-            {session.trainees.length > 0 ? (
-              session.trainees.map((trainee) => (
-                <div key={`${trainee.email}-${trainee.role}`}>
-                  <strong>{trainee.name}</strong>
-                  <span>{trainee.role}</span>
-                  <em>{trainee.monitor}</em>
-                </div>
-              ))
+          <section className="report-card report-discuss" aria-labelledby="report-discuss-title">
+            <h3 id="report-discuss-title">To discuss</h3>
+            {discuss.length > 0 ? (
+              <ul>
+                {discuss.map((point) => <li className={`is-${point.tone}`} key={point.text}>{point.text}</li>)}
+              </ul>
             ) : (
-              <div>
-                <strong>No trainee joined</strong>
-                <span>Open the trainee lobby to join the session, then use the live OCC screens.</span>
-                <em>Waiting</em>
-              </div>
+              <p className="report-copy">{isComplete ? 'Nothing to flag: a clean run.' : 'Nothing to flag so far.'}</p>
             )}
-          </div>
-          {traineeActivity.length ? (
-            traineeActivity.map((evidence) => (
-              <div className={`report-evidence-row is-${evidence.result} is-${evidence.category}`} key={evidence.id}>
-                <span>{evidence.time}</span>
-                <strong>{getEvidenceWhoLabel(evidence)}</strong>
-                <p>{formatEvidenceLine(evidence)}</p>
-                <em>{evidence.categoryLabel}</em>
-              </div>
-            ))
-          ) : (
-            <div className="report-evidence-empty">
-              No trainee actions yet.
-            </div>
-          )}
-        </article>
+          </section>
 
-        <article className="report-section report-evidence">
-          <div className="report-section-title">
-            <p>Assessment trail</p>
-            <span>{evidenceLog.length} records</span>
-          </div>
-          <div className="report-evidence-category-grid">
-            <div>
-              <strong>{evidenceGroups.trainee.length}</strong>
-              <span>Trainee actions</span>
-            </div>
-            <div>
-              <strong>{evidenceGroups.trainer.length}</strong>
-              <span>Trainer actions</span>
-            </div>
-            <div>
-              <strong>{evidenceGroups.system.length}</strong>
-              <span>System validations</span>
-            </div>
-            <div>
-              <strong>{evidenceGroups.milestone.length}</strong>
-              <span>Milestones</span>
-            </div>
-          </div>
-          {evidenceLog.length ? (
-            scenarioReport.categorisedEvidenceLog.map((evidence) => (
-              <div className={`report-evidence-row is-${evidence.result} is-${evidence.category}`} key={evidence.id}>
-                <span>{evidence.time}</span>
-                <strong>{evidence.source}</strong>
-                <p>{evidence.action}: {evidence.detail}</p>
-                <em>{evidence.categoryLabel}</em>
-              </div>
-            ))
-          ) : (
-            <div className="report-evidence-empty">
-              No evidence captured yet.
-            </div>
-          )}
-        </article>
-        </details>
+          <details className="report-card report-fold">
+            <summary>Steps · {score.completedTasks} of {score.totalTasks} done</summary>
+            <ol className="report-steps">
+              {score.taskResults.map((task) => (
+                <li className={task.complete ? 'is-done' : isComplete ? 'is-missed' : ''} key={task.id}>
+                  <i aria-hidden="true">{task.complete ? '✓' : isComplete ? '✗' : '○'}</i>
+                  <span>{task.label}{task.critical && <b title="Critical SOP step"> ★</b>}</span>
+                  <small>{getScenarioTaskPlaceTag(task.monitor)}</small>
+                </li>
+              ))}
+            </ol>
+          </details>
 
-        <article className="report-section report-notes">
-          <div className="report-section-title">
-            <p>Trainer notes</p>
-            <span>{archiveNote}</span>
-          </div>
-          <textarea
-            aria-label="Trainer notes"
-            placeholder="Notes for the trainee: alarm handling, route authority, timetable impact, final service state."
-            value={trainerNotes}
-            onChange={(event) => setTrainerNotes(event.target.value)}
-          />
-          <div className="report-signoff">
-            <span>Trainer sign-off</span>
-            <strong>{trainerName ?? '________________'}</strong>
-          </div>
-        </article>
-      </section>
+          <details className="report-card report-fold">
+            <summary>All actions ({actions.length})</summary>
+            {actions.map((event) => (
+              <div className={`report-event ${event.result === 'rejected' ? 'is-rejected' : ''}`} key={event.id}>
+                <span>{event.time}</span>
+                <strong>{getEvidenceWhoLabel(event)}</strong>
+                <p>{event.result === 'rejected' ? `Refused: ${event.detail || event.title}` : event.title}</p>
+              </div>
+            ))}
+          </details>
+
+          <section className="report-card report-notes" aria-labelledby="report-notes-title">
+            <h3 id="report-notes-title">Your notes</h3>
+            <textarea
+              aria-label="Trainer notes"
+              onChange={(event) => setTrainerNotes(event.target.value)}
+              placeholder="Feedback for the trainee"
+              value={trainerNotes}
+            />
+            <div className="report-notes-actions">
+              <button type="button" className="is-primary" onClick={archiveReport}>Save Report</button>
+              {archiveNote && <span role="status">{archiveNote}</span>}
+              <span className="report-signoff">Signed off by <strong>{trainerName ?? '—'}</strong></span>
+            </div>
+          </section>
+        </>
+      )}
     </main>
   )
 }

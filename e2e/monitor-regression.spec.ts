@@ -685,9 +685,12 @@ test.describe.serial('OCC monitor regressions', () => {
     const report = await context.newPage()
 
     await report.goto(`/report?session=${encodeURIComponent((await getSession(page)).sessionMeta.code)}`)
-    await expect(report.locator('.report-kpi', { hasText: 'Aids used' })).toContainText('Show me 4 · Locate 1')
+    // The scorecard: hints on the summary line, the refusal under To discuss.
+    await expect(report.locator('.report-discuss')).toContainText('Show me 4 · Locate 1')
+    await expect(report.locator('.report-discuss')).toContainText('Refused: Select Train')
     // Signed off by the signed-in trainer; the timeline names people, not system sources.
     await expect(report.locator('.report-signoff')).toContainText('Test Trainer')
+    await report.getByText(/^All actions/).click()
     await expect(report.locator('.report-event', { hasText: 'Refused' }).first()).toContainText('Test Trainer')
     await expect(report.locator('.report-event').filter({ hasText: /Scenario Guard|IOS Scenario/ })).toHaveCount(0)
     await report.request.post('/api/reports', { data: { notes: 'E2E aids check' }, headers: trainerHeaders() })
