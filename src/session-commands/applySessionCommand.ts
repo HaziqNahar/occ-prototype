@@ -11,7 +11,7 @@ import type { OccSessionState } from '../types'
 import { updateAssessmentMetrics } from './assessment'
 import {
   acknowledgeItama,
-  applyScadaTrainCommand,
+  applyStationPanelCommand,
   applySignalRoute,
   applyTrainHold,
   completeManualRoute,
@@ -155,7 +155,12 @@ export function validateSessionCommand(command: unknown): string | null {
     case 'TRAIN_HOLD':
       return isText(value.trainId) && typeof value.detail === 'string' ? null : 'Expected a train.'
     case 'SCADA_TRAIN_COMMAND':
-      return isText(value.trainId) && ['ROUTE', 'DISPATCH', 'HOLD'].includes(String(value.command)) ? null : 'Expected a train and command.'
+      return (isText(value.trainId) || isText(value.station))
+        && (value.trainId === undefined || typeof value.trainId === 'string')
+        && (value.station === undefined || typeof value.station === 'string')
+        && ['ROUTE', 'DISPATCH', 'HOLD'].includes(String(value.command))
+        ? null
+        : 'Expected a train or station and a command.'
     case 'SIGNAL_ROUTE':
       return isText(value.signalLabel) && isText(value.routeLabel) && typeof value.set === 'boolean' ? null : 'Expected a signal and route.'
     case 'ARRIVAL_DESTINATION':
@@ -271,7 +276,7 @@ function runCommand(session: OccSessionState, command: SessionCommand, context: 
     case 'TRAIN_HOLD':
       return applyTrainHold(session, command.trainId, command.detail)
     case 'SCADA_TRAIN_COMMAND':
-      return applyScadaTrainCommand(session, command.trainId, command.command)
+      return applyStationPanelCommand(session, command)
     case 'SIGNAL_ROUTE':
       return applySignalRoute(session, command.signalLabel, command.routeLabel, command.set)
     case 'ARRIVAL_DESTINATION':
@@ -312,8 +317,11 @@ export function applySessionCommand(
     return { accepted: false, reason: 'Only a trainer can do that.', session }
   }
 
-  if (TRAIN_COMMANDS.has(command.type) && !session.trains.some((train) => train.id === (command as { trainId: string }).trainId)) {
-    return { accepted: false, reason: `Unknown train ${(command as { trainId: string }).trainId}.`, session }
+  const commandTrainId = (command as { trainId?: string }).trainId
+
+  // A station panel command may name only its station; the train is found there.
+  if (TRAIN_COMMANDS.has(command.type) && commandTrainId !== undefined && !session.trains.some((train) => train.id === commandTrainId)) {
+    return { accepted: false, reason: `Unknown train ${commandTrainId}.`, session }
   }
 
   const result = runCommand(session, command, context)

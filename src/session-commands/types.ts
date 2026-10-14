@@ -116,7 +116,9 @@ export type SessionCommand =
   | { command: string; trainId: string; type: 'TRAIN_READINESS' }
   | { command: TrainDoorCommand; trainId: string; type: 'TRAIN_DOOR_COMMAND' }
   | { detail: string; trainId: string; type: 'TRAIN_HOLD' }
-  | { command: TrainCommand; trainId: string; type: 'SCADA_TRAIN_COMMAND' }
+  // ROUTE / DISPATCH / HII on a station panel: acts on the train at that station.
+  // The panel sends the train its dialog showed; without a station, the train given.
+  | { command: TrainCommand; station?: string; trainId?: string; type: 'SCADA_TRAIN_COMMAND' }
   | { routeLabel: string; set: boolean; signalLabel: string; type: 'SIGNAL_ROUTE' }
   | {
       direction: TrainDirection

@@ -122,6 +122,7 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
   const base = { label, monitors: monitorsFor(task.monitor), taskId: task.id }
   const timeDialog = timeDialogIn(label)
   const train = trainId ? { kind: 'train' as const, trainId } : undefined
+  const panelStation = trainId ? stationFor(session, trainId) : station ?? ''
 
   if (task.commsMessageIds?.length) {
     const open = task.commsMessageIds.filter((id) => !hasCommsEvidence(session.evidenceLog, id))
@@ -135,7 +136,11 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
   }
 
   if (task.completesOnHold) {
-    return { ...base, how: [`Right-click ${trainLabel} → ${INSPECTOR} → Train Hold`, `or HII on the station panel`], target: train }
+    return {
+      ...base,
+      how: [`Right-click ${trainLabel} → ${INSPECTOR} → Train Hold`, panelStation ? `or HII on the ${panelStation} station panel` : `or HII on the station panel where ${trainLabel} is`],
+      target: train,
+    }
   }
 
   if (task.doorCommandLabels?.length) {
@@ -146,9 +151,9 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
     }
   }
 
-  const panelStep = (command: 'DISPATCH' | 'ROUTE'): StepHint => {
-    const panelStation = trainId ? stationFor(session, trainId) : station ?? ''
-
+  // DISPATCH (and HII) act on the train at the panel's station, so only the
+  // panel at the train's station will do.
+  const dispatchStep = (): StepHint => {
     if (timeDialog) {
       return { ...base, how: [`Right-click ${trainLabel} → ${INSPECTOR} → ${timeDialog}`], target: train }
     }
@@ -156,11 +161,19 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
     return panelStation
       ? {
           ...base,
-          how: [`Right-click ${trainLabel} to select it, then ${command} on the ${panelStation} station panel`],
-          target: { command, kind: 'stationButton', station: panelStation },
+          how: [`DISPATCH on the ${panelStation} station panel (${trainLabel} is there)`],
+          target: { command: 'DISPATCH', kind: 'stationButton', station: panelStation },
         }
-      : { ...base, how: [`Right-click ${trainLabel} to select it, then ${command} on the station panel`] }
+      : { ...base, how: [`DISPATCH on the station panel where ${trainLabel} is`] }
   }
+
+  // A route is set from a signal (the station panel's ROUTE only switches the
+  // panel between Central AUTO and MANUAL).
+  const routeStep = (): StepHint => (
+    timeDialog
+      ? { ...base, how: [`Right-click ${trainLabel} → ${INSPECTOR} → ${timeDialog}`], target: train }
+      : { ...base, how: [`Right-click the signal ahead of ${trainLabel} → Define Route → choose the route`], target: train }
+  )
 
   switch (task.mappedTaskId) {
     case 'selectTrain':
@@ -174,9 +187,9 @@ export function getStepHint(session: OccSessionState, task: TrainingScenarioTask
         target: trainId ? { kind: 'alarmRow', trainId } : undefined,
       }
     case 'setRoute':
-      return panelStep('ROUTE')
+      return routeStep()
     case 'dispatchTrain':
-      return panelStep('DISPATCH')
+      return dispatchStep()
     case 'completeScenario':
       return { ...base, how: ['The trainer completes the run on the console'], monitors: [] }
   }

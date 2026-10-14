@@ -6,6 +6,7 @@ import { getCommsLog } from './comms/commsCatalog'
 import type { CommsChannel } from './comms/commsCatalog'
 import MonitorWorkspace from './components/MonitorWorkspace'
 import { LINE_MAP_PAN_EVENT } from './components/coachTargets'
+import { getStationPanelTrain } from './screens/line-map/stationTrains'
 import type { LineMapPanRequest } from './components/coachTargets'
 import { OperatorNameContext } from './components/operatorName'
 import SignalRouteDefinitionWindow from './components/route-definition/SignalRouteDefinitionWindow'
@@ -1455,7 +1456,8 @@ function MonitorCanvas({
   const [inspectorPanel, setInspectorPanel] = useState<{ page: InspectorPage; trainId: string } | null>(null)
   const [auxiliaryPanel, setAuxiliaryPanel] = useState<{ trainId: string; view: TrainAuxiliaryView } | null>(null)
   const [itamaTrainId, setItamaTrainId] = useState('')
-  const [pendingCommand, setPendingCommand] = useState<TrainCommand | null>(null)
+  // A station panel command waiting for Apply, and the train at that station it will go to.
+  const [pendingCommand, setPendingCommand] = useState<{ command: TrainCommand; station: string; trainId?: string } | null>(null)
   const [defineRouteSignal, setDefineRouteSignal] = useState<LineMapSignalData | null>(null)
   const [signalMenu, setSignalMenu] = useState<SignalMenuState | null>(null)
   const [trainMenu, setTrainMenu] = useState<{ trainId: string; x: number; y: number } | null>(null)
@@ -1853,28 +1855,25 @@ function MonitorCanvas({
     void dispatch({ routeLabel, set: false, signalLabel: signal.label, type: 'SIGNAL_ROUTE' })
   }
 
-  const requestTrainCommand = (command: TrainCommand) => {
+  // Station panel commands (route, dispatch, hold) go to the train at that station.
+  const requestTrainCommand = (command: TrainCommand, station: string) => {
+    const trainId = getStationPanelTrain(session, station)?.id
+
     setTrainMenu(null)
     setSignalMenu(null)
     setDefineRouteSignal(null)
     setAuxiliaryPanel(null)
-    setPendingCommand(command)
+    setPendingCommand({ command, station, trainId })
     void dispatch({
-      text: `SCADA command request opened for Train ${session.selectedTrainId}: ${command}.`,
+      text: `SCADA command request opened at ${station}${trainId ? ` for Train ${trainId}` : ': no train at the station'}: ${command}.`,
       tone: 'info',
       type: 'SHOW_NOTICE',
     })
   }
 
-  // Line-map SCADA commands (route, dispatch, hold) for the selected train.
-  const applyTrainCommand = (command: TrainCommand) => {
-    const targetTrain = session.trains.find((train) => train.id === session.selectedTrainId)
-
-    if (!targetTrain) {
-      return
-    }
-
-    void dispatch({ command, trainId: targetTrain.id, type: 'SCADA_TRAIN_COMMAND' })
+  // The server checks the train is still at the station (and refuses if none is).
+  const applyTrainCommand = (pending: { command: TrainCommand; station: string; trainId?: string }) => {
+    void dispatch({ command: pending.command, station: pending.station, trainId: pending.trainId, type: 'SCADA_TRAIN_COMMAND' })
   }
 
   const getSvgUnitsPerPixel = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2122,14 +2121,14 @@ function MonitorCanvas({
         )}
         {pendingCommand && (
           <ScadaCommandDialog
-            command={pendingCommand}
+            command={pendingCommand.command}
             onApply={() => {
-              const command = pendingCommand
+              const pending = pendingCommand
               setPendingCommand(null)
-              applyTrainCommand(command)
+              applyTrainCommand(pending)
             }}
             onClose={() => setPendingCommand(null)}
-            train={selectedTrain}
+            train={session.trains.find((train) => train.id === pendingCommand.trainId)}
           />
         )}
         {itamaTrain && (

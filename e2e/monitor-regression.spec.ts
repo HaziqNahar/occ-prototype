@@ -609,6 +609,10 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(alarmsCoach).toContainText('Next step is on Monitor 02 Line Map')
     await expect(lineMapCoach).toContainText('Next: Select affected train')
 
+    // As at the OCC, the alarm summary opens with no row selected.
+    await expect(alarms.locator('.alarm-dom-row--data').first()).toBeVisible()
+    await expect(alarms.locator('.alarm-dom-row--data[aria-pressed="true"]')).toHaveCount(0)
+
     // Out of order: acknowledging before selecting the train is refused, and the coach says why.
     const alarmsFeedback = alarmsCoach.getByRole('alert')
 
@@ -638,20 +642,17 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect.poll(covers).toBe(true)
     await hotspot.click({ button: 'right' })
 
-    // Next step is on Alarms: Show me outlines the red row, or Ack. selection once it is selected.
+    // Next step is on Alarms: Show me outlines the red row, then Ack. selection once it is selected.
     const incidentRow = alarms.locator('.alarm-dom-row--data', { hasText: `Train ${trainId} Car 3` })
-    const expected = await incidentRow.getAttribute('aria-pressed') === 'true'
-      ? alarms.getByRole('button', { name: 'Ack. selection' })
-      : incidentRow
 
+    await alarms.getByRole('button', { name: 'Unselect alarms' }).click()
     await alarmsCoach.locator('.training-coach-head').click()
     await expect(alarmsCoach).toContainText('Acknowledge door failure alarm')
     await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
-    await expect.poll(async () => {
-      const [ring, target] = [await alarms.getByTestId('coach-highlight').boundingBox(), await expected.boundingBox()]
-
-      return Boolean(ring && target && Math.abs(ring.x + 4 - target.x) < 2 && Math.abs(ring.y + 4 - target.y) < 2)
-    }).toBe(true)
+    await expect.poll(() => outlines(alarms, incidentRow)).toBe(true)
+    await incidentRow.click()
+    await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
+    await expect.poll(() => outlines(alarms, alarms.getByRole('button', { name: 'Ack. selection' }))).toBe(true)
 
     // Acknowledged: the next step is a call, and Show me outlines the Calls tab.
     await incidentRow.click()
@@ -665,17 +666,17 @@ test.describe.serial('OCC monitor regressions', () => {
     }).toBe(true)
 
     // Aids used are counted for the report and History, and the score is not reduced.
-    await expect.poll(async () => (await getSession(page)).assessmentMetrics.aidsUsed).toEqual({ locate: 1, showMe: 3 })
+    await expect.poll(async () => (await getSession(page)).assessmentMetrics.aidsUsed).toEqual({ locate: 1, showMe: 4 })
 
     const report = await context.newPage()
 
     await report.goto(`/report?session=${encodeURIComponent((await getSession(page)).sessionMeta.code)}`)
-    await expect(report.locator('.report-kpi', { hasText: 'Aids used' })).toContainText('Show me 3 · Locate 1')
+    await expect(report.locator('.report-kpi', { hasText: 'Aids used' })).toContainText('Show me 4 · Locate 1')
     await report.request.post('/api/reports', { data: { notes: 'E2E aids check' }, headers: trainerHeaders() })
     await report.goto('/history')
     await report.getByRole('button', { name: /Train Door Fault/ }).first().click()
     await expect(report.getByText('E2E aids check')).toBeVisible()
-    await expect(report.locator('.trainer-console-figures div', { hasText: 'Aids used' })).toContainText('Show me 3 · Locate 1')
+    await expect(report.locator('.trainer-console-figures div', { hasText: 'Aids used' })).toContainText('Show me 4 · Locate 1')
     await report.close()
 
     // The trainer's switch hides it everywhere.
@@ -767,6 +768,26 @@ test.describe.serial('OCC monitor regressions', () => {
     await expect(lineMapCoach).toContainText(`DISPATCH on the ${station} station panel`)
     await lineMapCoach.getByRole('button', { name: 'Show me' }).click()
     await expect.poll(() => outlines(lineMap, lineMap.getByTestId(`line-map-command-DISPATCH-${panelX}`))).toBe(true)
+
+    // The panel commands the train at its own station: its dialog names that train.
+    const commandDialog = lineMap.locator('.line-map-popup-window--command')
+
+    await lineMap.getByTestId(`line-map-command-DISPATCH-${panelX}`).click()
+    await expect(commandDialog).toContainText(`EMU/${trainId}/TRN`)
+    await commandDialog.getByRole('button', { name: 'Close' }).click()
+
+    // A panel at a station with no train is refused, and the coach says so.
+    const trains = (await getSession(page)).trains as Array<{ lineMapVisible?: boolean; x: number }>
+    const empty = platformData.find((platform) => ['SKG', 'PGL', 'PGC'].includes(platform.code)
+      && !trains.some((train) => train.lineMapVisible !== false && Math.abs(train.x - platform.x) <= 45))
+
+    if (empty) {
+      await lineMap.getByTestId(`line-map-command-DISPATCH-${Math.round(empty.x)}`).click()
+      await expect(commandDialog).toContainText('EMU/---/TRN')
+      await commandDialog.getByRole('button', { name: 'Apply' }).click()
+      await expect(lineMapCoach.getByRole('alert')).toContainText(`No train at ${empty.code}.`)
+    }
+
     expect(errors).toEqual([])
   })
 })

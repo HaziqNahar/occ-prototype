@@ -5,6 +5,7 @@ import { buildScenarioReport } from '../../src/scenarioReport'
 import { createInitialSession, restoreSession } from '../../src/sessionState'
 import { trainingScenarioDefinitions } from '../../src/training-scenarios/definitions'
 import { getCoachState, getStepHint } from '../../src/training-scenarios/hints'
+import { getTrainsAtStation } from '../../src/screens/line-map/stationTrains'
 import { areTrainingAidsOn } from '../../src/trainingAids'
 import type { OccSessionState, TrainingMode } from '../../src/types'
 
@@ -86,10 +87,37 @@ function loadDoorFault(trainingMode: TrainingMode) {
   assert.deepEqual(getStepHint(session, callTask).monitors, ['ALARMS', 'LINE_MAP'])
   assert.deepEqual(getStepHint(session, callTask).target, { channel: 'TELEPHONE', kind: 'calls' })
 
-  // ROUTE and DISPATCH point at the station panel where the train is.
-  const routeTask = trainingScenarioDefinitions.find((item) => item.id === 'door-fault')!.tasks.find((task) => task.mappedTaskId === 'setRoute')!
+  // A route is set from the signal ahead of the train; DISPATCH is on the panel
+  // at the train's station (it acts only on the train there).
+  const doorFaultTasks = trainingScenarioDefinitions.find((item) => item.id === 'door-fault')!.tasks
+  const routeHint = getStepHint(session, doorFaultTasks.find((task) => task.mappedTaskId === 'setRoute')!)
+  const dispatchHint = getStepHint(session, doorFaultTasks.find((task) => task.mappedTaskId === 'dispatchTrain')!)
 
-  assert.deepEqual(getStepHint(session, routeTask).target, { command: 'ROUTE', kind: 'stationButton', station: 'PGL' })
+  assert.match(routeHint.how[0], /^Right-click the signal ahead of Train 345 → Define Route/)
+  assert.deepEqual(routeHint.target, { kind: 'train', trainId: '345' })
+  assert.equal(dispatchHint.how[0], 'DISPATCH on the PGL station panel (Train 345 is there)')
+  assert.deepEqual(dispatchHint.target, { command: 'DISPATCH', kind: 'stationButton', station: 'PGL' })
+}
+
+// Station panel commands act only on the train at that station.
+{
+  const session = loadDoorFault('PRACTICE')
+  const panel = (station: string, trainId?: string) => applySessionCommand(
+    session,
+    { command: 'HOLD', station, trainId, type: 'SCADA_TRAIN_COMMAND' },
+    { actor: trainee },
+  )
+
+  assert.equal(panel('PGL').accepted, true, 'the PGL panel holds the train at PGL')
+  assert.equal(panel('PGL').session.trains.find((train) => train.id === '345')?.status, 'HOLD')
+  assert.equal(panel('PGL', '345').accepted, true)
+  assert.equal(panel('SKG', '345').reason, "Train 345 is not at SKG. Use the panel at the train's station.")
+
+  const emptyStation = ['SKG', 'PGC'].find((station) => getTrainsAtStation(session.trains, station).length === 0)
+
+  if (emptyStation) {
+    assert.equal(panel(emptyStation).reason, `No train at ${emptyStation}.`)
+  }
 }
 
 // Every step of every scenario gets a specific hint, without text written per

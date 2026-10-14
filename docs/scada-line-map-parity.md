@@ -101,13 +101,13 @@ Unchanged since the last audit and covered by the browser tests
 
 | Interaction | Behaviour | Status |
 | --- | --- | --- |
-| Click train | Nothing: there is no left-click handler and no selected-train status display. Not checked against the reference | Unverified |
+| Click train | Nothing, as at the OCC (confirmed 14 Oct 2026) | Done |
 | Right-click train | Selects the train and opens the SCADA-style command menu with inspection, readiness and ITAMA options | Done |
-| Double-click train | Selects the train and opens its inspector (Information page) | Done |
+| Double-click train | Selects the train and opens its inspector (Information page). Accepted as correct (14 Oct 2026) | Done |
 | ITAMA | `SIG Arrival Time for Train` dialog; applying it records the task | Done |
-| Route / Dispatch / Hold | SCADA command request dialog, recorded as scenario actions | Done |
+| Route / Dispatch / Hold | The station panel's DISPATCH and HII act on the train at that station only (confirmed 14 Oct 2026); the command dialog names it, and a panel with no train there is refused. ROUTE switches the panel between Central AUTO and MANUAL; a train's route is set from a signal (right-click → Define Route) | Done |
 | Alarms / Calls tabs | Switch the header panel; Calls opens the comms dialog | Done |
-| Acknowledge alarms | Ack all / Ack selection; only the incident alarm scores | Done |
+| Acknowledge alarms | No row is selected when the summary opens (confirmed 14 Oct 2026); select the row, then Ack selection, or Ack all; only the incident alarm scores | Done |
 | Timetable row select | Selects the train for the scenario | Done |
 
 ## To Do, in Priority Order
@@ -122,7 +122,8 @@ Unchanged since the last audit and covered by the browser tests
 | 6 | ~~Train delays, so the deviation graphs move~~ | Done | |
 | 7 | ~~Background alarm traffic during a run~~ | Done | |
 | 8 | ~~Small items: window chrome in full screen, operator username, calls labels, PGC end signals~~ | Done | |
-| 9 | Confirm at OCC what a left click on a train does on the real GWS. If it selects the train: add left-click select, a visible selected-train highlight, and change the Practice coach hints from "Right-click Train N" to "Click Train N" (`src/training-scenarios/hints.ts`) | "Click train" row above (listed as Done since the 15 Jun baseline, but it never worked) | about 1 hour |
+| 9 | ~~Confirm at OCC what a left click on a train does~~ | Done (14 Oct 2026): nothing, as in the simulator. Same check fixed the station panels (they commanded the selected train, wherever it was) and the alarm summary (it opened with the top row selected) | |
+| 10 | ~~Confirm what a double-click on a train opens~~ | Done (14 Oct 2026): the train inspector, as now | |
 
 
 ## Line Map Keys

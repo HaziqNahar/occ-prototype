@@ -16,13 +16,16 @@ export default function AlarmsMonitorContent({
   dispatch,
 }: MonitorScreenProps) {
   const rows = session.alarmSummaryRows
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  // As at the OCC, nothing is selected until the operator clicks a row. Kept by
+  // row key: new alarms are added at the top, which moves every row down.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'Archives' | 'Events' | 'Alarms'>('Alarms')
   const [statusNote, setStatusNote] = useState('Live alarm summary ready')
   const [commsChannel, setCommsChannel] = useState<CommsChannel | null>(null)
   const callLog = useMemo(() => getCommsLog(session.evidenceLog), [session.evidenceLog])
   const liveRows = rows.map((row, originalIndex) => ({ originalIndex, row }))
   const visibleRows = liveRows.slice(0, 20)
+  const selectedIndex = selectedKey === null ? -1 : liveRows.findIndex(({ row }) => getAlarmRowKey(row) === selectedKey)
   const selectedEntry = selectedIndex >= 0 ? liveRows[selectedIndex] : undefined
   const selectedRow = selectedEntry?.row
   const { notAcknowledged, total: alarmTotal } = getAlarmSummaryCounts(rows)
@@ -44,12 +47,12 @@ export default function AlarmsMonitorContent({
     const entry = liveRows[index]
 
     if (!entry) {
-      setSelectedIndex(-1)
+      setSelectedKey(null)
       setStatusNote('No live alarm row at this position')
       return
     }
 
-    setSelectedIndex(index)
+    setSelectedKey(getAlarmRowKey(entry.row))
     setStatusNote(`Live alarm row ${index + 1} selected: ${entry.row.asset}`)
   }
 
@@ -143,7 +146,7 @@ export default function AlarmsMonitorContent({
           <label>Not Acknowledged <output>{notAcknowledged}</output></label>
           <ScadaDomButton label="Ack. all" onClick={acknowledgeAll} />
           <ScadaDomButton label="Ack. selection" onClick={acknowledgeSelected} />
-          <ScadaDomButton label="Unselect alarms" onClick={() => { setSelectedIndex(-1); setStatusNote('Alarm selection cleared') }} />
+          <ScadaDomButton label="Unselect alarms" onClick={() => { setSelectedKey(null); setStatusNote('Alarm selection cleared') }} />
           <ScadaDomButton label="Help" onClick={() => setStatusNote('Select a live row, then acknowledge or inspect it.')} />
           <ScadaDomButton label="Filter..." onClick={cycleAlarmFilter} />
           <ScadaDomButton label="Print" onClick={printAlarmSummary} />

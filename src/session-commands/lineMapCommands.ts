@@ -1,3 +1,4 @@
+import { getStationPanelTrain, isTrainAtStation } from '../screens/line-map/stationTrains'
 import { prependAlarmRows } from '../alarmAcknowledgement'
 import type { InspectorPage, TrainAuxiliaryView } from '../components/train-control/trainControlTypes'
 import {
@@ -423,6 +424,28 @@ export function applyScadaTrainCommand(current: OccSessionState, trainId: string
     timetableRows: upsertTimetableRow(current.timetableRows, trainId, command === 'HOLD' ? 'H>' : command === 'DISPATCH' ? '>' : 'R'),
     trains: current.trains.map((train) => (train.id === trainId ? { ...updateTrainDelay(train, nextStatus), status: nextStatus } : train)),
   })
+}
+
+// A station panel's ROUTE / DISPATCH / HII: only the train at that station.
+export function applyStationPanelCommand(
+  current: OccSessionState,
+  { command, station, trainId }: { command: TrainCommand; station?: string; trainId?: string },
+): SessionCommandResult {
+  if (!station) {
+    return applyScadaTrainCommand(current, trainId ?? '', command)
+  }
+
+  const train = trainId ? current.trains.find((item) => item.id === trainId) : getStationPanelTrain(current, station)
+
+  if (!train) {
+    return { accepted: false, reason: `No train at ${station}.`, session: current }
+  }
+
+  if (!isTrainAtStation(train, station)) {
+    return { accepted: false, reason: `Train ${train.id} is not at ${station}. Use the panel at the train's station.`, session: current }
+  }
+
+  return applyScadaTrainCommand(current, train.id, command)
 }
 
 export function findLineMapSignal(signalLabel: string): LineMapSignalData | undefined {

@@ -97,7 +97,7 @@ type LineMapMonitorDomProps = {
   heldTrainIds?: ReadonlySet<string>
   psdFaultPlatform?: { station: string; track: 'NB' | 'SB' }
   lineMap: LineMapRuntimeState
-  onCommand: (command: TrainCommand) => void
+  onCommand: (command: TrainCommand, station: string) => void
   onInspectTrain: (trainId: string) => void
   onNavigate: (route: AppRoute) => void
   onOpenComms?: (channel: CommsChannel) => void
@@ -601,7 +601,7 @@ function LineMapSchematicBase({
   heldTrainIds?: ReadonlySet<string>
   lineMap: LineMapRuntimeState
   psdFaultPlatform?: { station: string; track: 'NB' | 'SB' }
-  onCommand: (command: TrainCommand) => void
+  onCommand: (command: TrainCommand, station: string) => void
   onOpenSignalMenu: (event: ReactMouseEvent<HTMLElement>, signal: LineMapSignalData) => void
   panX: number
   routeControlModes: Record<string, RouteControlMode>
@@ -2010,7 +2010,7 @@ function CommandPanel({
   x,
   y,
 }: {
-  onCommand: (command: TrainCommand) => void
+  onCommand: (command: TrainCommand, station: string) => void
   onOpenRouteModeMenu: (panelCode: string, x: number, y: number) => void
   panelCode: string
   routeMode: RouteControlMode
@@ -2041,7 +2041,7 @@ function CommandPanel({
               onOpenRouteModeMenu(panelCode, x - 24, y - 42)
               return
             }
-            onCommand(item.command)
+            onCommand(item.command, panelCode)
           }}
           onContextMenu={(event) => {
             if (item.command !== 'ROUTE') {

@@ -49,8 +49,8 @@ from text written per step, so new scenarios get hints automatically:
 | `commsMessageIds` | Calls: channel, recipient and message, from `src/comms/commsCatalog.ts` |
 | `completesOnHold` | Train inspector **Control page → Train Hold**, or **HII** on the station panel |
 | `doorCommandLabels` | Control page → **Door Open/Close Request** → the command |
-| `mappedTaskId: 'setRoute'` | **ROUTE** on the station panel (or the Arrival/Departure Time dialog where the step names one) |
-| `mappedTaskId: 'dispatchTrain'` | **DISPATCH** on the station panel |
+| `mappedTaskId: 'setRoute'` | Right-click the signal ahead of the train → **Define Route** (or the Arrival/Departure Time dialog where the step names one). The panel's ROUTE only switches Central AUTO/MANUAL |
+| `mappedTaskId: 'dispatchTrain'` | **DISPATCH** on the panel at the train's station (panels act only on the train at their station) |
 | `mappedTaskId: 'completeScenario'` | The trainer completes the run on the console |
 | trainer-confirmed steps | "Wait for the trainer to confirm" |
 | `runtimeOnly` on the Line Map | Watch the train; the step completes by itself |
@@ -58,8 +58,9 @@ from text written per step, so new scenarios get hints automatically:
 
 Every hint also names a **Show me** target (`CoachTarget`): the train, the
 incident row (or **Ack. selection** once it is selected), the Calls tab (or the
-channel button once it is open), the ROUTE/DISPATCH button on the panel nearest
-the train, or the Timetable row. `scripts/tests/trainingAids.test.ts` loads all
+channel button once it is open), the DISPATCH button on the panel at the
+train's station, or the Timetable row. Route steps outline the train (the signal
+to use depends on the route). `scripts/tests/trainingAids.test.ts` loads all
 17 scenarios and checks every step has a specific hint and, on a trainee
 monitor, a target.
 
