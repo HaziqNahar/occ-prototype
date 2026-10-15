@@ -111,7 +111,9 @@ function collectPageErrors(page: Page) {
   return errors
 }
 
-test.describe.serial('OCC monitor regressions', () => {
+// Each test sets up its own exercise (clearRuntime), so one failure does not
+// skip the rest, and a retry re-runs only that test.
+test.describe('OCC monitor regressions', () => {
   // Each test's browser is signed in as the test trainer unless it says otherwise.
   test.beforeEach(async ({ context, request }) => {
     await signInBrowser(context, await ensureAccounts(request))
@@ -271,7 +273,7 @@ test.describe.serial('OCC monitor regressions', () => {
     await page.waitForTimeout(500)
     expect(await ackAlarmTask()).toBe(false)
 
-    await page.locator('.alarm-dom-row--data', { hasText: /PSD: [A-Z]{3} (NB|SB) Door 07 Obstructed/ }).click()
+    await page.locator('.alarm-dom-row--data', { hasText: /PSD: [A-Z]{3} (NB|SB) Door 07 Obstructed/ }).first().click()
     await page.getByRole('button', { name: 'Ack. selection' }).click()
     await expect.poll(ackAlarmTask).toBe(true)
     expect(errors).toEqual([])

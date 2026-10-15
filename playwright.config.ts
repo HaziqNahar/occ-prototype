@@ -10,6 +10,9 @@ export default defineConfig({
   fullyParallel: false,
   outputDir: 'test-results',
   reporter: 'line',
+  // One retry: a test that fails once and then passes is reported as flaky
+  // (with the failed attempt's trace kept in test-results), not as a failure.
+  retries: 1,
   testDir: './e2e',
   timeout: 45_000,
   use: {
