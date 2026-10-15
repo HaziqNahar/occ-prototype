@@ -56,15 +56,15 @@ npm.cmd run reset:password -- <username> <new password>
 | Page | Who | Purpose |
 | --- | --- | --- |
 | `/` | Everyone | Sign in (or set up the first trainer), then the start page for your role. Also opens the three monitors on a monitor PC. |
-| `/ios/modules` | Trainer | **Trainer Console**: one column per exercise (up to two). Each has its own code, trainee, monitors, scenario chooser (incident, mode, time target, timetable), checklist, trainee activity, pause/complete/stop, the **Aids on/off** switch (Practice only) and report. **Add Exercise 2** opens the second; trainees can be assigned or moved between exercises. |
+| `/ios/modules` | Trainer | **Trainer Console**: one tab per exercise (up to two). Each has its own code (with Copy), trainee, monitors, scenario cards and settings (incident, mode, time target, timetable), run card (time, steps, score, wrong actions; pause/complete/stop/new run and the **Aids on/off** switch, Practice only), steps with the next one marked **Now**, a **Live** feed and its report. **Add Exercise 2** opens the second; trainees can be assigned or moved between exercises. |
 | `/session/join` | Trainee | Join with your exercise's code from the console, then open the monitors. Shows exercise status but never names the incident. |
 | `/screen/alarms` | Trainee | Monitor 01: alarm summary and acknowledgement, Calls panel. |
 | `/screen/line-map` | Trainee | Monitor 02: SCADA line map, train commands (route, dispatch, HII hold), train inspector, Calls panel. |
 | `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
-| `/report` | Trainer | Post-session report: score, checklist, timeline, evidence log, trainer notes; in Practice, how often Show me and Locate were used. |
+| `/report` | Trainer | Post-session report: result and score, **To discuss** (refusals, missed or slow steps, time over target, hints used), steps and all actions as two tabs, trainer notes and sign-off. |
 | `/admin` | Admin trainer | **People**: add trainers and trainees, reset passwords, switch accounts off, make admins. |
-| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run with its score, checklist, trainer notes and, from the action log, each action with who did it and when, and the Show me / Locate counts of Practice runs. **Export CSV** saves the run list or one run; **Print / PDF** prints the chosen run. |
-| `/progress` | Trainer (trainee: own) | **Trainee progress**: runs, completed, passed, average score, and best / average / latest result per scenario. **Export CSV** and **Print / PDF** for training records. |
+| `/history` | Trainer (trainee: own runs) | **Run history**: every archived run in one table to sort and filter (trainee, result, search). A run opens in a side panel: result, To discuss, steps, trainer notes and, from the action log, each action with who did it and when. **Export CSV** saves the run list or one run; **Print / PDF** prints the open run. |
+| `/progress` | Trainer (trainee: own) | **Trainee progress**: totals (runs, completed, passed, average), a score-over-time chart, and pass rate, best, average and latest result per scenario. **Export CSV** and **Print / PDF** for training records. |
 
 `/ios`, `/ios/scenarios` and `/ios/assessment` are old addresses; they open the
 Trainer Console.

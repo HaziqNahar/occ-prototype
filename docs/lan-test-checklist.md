@@ -32,7 +32,7 @@ Date: ____________  Host address: ____________  Tester: ____________
 | # | Step | Expected | OK? |
 | --- | --- | --- | --- |
 | C1 | Trainer signs in (or sets up the first trainer) | Trainer Console | |
-| C2 | People: add two test trainees | Both listed as Active | |
+| C2 | People: **Add person** twice, for two test trainees | Both listed; a short message at the bottom right confirms each | |
 | C3 | Trainee PC 1 signs in as trainee 1, PC 2 as trainee 2 | Trainee page, "Hello, <name>" | |
 | C4 | On a trainee PC open `http://<host>:8787/ios/modules` | "Not available" (console is for trainers) | |
 
@@ -40,8 +40,8 @@ Date: ____________  Host address: ____________  Tester: ____________
 
 | # | Step | Expected | OK? |
 | --- | --- | --- | --- |
-| D1 | Trainer: **Add Exercise 2** | Two columns, two different codes | |
-| D2 | Trainee 1 joins Exercise 1's code, trainee 2 Exercise 2's | Each console column shows its trainee | |
+| D1 | Trainer: **Add Exercise 2** | Two tabs, Exercise 1 and Exercise 2, each with its own code | |
+| D2 | Trainee 1 joins Exercise 1's code, trainee 2 Exercise 2's | Each exercise tab shows its trainee | |
 | D3 | Each trainee: **Open my monitors**, place on the three monitors, `F11` | Alarms / Line Map / Timetable full screen; console shows 3/3 monitors per exercise | |
 | D4 | Line Maps | No "View only" notice on either | |
 | D5 | Trainer loads **PSD Fault** in Exercise 1 and **Train Door Fault** in Exercise 2 | Each trainee's page shows "Exercise running"; the other exercise is unchanged | |
@@ -50,19 +50,19 @@ Date: ____________  Host address: ____________  Tester: ____________
 
 | # | Step | Expected | OK? |
 | --- | --- | --- | --- |
-| E1 | Each trainee acknowledges the incident alarm on Monitor 01 | The console's checklist ticks within a second | |
-| E2 | Each trainee holds the train on Monitor 02 and makes the SOP calls (Calls tab) | Checklist and Trainee activity update live | |
+| E1 | Each trainee acknowledges the incident alarm on Monitor 01 | The console's steps tick within a second | |
+| E2 | Each trainee holds the train on Monitor 02 and makes the SOP calls (Calls tab) | Steps and the **Live** feed update as it happens | |
 | E3 | Trains keep moving smoothly on both Line Maps for 5 minutes | No jumps, no freezing | |
 | E4 | Unplug trainee PC 2's network cable for 30 s, plug it back | Its monitors catch up within a minute without reloading | |
-| E5 | Trainee releases the train; trainer clicks **Complete** in each column | Both show COMPLETE; trainee pages show "Exercise complete" | |
+| E5 | Trainee releases the train; trainer clicks **Complete** in each exercise | Both show COMPLETE; trainee pages show "Exercise complete" | |
 
 ## F. Afterwards
 
 | # | Step | Expected | OK? |
 | --- | --- | --- | --- |
-| F1 | Each column: **Report**, add a note, save | "Saved as …" | |
+| F1 | Each exercise: **Report**, add a note, **Save Report** | "✓ Saved at <time>" | |
 | F2 | **History** | Both runs, each with the right trainee and every action | |
-| F2a | History: open a run, **Export CSV**, then **Print / PDF** | CSV opens in Excel with the checklist and actions; the print preview is black on white | |
+| F2a | History: click a run (it opens in a side panel), **Export CSV**, then **Print / PDF** | CSV opens in Excel with the checklist and actions; the print preview is black on white | |
 | F3 | **Progress** for each trainee | One run each | |
 | F4 | People → **Back up now** | "Latest: <now>" | |
 | F5 | Close the server window, wait, start it again, reload the console | Both exercises and the history are still there | |
@@ -92,12 +92,12 @@ for Assessment.
 
 | # | Step | Expected | OK? |
 | --- | --- | --- | --- |
-| H1 | Trainer loads **Train Door Fault** in **Practice** in Exercise 1 | Console shows **Aids on**. Each of trainee 1's monitors has an orange **PRACTICE** coach at the top right: Monitor 02 says "Next: Select affected train", Monitors 01 and 03 say "Next step is on Monitor 02 Line Map" | |
+| H1 | Trainer loads **Train Door Fault** in **Practice** in Exercise 1 | Console shows **Aids on**. Each of trainee 1's monitors has an orange **PRACTICE** coach (top right on Monitors 02 and 03, bottom right on Monitor 01): Monitor 02 says "Next: Select affected train", Monitors 01 and 03 say "Next step is on Monitor 02 Line Map" | |
 | H2 | Trainee 1 clicks the coach on Monitor 02, then **Show me**, then **Locate Train …** | Show me outlines the train; Locate moves the map to the train's section and puts a pulsing ring on it. The train can still be clicked through them | |
 | H3 | Before selecting the train, trainee 1 clicks the red incident row on Monitor 01, then **Ack. selection** | The coach on Monitor 01 shows "Select Train … before acknowledging its alarm." | |
 | H4 | Trainee 1 drags the coach to another spot, then reloads that monitor (`F5`) | The coach comes back where it was put | |
 | H5 | Trainer clicks **Aids on** (it changes to **Aids off**), then clicks it again | The coach disappears from all three monitors within a second, then comes back | |
-| H6 | Trainee 1 works the incident to the end; trainer completes and saves the report | Report and History show **Aids used** with the Show me and Locate counts; the score is not lower for using them | |
+| H6 | Trainee 1 works the incident to the end; trainer completes and saves the report | Report and History list "Used hints N times (Show me … · Locate …)" under **To discuss**; the score is not lower for using them | |
 | H7 | Trainer loads any fault scenario in **Assessment** in Exercise 2; trainee 2 acknowledges the alarm before selecting the train | The Aids switch is greyed out and reads **Aids off**; no coach on trainee 2's monitors and no message for the wrong action (it still counts as a wrong action on the console) | |
 | H8 | Trainee 2 looks at the alarm summary on Monitor 01 before clicking anything | No row is selected | |
 | H9 | Trainee 2 left-clicks a train on Monitor 02, then right-clicks it, then double-clicks it | Left click: nothing. Right-click: the train menu. Double-click: the train inspector | |
