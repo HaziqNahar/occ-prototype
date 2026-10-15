@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { PublicUser } from '../accounts'
 import AppShell from '../components/AppShell'
+import { isRunActive, TRAINEE_END_RUN_REASON } from '../session-commands/runGuards'
 import { normalizeEnteredSessionCode } from '../sessionCode'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
 import type { AppRoute, OccSessionState } from '../types'
@@ -121,7 +122,9 @@ function TraineeScreen({ dispatch, offline, onJoin, onNavigate, onSignOut, sessi
                 {onlineMonitors.length === occMonitors.length ? 'Bring monitors to front' : 'Open my monitors'}
               </button>
             </div>
-            <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>
+            {isRunActive(session)
+              ? <small className="trainee-leave-note">{TRAINEE_END_RUN_REASON} You can leave once it is over.</small>
+              : <button type="button" className="trainee-leave" onClick={leave}>Leave session</button>}
           </div>
         )}
       </section>

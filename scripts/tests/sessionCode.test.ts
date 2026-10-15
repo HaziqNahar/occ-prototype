@@ -11,7 +11,7 @@ import {
   sessionCodesMatch,
 } from '../../src/sessionCode'
 import { createInitialSession, createResetSessionState } from '../../src/sessionState'
-import { startBackend, stopBackend, testTrainer } from './support/backend'
+import { startBackend, stopBackend, testTrainee, testTrainer } from './support/backend'
 
 // Codes are four characters from an alphabet without look-alikes.
 for (let index = 0; index < 200; index += 1) {
@@ -43,6 +43,8 @@ assert.match(createResetSessionState('PRACTICE', 1, 2).sessionMeta.code, /^[A-Z2
     const otherTimetable = nelTimetableOptions.find((option) => option.value !== first.session.timetableName)!.value
 
     assert.match(code, /^[A-Z2-9]{4}$/)
+
+    await server.command(testTrainee, { code, type: 'TRAINEE_JOIN' })
 
     // Loading on another timetable rebuilds the trains but keeps the class's code.
     await server.command(testTrainer, {

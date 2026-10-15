@@ -68,6 +68,11 @@ async function clearRuntime(page: Page) {
   }
 
   for (const exercise of listed.sessions.filter((item) => item.exercise > 1)) {
+    await page.request.post('/api/session/commands', {
+      data: { command: { type: 'RESET_SCENARIO' }, sessionId: exercise.id, sourceId: 'playwright-regression' },
+      headers: trainerHeaders(),
+    })
+
     for (const trainee of exercise.trainees) {
       await page.request.post('/api/session/commands', {
         data: { command: { traineeId: trainee.id, type: 'TRAINEE_LEAVE' }, sessionId: exercise.id, sourceId: 'playwright-regression' },
@@ -81,6 +86,17 @@ async function clearRuntime(page: Page) {
   const response = await page.request.post('/api/session/runtime', {
     data: { sourceId: 'playwright-regression' },
     headers: trainerHeaders(),
+  })
+
+  expect(response.ok()).toBeTruthy()
+}
+
+// The test trainee joins Exercise 1: a run needs a trainee (runGuards.ts).
+async function joinTrainee(page: Page, request: APIRequestContext) {
+  const code = (await getSession(page)).sessionMeta.code
+  const response = await request.post('/api/class/join', {
+    data: { code },
+    headers: { authorization: `Bearer ${await signInToken(request, TRAINEE.username)}` },
   })
 
   expect(response.ok()).toBeTruthy()
@@ -211,10 +227,11 @@ test.describe('OCC monitor regressions', () => {
     expect(errors).toEqual([])
   })
 
-  test('Train Launch timetable selection remains loaded on the line map', async ({ page }) => {
+  test('Train Launch timetable selection remains loaded on the line map', async ({ page, request }) => {
     const errors = collectPageErrors(page)
 
     await clearRuntime(page)
+    await joinTrainee(page, request)
     await page.goto('/ios/modules')
 
     await page.getByRole('radio', { name: 'Train Launch' }).click()
@@ -255,10 +272,11 @@ test.describe('OCC monitor regressions', () => {
     expect((await getSession(page)).activeScenario.targetTrainId).toBe('301')
     expect(errors).toEqual([])
   })
-  test('fault scenarios only credit acknowledging the incident alarm', async ({ page }) => {
+  test('fault scenarios only credit acknowledging the incident alarm', async ({ page, request }) => {
     const errors = collectPageErrors(page)
 
     await clearRuntime(page)
+    await joinTrainee(page, request)
     await page.goto('/ios/modules')
     await page.getByRole('radio', { name: /PSD Fault/ }).click()
     await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
@@ -378,6 +396,12 @@ test.describe('OCC monitor regressions', () => {
 
     await trainee.goto('/screen/alarms')
     await expect(incidentAlarm).toHaveCount(1)
+
+    // She cannot be moved while her run is going; stopping it asks first.
+    await expect(exercise2.getByRole('button', { name: 'Move to Exercise 1' })).toBeDisabled()
+    await exercise2.getByRole('button', { name: 'Stop', exact: true }).click()
+    await exercise2.getByRole('alertdialog', { name: 'Stop the run?' }).getByRole('button', { name: 'Stop run' }).click()
+    await expect(exercise2.getByRole('region', { name: 'Scenario status' }).getByText('IDLE', { exact: true })).toBeVisible()
     await exercise2.getByRole('button', { name: 'Move to Exercise 1' }).click()
     await tab('Exercise 1').click()
     await expect(exercise1.getByLabel('Session').getByText(TRAINEE.name)).toBeVisible()
@@ -463,10 +487,11 @@ test.describe('OCC monitor regressions', () => {
     expect(errors).toEqual([])
   })
 
-  test('a train loop & shuttle disruption is worked from the Calls panel', async ({ page }) => {
+  test('a train loop & shuttle disruption is worked from the Calls panel', async ({ page, request }) => {
     const errors = collectPageErrors(page)
 
     await clearRuntime(page)
+    await joinTrainee(page, request)
     await page.goto('/ios/modules')
     await page.getByRole('radio', { name: /Train Loop & Shuttle Service/ }).click()
     await page.getByRole('button', { name: 'Incident', exact: true }).click()
@@ -527,6 +552,7 @@ test.describe('OCC monitor regressions', () => {
     const errors = collectPageErrors(page)
 
     await clearRuntime(page)
+    await joinTrainee(page, request)
     await page.goto('/ios/modules')
     await page.getByRole('radio', { name: /Unscheduled Train Withdrawal/ }).click()
     await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
@@ -545,8 +571,6 @@ test.describe('OCC monitor regressions', () => {
 
     // The trainee makes the SOP calls.
     const traineeHeaders = { authorization: `Bearer ${await signInToken(request, TRAINEE.username)}` }
-
-    await request.post('/api/class/join', { data: { code: session.sessionMeta.code }, headers: traineeHeaders })
 
     for (const messageId of ['driver-withdraw-train-clear', 'station-assist-train-clear', 'coc-withdrawal-pa', 'dtc-withdrawal-return', 'driver-train-clear-received']) {
       const response = await request.post('/api/session/commands', {
@@ -605,8 +629,9 @@ test.describe('OCC monitor regressions', () => {
     await expect(page.getByTestId('line-map-view-only')).toHaveCount(0)
   })
 
-  test('the Practice coach shows the next step, and nothing in Assessment', async ({ context, page }) => {
+  test('the Practice coach shows the next step, and nothing in Assessment', async ({ context, page, request }) => {
     await clearRuntime(page)
+    await joinTrainee(page, request)
     await page.goto('/ios/modules')
     await page.getByRole('radio', { name: /Train Door Fault/ }).click()
     await page.getByRole('button', { name: 'Load scenario', exact: true }).click()
@@ -721,6 +746,7 @@ test.describe('OCC monitor regressions', () => {
     await page.getByRole('button', { name: 'New run' }).click()
     await page.getByRole('radiogroup', { name: 'Training mode' }).getByRole('radio', { name: 'Assessment' }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
+    await page.getByRole('alertdialog', { name: 'Start a new run?' }).getByRole('button', { name: 'Start new run' }).click()
     await expect(aids).toBeDisabled()
     await expect(aids).toHaveText('Aids off')
     await expect(alarmsCoach).toHaveCount(0)
@@ -735,10 +761,11 @@ test.describe('OCC monitor regressions', () => {
     await expect(alarms.locator('.training-coach-feedback')).toHaveCount(0)
   })
 
-  test('Show me finds the timetable row and the station panel button', async ({ context, page }) => {
+  test('Show me finds the timetable row and the station panel button', async ({ context, page, request }) => {
     const errors = collectPageErrors(page)
 
     await clearRuntime(page)
+    await joinTrainee(page, request)
     await page.goto('/ios/modules')
 
     // Train Launch: before the trainer assigns a train, the trainee picks one in
@@ -769,6 +796,7 @@ test.describe('OCC monitor regressions', () => {
     await page.getByRole('button', { name: 'New run' }).click()
     await page.getByRole('radio', { name: /PSD Fault/ }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
+    await page.getByRole('alertdialog', { name: 'Start a new run?' }).getByRole('button', { name: 'Start new run' }).click()
     await expect.poll(async () => (await getSession(page)).activeScenario.id).toBe('psd-fault-obstructed')
 
     const session = await getSession(page)

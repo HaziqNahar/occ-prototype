@@ -5,6 +5,7 @@ import { addBackgroundAlarm, getNextBackgroundAlarmDelayMs } from '../src/backgr
 import type { SessionSnapshotMessage, SessionUpdateMessage } from '../src/session-commands/protocol'
 import { buildScenarioReport } from '../src/scenarioReport'
 import { applySessionCommand } from '../src/session-commands/applySessionCommand'
+import { checkRunGuard, endsRunUnfinished, isRunActive } from '../src/session-commands/runGuards'
 import { createSessionDelta } from '../src/session-commands/sessionDelta'
 import type { SessionActor, SessionCommand, SessionCommandResult } from '../src/session-commands/types'
 import { createSessionCode, getSessionId } from '../src/sessionCode'
@@ -216,6 +217,23 @@ export class SessionStore {
     // Only the session's clock owner moves trains; a window may take a free clock by moving them.
     if (command.type === 'SIM_UPDATE' && !this.claimSimulation(managed, meta.sourceId, { label: 'Line Map' })) {
       return { managed, result: { accepted: false, reason: SIMULATION_REFUSED, session: managed.session }, update: null }
+    }
+
+    // The run's guardrails (runGuards.ts); a refusal is logged like any other.
+    const movedTraineeId = command.type === 'ASSIGN_TRAINEE' ? command.traineeId : command.type === 'TRAINEE_JOIN' ? actor.id : undefined
+    const traineeRunElsewhere = Boolean(movedTraineeId) && this.exercises().some((other) => (
+      other !== managed && isRunActive(other.session) && other.session.trainees.some((trainee) => trainee.email === movedTraineeId)
+    ))
+    const refusal = checkRunGuard(managed.session, command, actor, traineeRunElsewhere)
+
+    if (refusal) {
+      this.db.logAction({ accepted: false, actionType: command.type, actor, detail: refusal, kind: 'command', payload: command, sessionId: managed.id })
+      return { managed, result: { accepted: false, reason: refusal, session: managed.session }, update: null }
+    }
+
+    // A run ended before Complete stays in History as not completed.
+    if (endsRunUnfinished(managed.session, command)) {
+      this.archiveReport(managed)
     }
 
     const before = managed.session

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { LINE_MAP_LAYOUT_VERSION } from '../../src/screens/line-map/lineMapRuntimeState'
 import type { SessionSnapshotMessage, SessionUpdateMessage } from '../../src/session-commands/protocol'
 import { applySessionDelta } from '../../src/session-commands/sessionDelta'
+import { NO_TRAINEE_REASON } from '../../src/session-commands/runGuards'
 import { getAlarmRowKey } from '../../src/session-commands/types'
 import { scoreTrainingScenario } from '../../src/trainingScenarios'
 import { startBackend, stopBackend, testTrainee, testTrainer } from './support/backend'
@@ -48,19 +49,26 @@ try {
   assert.equal(refused.body.accepted, false)
   assert.equal(refused.body.update, null)
 
+  // A run needs its trainee (runGuards.ts).
+  const empty = await server.command(testTrainer, load, first.sessionId)
+
+  assert.equal(empty.body.accepted, false)
+  assert.equal(empty.body.reason, NO_TRAINEE_REASON)
+  assert.equal((await server.command(testTrainee, { code: first.session.sessionMeta.code, type: 'TRAINEE_JOIN' })).body.accepted, true)
+
   const loaded = await server.command(testTrainer, load, first.sessionId)
 
   assert.equal(loaded.body.accepted, true)
-  assert.equal(loaded.body.version, first.version + 1)
+  assert.equal(loaded.body.version, first.version + 2)
 
   // Every screen gets the change as a delta on top of the version it has.
-  const [, update] = await events.waitFor(2) as [SessionSnapshotMessage, SessionUpdateMessage]
+  const [, joinUpdate, update] = await events.waitFor(3) as [SessionSnapshotMessage, SessionUpdateMessage, SessionUpdateMessage]
 
   assert.equal(update.type, 'session:update')
-  assert.equal(update.baseVersion, first.version)
+  assert.equal(update.baseVersion, first.version + 1)
   assert.deepEqual(update, loaded.body.update)
 
-  const rebuilt = applySessionDelta(first.session, update.delta)
+  const rebuilt = applySessionDelta(applySessionDelta(first.session, joinUpdate.delta), update.delta)
   const current = await server.snapshot()
 
   assert.deepEqual(rebuilt, current.session, 'a screen rebuilds exactly the server session from the delta')
@@ -103,10 +111,10 @@ try {
   const log = await server.getJson<{ actions: Array<{ accepted: number; action_type: string; actor: string; actor_role: string; kind: string }> }>('/api/session/actions')
   const commands = log.actions.filter((entry) => entry.kind === 'command')
 
-  assert.deepEqual(commands.map((entry) => entry.action_type), ['LOAD_SCENARIO', 'LOAD_SCENARIO', 'SELECT_TRAIN', 'ACK_ALARMS'])
-  assert.deepEqual(commands.map((entry) => entry.accepted), [0, 1, 1, 1])
-  assert.deepEqual(commands.map((entry) => entry.actor_role), ['trainee', 'trainer', 'trainee', 'trainee'])
-  assert.equal(commands[3].actor, 'Alex Tan')
+  assert.deepEqual(commands.map((entry) => entry.action_type), ['LOAD_SCENARIO', 'LOAD_SCENARIO', 'TRAINEE_JOIN', 'LOAD_SCENARIO', 'SELECT_TRAIN', 'ACK_ALARMS'])
+  assert.deepEqual(commands.map((entry) => entry.accepted), [0, 0, 1, 1, 1, 1])
+  assert.deepEqual(commands.map((entry) => entry.actor_role), ['trainee', 'trainer', 'trainee', 'trainer', 'trainee', 'trainee'])
+  assert.equal(commands[5].actor, 'Alex Tan')
 
   // Reports are scored by the server; a browser can only add notes.
   const archived = await server.post('/api/reports', { notes: 'Good alarm handling.', summary: { result: 'PASS', score: 100 } })

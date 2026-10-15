@@ -1,4 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
+import type { ConfirmRequest } from '../components/ConfirmDialog'
 import SelectField from '../components/SelectField'
 import { nelTimetableOptions } from '../data/nelTimetable'
 import type { NelTimetableName } from '../data/nelTimetable'
@@ -7,6 +9,7 @@ import { categoriseScenarioEvidence } from '../iosEvidenceTrail'
 import { getScenarioTaskOwner, getScenarioTaskPlaceTag } from '../iosScenarioRoles'
 import { openOccMonitors } from '../occMonitors'
 import { scenarioTemplates } from '../scenarioLibrary'
+import { isRunActive, NO_TRAINEE_REASON, TRAINER_END_RUN_REASON } from '../session-commands/runGuards'
 import type { SessionActor, SessionCommand } from '../session-commands/types'
 import { getOnlineMonitors, occMonitors } from '../sessionPresence'
 import {
@@ -182,6 +185,13 @@ function ExercisePanel({
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
   }
+  // The run's guardrails (the server enforces them too; see runGuards.ts).
+  const runActive = isRunActive(session)
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null)
+  const closeConfirm = () => setConfirmRequest(null)
+  const keptAsNotCompleted = session.trainees.length > 0 ? ' It is kept in History as not completed.' : ''
+  const needsTrainee = trainingMode !== 'PLAYER' && session.trainees.length === 0
+  const lineMapOpen = onlineMonitors.some((monitor) => monitor.role === 'LINE_MAP')
   const timeTargetValue = timeTarget || selectedDefinition.duration
   const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
   // A completed run's time stops at completion.
@@ -247,6 +257,7 @@ function ExercisePanel({
     .sort((left, right) => Number(Boolean(left.elsewhere)) - Number(Boolean(right.elsewhere)))
   const assignId = assignable.some((trainee) => trainee.id === traineeChoice) ? traineeChoice : assignable[0]?.id ?? ''
   const assignMoves = Boolean(assignable.find((trainee) => trainee.id === assignId)?.elsewhere)
+  const assignFromActiveRun = assignMoves && isRunActive(exerciseOf(assignId) ?? { scenarioMode: 'IDLE' })
 
   useEffect(() => {
     // Ticks the run timer each second, and monitor presence every few seconds when idle.
@@ -323,14 +334,22 @@ function ExercisePanel({
                   <span className="trainer-exercise-trainee-name">{trainee.name}</span>
                   <span className="trainer-exercise-trainee-actions">
                     {otherExercise && exercise && (
-                      <button type="button" className="is-quiet" onClick={() => onAssign(trainee.email, otherExercise.id)}>
+                      <button
+                        type="button"
+                        className="is-quiet"
+                        disabled={runActive}
+                        onClick={() => onAssign(trainee.email, otherExercise.id)}
+                        title={runActive ? TRAINER_END_RUN_REASON : undefined}
+                      >
                         Move to Exercise {otherExercise.exercise}
                       </button>
                     )}
                     <button
                       type="button"
                       className="is-quiet"
+                      disabled={runActive}
                       onClick={() => void dispatch({ traineeId: trainee.email, type: 'TRAINEE_LEAVE' })}
+                      title={runActive ? TRAINER_END_RUN_REASON : undefined}
                     >
                       Remove
                     </button>
@@ -367,7 +386,14 @@ function ExercisePanel({
                 }))}
                 onChange={setTraineeChoice}
               />
-              <button type="button" disabled={!assignId} onClick={() => onAssign(assignId, exercise.id)}>{assignMoves ? 'Move here' : 'Assign'}</button>
+              <button
+                type="button"
+                disabled={!assignId || assignFromActiveRun}
+                onClick={() => onAssign(assignId, exercise.id)}
+                title={assignFromActiveRun ? `Their run in Exercise ${exerciseOf(assignId)?.exercise} is still going. ${TRAINER_END_RUN_REASON}` : undefined}
+              >
+                {assignMoves ? 'Move here' : 'Assign'}
+              </button>
             </span>
           )}
           <button type="button" onClick={() => openOccMonitors({ code: sessionCode, number })}>Open monitors</button>
@@ -383,6 +409,10 @@ function ExercisePanel({
       )}
       {notice.text && notice.tone === 'warning' && (
         <p className="trainer-console-notice is-warning" role="status">{notice.text}</p>
+      )}
+
+      {runActive && session.trainees.length > 0 && !lineMapOpen && (
+        <p className="trainer-console-notice is-warning" role="status">Line Map closed: the trains have stopped. Ask the trainee to click <strong>Open my monitors</strong>.</p>
       )}
 
       <section className={`tc-run trainer-console-status is-${session.scenarioMode.toLowerCase()}`} aria-label="Scenario status">
@@ -419,7 +449,19 @@ function ExercisePanel({
             <button type="button" className="is-primary" disabled={isComplete} onClick={() => setScenarioRuntimeState('COMPLETE')}>
               Complete
             </button>
-            <button type="button" onClick={() => void dispatch({ type: 'RESET_SCENARIO' })}>Stop</button>
+            <button
+              type="button"
+              onClick={() => (runActive
+                ? setConfirmRequest({
+                    confirmLabel: 'Stop run',
+                    onConfirm: () => void dispatch({ type: 'RESET_SCENARIO' }),
+                    text: `The run ends now.${keptAsNotCompleted}`,
+                    title: 'Stop the run?',
+                  })
+                : void dispatch({ type: 'RESET_SCENARIO' }))}
+            >
+              Stop
+            </button>
             <button type="button" aria-expanded={setupOpen} onClick={() => setSetupOpen((open) => !open)}>New run</button>
             <button
               aria-pressed={aidsOn}
@@ -520,13 +562,41 @@ function ExercisePanel({
           </div>
           <p className="trainer-console-objective">{resolveFaultText(selectedDefinition.objective)}</p>
           <div className="tc-setup-actions">
-            <button type="button" className="trainer-console-load" disabled={!timeTargetIsValid} onClick={loadScenario}>
+            <button
+              type="button"
+              className="trainer-console-load"
+              disabled={!timeTargetIsValid || needsTrainee}
+              onClick={() => (runActive
+                ? setConfirmRequest({
+                    confirmLabel: 'Start new run',
+                    onConfirm: loadScenario,
+                    text: `The current run ends.${keptAsNotCompleted}`,
+                    title: 'Start a new run?',
+                  })
+                : loadScenario())}
+            >
               {isIdle ? 'Load scenario' : 'Restart with this scenario'}
             </button>
+            {needsTrainee ? (
+              <small className="trainer-console-hint is-blocking">{NO_TRAINEE_REASON}</small>
+            ) : trainingMode !== 'PLAYER' && onlineMonitors.length < occMonitors.length && (
+              <small className="trainer-console-hint">
+                {onlineMonitors.length} of {occMonitors.length} monitors open{lineMapOpen ? '.' : ': the Line Map must be open for trains to run.'}
+              </small>
+            )}
             {timetableName !== session.timetableName && (
               <small className="trainer-console-hint">Changing timetable resets all trains.</small>
             )}
-            <button type="button" className="trainer-console-reset" onClick={() => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' })}>
+            <button
+              type="button"
+              className="trainer-console-reset"
+              onClick={() => setConfirmRequest({
+                confirmLabel: 'Reset session',
+                onConfirm: () => void dispatch({ timetableName: session.timetableName, trainingMode: session.trainingMode, type: 'RESET_SESSION' }),
+                text: `${runActive ? `The current run ends.${keptAsNotCompleted} ` : ''}The exercise gets a new code, and the trainee has to join again.`,
+                title: 'Reset the whole session?',
+              })}
+            >
               Reset whole session
             </button>
           </div>
@@ -585,6 +655,8 @@ function ExercisePanel({
           </section>
         </div>
       )}
+
+      {confirmRequest && <ConfirmDialog onCancel={closeConfirm} request={confirmRequest} />}
     </section>
   )
 }
