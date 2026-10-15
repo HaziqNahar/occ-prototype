@@ -44,6 +44,7 @@ Date: ____________  Host address: ____________  Tester: ____________
 | D2 | Trainee 1 joins Exercise 1's code, trainee 2 Exercise 2's | Each exercise tab shows its trainee | |
 | D3 | Each trainee: **Open my monitors**, place on the three monitors, `F11` | Alarms / Line Map / Timetable full screen; console shows 3/3 monitors per exercise | |
 | D4 | Line Maps | No "View only" notice on either | |
+| D4a | Before trainee 2 joins: Exercise 2's **Load scenario** | Greyed out: "Assign a trainee or wait for one to join first." | |
 | D5 | Trainer loads **PSD Fault** in Exercise 1 and **Train Door Fault** in Exercise 2 | Each trainee's page shows "Exercise running"; the other exercise is unchanged | |
 
 ## E. Working the incident
@@ -54,6 +55,7 @@ Date: ____________  Host address: ____________  Tester: ____________
 | E2 | Each trainee holds the train on Monitor 02 and makes the SOP calls (Calls tab) | Steps and the **Live** feed update as it happens | |
 | E3 | Trains keep moving smoothly on both Line Maps for 5 minutes | No jumps, no freezing | |
 | E4 | Unplug trainee PC 2's network cable for 30 s, plug it back | Its monitors catch up within a minute without reloading | |
+| E4a | During a run: trainer looks at **Remove** and **Move to Exercise …**; trainee looks for **Leave session** | Remove and Move are greyed out; the trainee page has no Leave session and says the trainer must end the run first | |
 | E5 | Trainee releases the train; trainer clicks **Complete** in each exercise | Both show COMPLETE; trainee pages show "Exercise complete" | |
 
 ## F. Afterwards
