@@ -16047,3 +16047,218 @@
     stroke: #000000;
   }
 }
+
+/* Console setup: scenario cards with an icon and one line, settings in one
+   row, Mode as a switch, the session code large with Copy. */
+.app-shell .tc-setup .trainer-console-scenario-list {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.app-shell .app-shell-main .trainer-console-scenario-list button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #132238;
+  text-align: left;
+}
+
+.app-shell .app-shell-main .trainer-console-scenario-list button:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.app-shell .app-shell-main .trainer-console-scenario-list button.is-selected {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.16);
+  box-shadow: none;
+}
+
+.tc-scenario-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  padding: 7px;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.trainer-console-scenario-list button.is-selected .tc-scenario-icon {
+  color: #ffffff;
+  background: #3b82f6;
+}
+
+.tc-scenario-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tc-scenario-text strong {
+  font-weight: 600;
+}
+
+.app-shell .tc-scenario-text small {
+  color: #9fb3ca;
+  font-size: 12px;
+}
+
+.app-shell .tc-setup-fields {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: end;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #0a1626;
+}
+
+.app-shell .tc-setup-fields .segmented {
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.tc-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell .tc-facts .trainer-console-code {
+  color: #fde68a;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.app-shell .app-shell-main .tc-copy {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  padding: 2px 8px;
+  color: #9fb3ca;
+  background: transparent;
+  font-size: 12px;
+}
+
+.app-shell .app-shell-main .tc-copy:hover {
+  color: #f8fafc;
+}
+
+/* Report: steps and actions as two tabs of one card; notes grow on use. */
+.report-tab-list {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.app-shell .app-shell-main .report-tab-list button {
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 12px;
+  color: #9fb3ca;
+  background: none;
+}
+
+.app-shell .app-shell-main .report-tab-list button:hover {
+  color: #f8fafc;
+  background: none;
+}
+
+.app-shell .app-shell-main .report-tab-list button.is-active {
+  border-bottom-color: #3b82f6;
+  color: #f8fafc;
+}
+
+.report-tab-list button span {
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  color: #cbd5e1;
+  background: #132238;
+  font-size: 12px;
+}
+
+.report-events {
+  display: grid;
+  gap: 2px;
+}
+
+.app-shell .report-notes textarea {
+  min-height: 44px;
+  resize: vertical;
+  transition: min-height 0.15s ease;
+}
+
+.app-shell .report-notes textarea:focus,
+.app-shell .report-notes textarea.has-text {
+  min-height: 110px;
+}
+
+.report-saved {
+  color: #4ade80;
+  font-weight: 500;
+}
+
+.report-save-error {
+  color: #f87171;
+}
+
+@media print {
+  .report-tab-list {
+    display: none;
+  }
+
+  .report-tabs [role="tabpanel"] {
+    display: block !important;
+  }
+}
+
+.report-tabs [role="tabpanel"][hidden] {
+  display: none;
+}
+
+/* Actions as plain rows, not boxes. */
+.app-shell .report-events .report-event {
+  align-items: baseline;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: none;
+}
+
+.app-shell .report-events .report-event + .report-event {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 0;
+}
+
+.app-shell .report-events .report-event strong {
+  color: #9fb3ca;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.app-shell .report-events .report-event p {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.app-shell .report-events .report-event.is-rejected {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.app-shell .report-events .report-event.is-rejected p {
+  color: #fecaca;
+}
+
+.app-shell .app-shell-main .trainer-console-scenario-list button {
+  justify-content: flex-start;
+}

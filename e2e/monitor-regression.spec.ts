@@ -717,8 +717,7 @@ test.describe.serial('OCC monitor regressions', () => {
     // scenario picker is behind New run.
     await expect(page.getByRole('region', { name: 'Scenario status' })).toContainText('Train Door Fault')
     await page.getByRole('button', { name: 'New run' }).click()
-    await page.locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
-    await page.getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
+    await page.getByRole('radiogroup', { name: 'Training mode' }).getByRole('radio', { name: 'Assessment' }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
     await expect(aids).toBeDisabled()
     await expect(aids).toHaveText('Aids off')

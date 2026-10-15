@@ -126,8 +126,7 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   // The trainer loads the same incident into both exercises: Exercise 1 in
   // Practice, Exercise 2 in Assessment.
   await show(1)
-  await exercises[1].locator('.trainer-console-field', { hasText: 'Mode' }).locator('.select-field-trigger').click()
-  await exercises[1].getByRole('listbox', { name: 'Training mode' }).getByRole('option', { name: 'Assessment' }).click()
+  await exercises[1].getByRole('radiogroup', { name: 'Training mode' }).getByRole('radio', { name: 'Assessment' }).click()
 
   for (const [index, exercise] of exercises.entries()) {
     await show(index)

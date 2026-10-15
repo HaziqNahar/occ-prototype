@@ -19,6 +19,11 @@ type ReportScreenProps = {
 
 type DiscussPoint = { text: string; tone: 'bad' | 'warn' | 'info' }
 
+type ArchiveState =
+  | { state: 'idle' | 'saving' }
+  | { at: string; state: 'saved' }
+  | { message: string; state: 'error' }
+
 const modeLabels = {
   ASSESSMENT: 'Assessment',
   PLAYER: 'Player',
@@ -42,7 +47,8 @@ function targetSeconds(duration: string) {
 // are one click away.
 function ReportScreen({ onNavigate, onSignOut, session, user }: ReportScreenProps) {
   const trainerName = user?.name
-  const [archiveNote, setArchiveNote] = useState('')
+  const [archive, setArchive] = useState<ArchiveState>({ state: 'idle' })
+  const [tab, setTab] = useState<'steps' | 'actions'>('steps')
   const [trainerNotes, setTrainerNotes] = useState('')
   const scenarioReport = buildScenarioReport(session)
   const score = scenarioReport.scenarioScore
@@ -100,11 +106,11 @@ function ReportScreen({ onNavigate, onSignOut, session, user }: ReportScreenProp
   }
 
   const archiveReport = () => {
-    setArchiveNote('Saving…')
+    setArchive({ state: 'saving' })
     // The server scores the report from its own session; only the notes come from here.
     void archiveOccReport(getSessionId(session), trainerNotes)
-      .then((payload) => setArchiveNote(`Saved as ${payload.report.id}`))
-      .catch((error: Error) => setArchiveNote(error.message))
+      .then(() => setArchive({ at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), state: 'saved' }))
+      .catch((error: Error) => setArchive({ message: error.message, state: 'error' }))
   }
 
   return (
@@ -152,9 +158,16 @@ function ReportScreen({ onNavigate, onSignOut, session, user }: ReportScreenProp
             )}
           </section>
 
-          <details className="report-card report-fold">
-            <summary>Steps · {score.completedTasks} of {score.totalTasks} done</summary>
-            <ol className="report-steps">
+          <section className="report-card report-tabs" aria-label="Run details">
+            <div className="report-tab-list" role="tablist" aria-label="Run details">
+              <button aria-selected={tab === 'steps'} className={tab === 'steps' ? 'is-active' : undefined} onClick={() => setTab('steps')} role="tab" type="button">
+                Steps <span>{score.completedTasks}/{score.totalTasks}</span>
+              </button>
+              <button aria-selected={tab === 'actions'} className={tab === 'actions' ? 'is-active' : undefined} onClick={() => setTab('actions')} role="tab" type="button">
+                All actions <span>{actions.length}</span>
+              </button>
+            </div>
+            <ol className="report-steps" hidden={tab !== 'steps'} role="tabpanel">
               {score.taskResults.map((task) => (
                 <li className={task.complete ? 'is-done' : isComplete ? 'is-missed' : ''} key={task.id}>
                   <i aria-hidden="true">{task.complete ? '✓' : isComplete ? '✗' : '○'}</i>
@@ -163,30 +176,36 @@ function ReportScreen({ onNavigate, onSignOut, session, user }: ReportScreenProp
                 </li>
               ))}
             </ol>
-          </details>
-
-          <details className="report-card report-fold">
-            <summary>All actions ({actions.length})</summary>
-            {actions.map((event) => (
-              <div className={`report-event ${event.result === 'rejected' ? 'is-rejected' : ''}`} key={event.id}>
-                <span>{event.time}</span>
-                <strong>{getEvidenceWhoLabel(event)}</strong>
-                <p>{event.result === 'rejected' ? `Refused: ${event.detail || event.title}` : event.title}</p>
-              </div>
-            ))}
-          </details>
+            <div className="report-events" hidden={tab !== 'actions'} role="tabpanel">
+              {actions.map((event) => (
+                <div className={`report-event ${event.result === 'rejected' ? 'is-rejected' : ''}`} key={event.id}>
+                  <span>{event.time}</span>
+                  <strong>{getEvidenceWhoLabel(event)}</strong>
+                  <p>{event.result === 'rejected' ? `Refused: ${event.detail || event.title}` : event.title}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
           <section className="report-card report-notes" aria-labelledby="report-notes-title">
             <h3 id="report-notes-title">Your notes</h3>
             <textarea
               aria-label="Trainer notes"
-              onChange={(event) => setTrainerNotes(event.target.value)}
-              placeholder="Feedback for the trainee"
+              className={trainerNotes ? 'has-text' : undefined}
+              onChange={(event) => {
+                setTrainerNotes(event.target.value)
+                setArchive((current) => (current.state === 'saved' ? { state: 'idle' } : current))
+              }}
+              placeholder="Add feedback for the trainee…"
+              rows={1}
               value={trainerNotes}
             />
             <div className="report-notes-actions">
-              <button type="button" className="is-primary" onClick={archiveReport}>Save Report</button>
-              {archiveNote && <span role="status">{archiveNote}</span>}
+              <button type="button" className="is-primary" disabled={archive.state === 'saving'} onClick={archiveReport}>
+                {archive.state === 'saving' ? 'Saving…' : 'Save Report'}
+              </button>
+              {archive.state === 'saved' && <span className="report-saved" role="status">✓ Saved at {archive.at}</span>}
+              {archive.state === 'error' && <span className="report-save-error" role="alert">{archive.message}</span>}
               <span className="report-signoff">Signed off by <strong>{trainerName ?? '—'}</strong></span>
             </div>
           </section>

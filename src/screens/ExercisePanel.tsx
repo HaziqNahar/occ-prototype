@@ -45,6 +45,49 @@ const trainingModeOptions: Array<{ label: string; value: TrainingMode }> = [
   { label: 'Player', value: 'PLAYER' },
 ]
 
+// One line under each scenario card: what it trains.
+const scenarioBlurbs: Record<string, string> = {
+  'door-fault': 'Door failure, EHS, cover open',
+  'psd-fault': 'Platform screen door faults',
+  'service-disruption': 'Disruption calls and notices',
+  'train-launch': 'Depot into mainline service',
+  'train-withdrawal': 'Mainline train back to depot',
+  'unscheduled-withdrawal': 'CC-ordered withdrawal at a station',
+}
+
+// Small line icons for the scenario cards (24 × 24, stroked).
+const scenarioIconPaths: Record<string, string> = {
+  'door-fault': 'M5 3h14v18H5zM12 3v18M9 12h1M14 12h1',
+  'psd-fault': 'M3 4h18M5 4v16M19 4v16M9 8v12M15 8v12M12 13l-2-2m2 2l2-2',
+  'service-disruption': 'M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4',
+  'train-launch': 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+  'train-withdrawal': 'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3',
+  'unscheduled-withdrawal': 'M12 3l10 18H2zM12 10v5M12 18v.5',
+}
+
+function ScenarioIcon({ id }: { id: string }) {
+  return (
+    <svg aria-hidden="true" className="tc-scenario-icon" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} viewBox="0 0 24 24">
+      <path d={scenarioIconPaths[id] ?? 'M4 12h16M12 4v16'} />
+    </svg>
+  )
+}
+
+// Copies text, also on a LAN page (plain http), where the clipboard API is off.
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    const field = document.createElement('textarea')
+
+    field.value = text
+    document.body.append(field)
+    field.select()
+    document.execCommand('copy')
+    field.remove()
+  }
+}
+
 // Upcoming steps shown under the current one; the rest fold behind "+N more".
 const UPCOMING_SHOWN = 2
 
@@ -133,6 +176,12 @@ function ExercisePanel({
   const onlineMonitors = getOnlineMonitors(session, now)
   // Trainees type this code: never show the placeholder one.
   const sessionCode = synced ? session.sessionMeta.code : '----'
+  const [copied, setCopied] = useState(false)
+  const copyCode = async () => {
+    await copyText(sessionCode)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 2000)
+  }
   const timeTargetValue = timeTarget || selectedDefinition.duration
   const timeTargetIsValid = /^\d{2}:[0-5]\d$/.test(timeTargetValue) && timeTargetValue !== '00:00'
   // A completed run's time stops at completion.
@@ -292,7 +341,12 @@ function ExercisePanel({
           </div>
           <div>
             <dt>Code</dt>
-            <dd className="trainer-console-code">{sessionCode}</dd>
+            <dd className="tc-code">
+              <span className="trainer-console-code">{sessionCode}</span>
+              <button type="button" className="tc-copy" aria-label="Copy session code" onClick={() => void copyCode()}>
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </dd>
           </div>
           <div>
             <dt>Monitors</dt>
@@ -404,8 +458,14 @@ function ExercisePanel({
                 role="radio"
                 type="button"
               >
-                <strong>{item.title}</strong>
-                {item.incidents.length > 1 && <small>{item.incidents.length} incidents</small>}
+                <ScenarioIcon id={item.id} />
+                <span className="tc-scenario-text">
+                  <strong>{item.title}</strong>
+                  <small>
+                    {scenarioBlurbs[item.id] ?? item.target}
+                    {item.incidents.length > 1 && ` · ${item.incidents.length} incidents`}
+                  </small>
+                </span>
               </button>
             ))}
           </div>
@@ -421,10 +481,23 @@ function ExercisePanel({
                 />
               </label>
             )}
-            <label className="trainer-console-field">
+            <div className="trainer-console-field">
               <span>Mode</span>
-              <SelectField ariaLabel="Training mode" value={trainingMode} options={trainingModeOptions} onChange={setTrainingMode} />
-            </label>
+              <div className="segmented is-inline" role="radiogroup" aria-label="Training mode">
+                {trainingModeOptions.map((option) => (
+                  <button
+                    aria-checked={trainingMode === option.value}
+                    className={trainingMode === option.value ? 'is-active' : undefined}
+                    key={option.value}
+                    onClick={() => setTrainingMode(option.value)}
+                    role="radio"
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="trainer-console-field">
               <span>Time target</span>
               <input
