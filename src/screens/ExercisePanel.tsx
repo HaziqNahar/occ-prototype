@@ -396,7 +396,7 @@ function ExercisePanel({
               </button>
             </span>
           )}
-          <button type="button" onClick={() => openOccMonitors({ code: sessionCode, number })}>Open monitors</button>
+          <button type="button" onClick={() => setCommandProblem(openOccMonitors({ code: sessionCode, number }))}>Open monitors</button>
           <button type="button" onClick={() => onOpenReport(sessionCode)}>Report</button>
           {exercise && number > 1 && (
             <button type="button" className="is-quiet" onClick={() => onClose(exercise.id)}>Close exercise</button>

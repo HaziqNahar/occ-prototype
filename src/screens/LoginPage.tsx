@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PublicUser } from '../accounts'
 import occMonitorBackground from '../assets/occ-monitor-bg.png'
@@ -16,6 +17,7 @@ type LoginPageProps = {
 function LoginPage({ onNavigate, onSignOut, user }: LoginPageProps) {
   const isTrainer = !user || user.role === 'trainer'
   const isTrainee = !user || user.role === 'trainee'
+  const [monitorProblem, setMonitorProblem] = useState('')
 
   return (
     <main
@@ -66,8 +68,9 @@ function LoginPage({ onNavigate, onSignOut, user }: LoginPageProps) {
 
         <footer className="start-footer">
           <span>Setting up a monitor PC?</span>
-          <button type="button" onClick={() => openOccMonitors()}>Open the three OCC monitors</button>
+          <button type="button" onClick={() => setMonitorProblem(openOccMonitors())}>Open the three OCC monitors</button>
           {user && <button type="button" onClick={onSignOut}>Sign out</button>}
+          {monitorProblem && <p className="trainee-error" role="alert">{monitorProblem}</p>}
         </footer>
       </section>
     </main>

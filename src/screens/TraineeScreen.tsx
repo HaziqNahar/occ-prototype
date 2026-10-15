@@ -61,7 +61,8 @@ function TraineeScreen({ dispatch, offline, onJoin, onNavigate, onSignOut, sessi
     setCode('')
   }
 
-  const openMonitors = () => openOccMonitors()
+  const [monitorProblem, setMonitorProblem] = useState('')
+  const openMonitors = () => setMonitorProblem(openOccMonitors())
 
   const status = session.scenarioMode === 'RUNNING'
     ? { label: 'Exercise running', text: 'Work from your monitors, as per SOP.', tone: 'running' }
@@ -121,6 +122,7 @@ function TraineeScreen({ dispatch, offline, onJoin, onNavigate, onSignOut, sessi
               <button type="button" onClick={openMonitors}>
                 {onlineMonitors.length === occMonitors.length ? 'Bring monitors to front' : 'Open my monitors'}
               </button>
+              {monitorProblem && <p className="trainee-error" role="alert">{monitorProblem}</p>}
             </div>
             {isRunActive(session)
               ? <small className="trainee-leave-note">{TRAINEE_END_RUN_REASON} You can leave once it is over.</small>
