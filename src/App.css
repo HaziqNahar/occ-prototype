@@ -16262,3 +16262,179 @@
 .app-shell .app-shell-main .trainer-console-scenario-list button {
   justify-content: flex-start;
 }
+
+/* Dropdowns (SelectField.tsx): a chevron that turns when open, a ticked
+   choice in the menu. */
+.select-field-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #9fb3ca;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.15s ease;
+}
+
+.select-field.is-open .select-field-chevron {
+  transform: rotate(180deg);
+}
+
+.app-shell .select-field-menu {
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.app-shell .app-shell-main .select-field-menu button {
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 400;
+}
+
+.app-shell .app-shell-main .select-field-menu button.is-active {
+  color: #ffffff;
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.app-shell .app-shell-main .select-field-menu button.is-active::after {
+  content: "✓";
+  float: right;
+  color: #93c5fd;
+}
+
+/* Errors and warnings on the trainer pages: a calm banner. */
+.app-shell .trainer-console-notice {
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-left-width: 3px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(250, 204, 21, 0.08);
+}
+
+/* Confirmations (Toast.tsx). */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 48px));
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  border-radius: 10px;
+  padding: 10px 10px 10px 14px;
+  color: #f8fafc;
+  background: #10233a;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.toast-tick {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #052e16;
+  background: #4ade80;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-shell .app-shell-main .toast button {
+  border: 0;
+  padding: 0 6px;
+  color: #9fb3ca;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Loading placeholders (Skeleton.tsx). */
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #132238 0%, #1b2d47 50%, #132238 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shine {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.skeleton-block {
+  border-radius: 12px;
+}
+
+.skeleton-rows {
+  display: grid;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 24px;
+  padding: 14px 16px;
+}
+
+.skeleton-row + .skeleton-row {
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.skeleton-row .skeleton {
+  flex: 1;
+  height: 12px;
+}
+
+.skeleton-row .skeleton:first-child {
+  flex: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .toast,
+  .side-panel {
+    animation: none;
+  }
+}
+
+/* Empty states (EmptyState.tsx). */
+.empty-state-icon {
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  padding: 10px;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.empty-state > button {
+  margin-top: 10px;
+}
+
+.stat-tiles .skeleton {
+  border: 0;
+  padding: 0;
+  background: linear-gradient(90deg, #132238 0%, #1b2d47 50%, #132238 100%);
+  background-size: 200% 100%;
+}

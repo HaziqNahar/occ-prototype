@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import type { PublicUser } from '../accounts'
 import AppShell from '../components/AppShell'
 import ResultPill from '../components/ResultPill'
+import EmptyState from '../components/EmptyState'
 import SelectField from '../components/SelectField'
+import { SkeletonBlock } from '../components/Skeleton'
 import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
 import { getRunTime } from '../history'
@@ -70,13 +72,17 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
     isTrainer ? new URLSearchParams(window.location.search).get('trainee') ?? '' : user.id
   ))
   const [trainees, setTrainees] = useState<TraineeAccount[]>([])
+  const [traineesLoaded, setTraineesLoaded] = useState(false)
   const [progress, setProgress] = useState<TraineeProgress | null>(null)
   const [error, setError] = useState('')
   const chosenId = traineeId || (isTrainer ? trainees[0]?.id ?? '' : user.id)
 
   useEffect(() => {
     if (isTrainer) {
-      void exerciseApi.trainees().then((result) => setTrainees(result.trainees)).catch(() => undefined)
+      void exerciseApi.trainees().then((result) => {
+        setTrainees(result.trainees)
+        setTraineesLoaded(true)
+      }).catch(() => undefined)
     }
   }, [isTrainer])
 
@@ -125,7 +131,16 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
     >
       {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
 
-      {isTrainer && (
+      {isTrainer && traineesLoaded && trainees.length === 0 ? (
+        <section className="trainer-console-panel">
+          <EmptyState
+            action={user.admin && <button type="button" onClick={() => onNavigate('/admin')}>Go to People</button>}
+            icon="people"
+            text="Add trainee accounts on the People page; their progress shows here."
+            title="No trainees yet"
+          />
+        </section>
+      ) : isTrainer && (
         <div className="table-filters">
           <SelectField
             ariaLabel="Trainee"
@@ -133,8 +148,16 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
             options={trainees.map((trainee) => ({ label: trainee.name, value: trainee.id }))}
             onChange={setTraineeId}
           />
-          {trainees.length === 0 && <span className="table-count">No trainee accounts yet. Add them on the People page.</span>}
         </div>
+      )}
+
+      {chosenId && !shown && !error && (
+        <>
+          <div className="stat-tiles">
+            {[0, 1, 2, 3].map((index) => <SkeletonBlock height={82} key={index} />)}
+          </div>
+          <SkeletonBlock height={240} />
+        </>
       )}
 
       {shown && totals && (
@@ -161,10 +184,7 @@ function ProgressScreen({ onNavigate, onSignOut, user }: ProgressScreenProps) {
             <section className="trainer-console-panel" aria-labelledby="progress-scenarios-heading">
               <h2 id="progress-scenarios-heading">By scenario</h2>
               {shown.byScenario.length === 0 ? (
-                <div className="empty-state">
-                  <strong>No completed runs yet</strong>
-                  <span>Scores appear here once a run is completed.</span>
-                </div>
+                <EmptyState icon="chart" text="Scores appear here once a run is completed." title="No completed runs yet" />
               ) : (
                 <table className="data-table">
                   <thead>

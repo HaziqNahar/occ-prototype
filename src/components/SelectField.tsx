@@ -18,7 +18,13 @@ function SelectField<T extends string>({ ariaLabel, onChange, options, value }: 
 
   return (
     <div
-      className="select-field"
+      className={`select-field${isOpen ? ' is-open' : ''}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && isOpen) {
+          event.stopPropagation()
+          setIsOpen(false)
+        }
+      }}
       onBlur={(event) => {
         const nextFocus = event.relatedTarget as Node | null
         if (!nextFocus || !event.currentTarget.contains(nextFocus)) {
@@ -34,7 +40,7 @@ function SelectField<T extends string>({ ariaLabel, onChange, options, value }: 
         onClick={() => setIsOpen((current) => !current)}
       >
         <span>{selectedOption?.label ?? value}</span>
-        <span aria-hidden="true">v</span>
+        <svg aria-hidden="true" className="select-field-chevron" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" /></svg>
       </button>
 
       {isOpen ? (

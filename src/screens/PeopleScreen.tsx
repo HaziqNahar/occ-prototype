@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { getDisplayNameProblem, getPasswordProblem, getUsernameProblem, PASSWORD_MIN_LENGTH } from '../accounts'
 import AppShell from '../components/AppShell'
+import EmptyState from '../components/EmptyState'
 import SidePanel from '../components/SidePanel'
+import { SkeletonRows } from '../components/Skeleton'
+import Toast from '../components/Toast'
 import type { PublicUser, UserRole } from '../accounts'
 import { apiRequest, authApi } from '../authClient'
 import type { AppRoute } from '../types'
@@ -18,7 +21,7 @@ type PeopleScreenProps = {
 // Admin trainers add trainers and trainees, reset passwords and switch
 // accounts off. Accounts are never deleted, so past runs keep their names.
 function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
-  const [users, setUsers] = useState<PublicUser[]>([])
+  const [users, setUsers] = useState<PublicUser[] | null>(null)
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [form, setForm] = useState({ admin: false, name: '', password: '', role: 'trainee' as UserRole, username: '' })
@@ -34,6 +37,7 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
     setNewPassword('')
   }
   const closePanel = useCallback(() => setPanel(null), [])
+  const clearNote = useCallback(() => setNote(''), [])
 
   const refresh = useCallback(() => {
     void authApi.listUsers()
@@ -119,7 +123,7 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
     >
 
       {error && <p className="trainer-console-notice is-warning" role="alert">{error}</p>}
-      {note && <p className="trainer-console-notice is-success" role="status">{note}</p>}
+      {note && <Toast message={note} onClose={clearNote} />}
 
       {panel && (
         <SidePanel onClose={closePanel} title={panel.kind === 'add' ? 'Add person' : 'Reset password'}>
@@ -194,52 +198,62 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
       <section className="trainer-console-panel" aria-labelledby="people-list-heading">
         <div className="trainer-console-panel-head">
           <h2 id="people-list-heading">Accounts</h2>
-          <span>{users.filter((person) => !person.disabled).length} active</span>
+          <span>{users ? `${users.filter((person) => !person.disabled).length} active` : ''}</span>
         </div>
-        <table className="people-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Username</th>
-              <th>Role</th>
-              <th aria-label="Actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((person) => (
-              <tr key={person.id} className={person.disabled ? 'is-disabled' : undefined}>
-                <td>{person.name}{person.disabled && <small className="people-off"> · switched off</small>}</td>
-                <td>{person.id}</td>
-                <td>{person.role === 'trainer' ? (person.admin ? 'Trainer (admin)' : 'Trainer') : 'Trainee'}</td>
-                <td className="people-actions">
-                  <button type="button" onClick={() => openPanel({ kind: 'reset', person })}>Reset password</button>
-                  {person.id !== user.id && (
-                    <button
-                      type="button"
-                      onClick={() => void run(
-                        () => authApi.updateUser(person.id, { disabled: !person.disabled }),
-                        `${person.name} ${person.disabled ? 'switched on' : 'switched off'}.`,
-                      )}
-                    >
-                      {person.disabled ? 'Switch on' : 'Switch off'}
-                    </button>
-                  )}
-                  {person.role === 'trainer' && person.id !== user.id && (
-                    <button
-                      type="button"
-                      onClick={() => void run(
-                        () => authApi.updateUser(person.id, { admin: !person.admin }),
-                        `${person.name} ${person.admin ? 'is no longer an admin' : 'is now an admin'}.`,
-                      )}
-                    >
-                      {person.admin ? 'Remove admin' : 'Make admin'}
-                    </button>
-                  )}
-                </td>
+        {!users ? <SkeletonRows columns={4} rows={3} /> : (
+          <table className="people-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th aria-label="Actions" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((person) => (
+                <tr key={person.id} className={person.disabled ? 'is-disabled' : undefined}>
+                  <td>{person.name}{person.disabled && <small className="people-off"> · switched off</small>}</td>
+                  <td>{person.id}</td>
+                  <td>{person.role === 'trainer' ? (person.admin ? 'Trainer (admin)' : 'Trainer') : 'Trainee'}</td>
+                  <td className="people-actions">
+                    <button type="button" onClick={() => openPanel({ kind: 'reset', person })}>Reset password</button>
+                    {person.id !== user.id && (
+                      <button
+                        type="button"
+                        onClick={() => void run(
+                          () => authApi.updateUser(person.id, { disabled: !person.disabled }),
+                          `${person.name} ${person.disabled ? 'switched on' : 'switched off'}.`,
+                        )}
+                      >
+                        {person.disabled ? 'Switch on' : 'Switch off'}
+                      </button>
+                    )}
+                    {person.role === 'trainer' && person.id !== user.id && (
+                      <button
+                        type="button"
+                        onClick={() => void run(
+                          () => authApi.updateUser(person.id, { admin: !person.admin }),
+                          `${person.name} ${person.admin ? 'is no longer an admin' : 'is now an admin'}.`,
+                        )}
+                      >
+                        {person.admin ? 'Remove admin' : 'Make admin'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {users && users.length === 1 && (
+          <EmptyState
+            action={<button type="button" className="is-primary" onClick={() => openPanel({ kind: 'add' })}>Add person</button>}
+            icon="people"
+            text="Add the other trainers and the trainees. Each gets their own username and password."
+            title="Only you so far"
+          />
+        )}
       </section>
 
       <section

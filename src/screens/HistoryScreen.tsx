@@ -3,7 +3,9 @@ import type { PublicUser } from '../accounts'
 import AppShell from '../components/AppShell'
 import ResultPill from '../components/ResultPill'
 import SelectField from '../components/SelectField'
+import EmptyState from '../components/EmptyState'
 import SidePanel from '../components/SidePanel'
+import { SkeletonBlock, SkeletonRows } from '../components/Skeleton'
 import { exerciseApi } from '../exerciseClient'
 import type { TraineeAccount } from '../exerciseClient'
 import { describeAction, getRunTime } from '../history'
@@ -222,16 +224,21 @@ function HistoryScreen({ onNavigate, onSignOut, user }: HistoryScreenProps) {
       </div>
 
       <section className="trainer-console-panel table-card" aria-label="Runs">
-        {runs && runs.length === 0 ? (
-          <div className="empty-state">
-            <strong>No runs yet</strong>
-            <span>Completed runs appear here, scored by the server.</span>
-          </div>
+        {!runs && !error ? (
+          <SkeletonRows columns={isTrainer ? 7 : 6} />
+        ) : runs && runs.length === 0 ? (
+          <EmptyState
+            icon="runs"
+            text={isTrainer ? 'A run is saved when you save its report or complete it.' : 'Your runs appear here once your trainer saves them.'}
+            title="No runs yet"
+          />
         ) : runs && shownRuns.length === 0 ? (
-          <div className="empty-state">
-            <strong>No runs match</strong>
-            <span>Try another filter.</span>
-          </div>
+          <EmptyState
+            action={<button type="button" onClick={() => { setResultFilter('all'); setSearch('') }}>Clear filters</button>}
+            icon="search"
+            text="No run matches these filters."
+            title="Nothing found"
+          />
         ) : (
           <table className="data-table history-runs">
             <thead>
@@ -292,7 +299,13 @@ function HistoryScreen({ onNavigate, onSignOut, user }: HistoryScreenProps) {
           title={shownDetail?.scenarioTitle ?? 'Loading…'}
           wide
         >
-          {shownDetail && (
+          {!shownDetail ? (
+            <>
+              <SkeletonBlock height={110} />
+              <SkeletonBlock height={80} />
+              <SkeletonRows columns={3} rows={4} />
+            </>
+          ) : (
             <>
               <div className="history-scorecard">
                 <div className={`report-result ${!shownDetail.completed ? 'running' : shownDetail.result === 'PASS' ? 'pass' : 'review'}`}>
