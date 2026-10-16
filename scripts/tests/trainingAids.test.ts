@@ -76,7 +76,7 @@ function loadDoorFault(trainingMode: TrainingMode) {
   assert.deepEqual(state.kind === 'step' && state.hint.target, { kind: 'alarmRow', trainId: '345' })
 
   // A call step lists only the calls still to make.
-  const callTask = trainingScenarioDefinitions.find((item) => item.id === 'door-fault')!.tasks.find((task) => task.id === 'alert-cc-wc-door-fault')!
+  const callTask = trainingScenarioDefinitions.find((item) => item.id === 'door-fault-ehs')!.tasks.find((task) => task.id === 'alert-cc-wc-ehs')!
 
   assert.deepEqual(getStepHint(session, callTask).how, [
     'Calls → Teleph. → Chief Controller (CC) → Alert CC of the incident',

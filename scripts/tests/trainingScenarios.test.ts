@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { applyCommsRequest } from '../../src/comms/commsCatalog'
 import { clearInactiveTimetablePlaybackTrains, createInitialSession, normalizeClientSession } from '../../src/sessionState'
 import {
   applyTrainingScenarioRuntimeEvent,
@@ -221,8 +220,7 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
   const score = scoreTrainingScenario(selected)
 
   assert.equal(score.completedTasks, 1)
-  // 10 of the 140 weight.
-  assert.equal(score.score, 7)
+  assert.equal(score.score, 10)
   assert.equal(score.taskResults.find((task) => task.id === 'select-withdrawal-train')?.complete, true)
   assert.equal(score.taskResults.find((task) => task.id === 'declare-depot-destination')?.complete, false)
   assert.equal(score.taskResults.find((task) => task.id === 'trigger-withdrawal-movement')?.complete, false)
@@ -345,7 +343,6 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
     trainId: '342',
     type: 'TRAIN_SELECTED',
   }).next
-  session = withWithdrawalSopSteps(session)
   session = applyTrainingScenarioRuntimeEvent(session, {
     routeLabel: 'Route R608_803',
     source: 'Monitor 02 Line Map',
@@ -406,7 +403,7 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
 {
   let session = createTrainingScenarioStartSession(createInitialSession(), 'DOOR_FAULT')
 
-  // Arming raises the SOP alarm and holds the faulted train.
+  // Arming raises the door fault alarm and holds the faulted train.
   assert.equal(session.alarmSummaryRows[0].description, 'Train 317 Car 3: Saloon Door Failure in Open/Close')
   assert.equal(session.alarmSummaryRows[0].tone, 'red')
   assert.equal(session.trains.find((train) => train.id === '317')?.doorFailureState, 'FAULT_ALARM')
@@ -422,20 +419,6 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
     trainId: '317',
     type: 'ALARM_ACKNOWLEDGED',
   }).next
-  session = withCalls(session, ['cc-alert-incident', 'wc-alert-fault', 'driver-investigate'])
-  session = applyTrainingScenarioRuntimeEvent(session, {
-    source: 'Monitor 02 Line Map',
-    trainId: '317',
-    type: 'TRAIN_HOLD_APPLIED',
-  }).next
-  session = applyTrainingScenarioRuntimeEvent(session, {
-    commandLabel: 'Cycle Door',
-    source: 'Monitor 02 Line Map',
-    summaryStatus: 'CYCLE DOOR REQUESTED',
-    trainId: '317',
-    type: 'DOOR_COMMAND_CONFIRMED',
-  }).next
-  assert.equal(scoreTrainingScenario(session).taskResults.find((task) => task.id === 'apply-door-procedure')?.complete, false)
   session = applyTrainingScenarioRuntimeEvent(session, {
     commandLabel: 'Confirm Closed/Locked',
     source: 'Monitor 02 Line Map',
@@ -470,9 +453,6 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
   assert.equal(session.scenarioTasks.completeScenario, true)
   assert.equal(score.taskResults.find((task) => task.id === 'apply-door-procedure')?.complete, true)
   assert.equal(score.taskResults.find((task) => task.id === 'route-after-door-fault')?.complete, true)
-  assert.equal(score.taskResults.find((task) => task.id === 'hold-door-fault-train')?.complete, true)
-  assert.equal(score.taskResults.find((task) => task.id === 'cycle-faulted-door')?.complete, true)
-  assert.equal(score.taskResults.find((task) => task.id === 'alert-cc-wc-door-fault')?.complete, true)
   assert.equal(score.result, 'PASS')
 }
 
@@ -696,8 +676,7 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
     trainId: '306',
     type: 'TRAIN_SELECTED',
   }).next
-  const coordinated = withCalls(selected, ['dtc-despatch', 'driver-establish-contact'])
-  const prepared = applyTrainingScenarioWorkflowAction(coordinated, 'PREPARE_LAUNCH_ROUTE')
+  const prepared = applyTrainingScenarioWorkflowAction(selected, 'PREPARE_LAUNCH_ROUTE')
   const dispatched = applyTrainingScenarioWorkflowAction(prepared.next, 'DISPATCH_LAUNCH')
   const verified = applyTrainingScenarioWorkflowAction(dispatched.next, 'VERIFY_LAUNCH_MAINLINE')
   const launchTrain = verified.next.trains.find((train) => train.id === '306')
@@ -747,11 +726,11 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
     )),
   }, 'TRAIN_WITHDRAWAL')
   const rejectedBeforeSelection = applyTrainingScenarioWorkflowAction(current, 'DECLARE_WITHDRAWAL_DESTINATION')
-  const selected = withWithdrawalSopSteps(applyTrainingScenarioRuntimeEvent(current, {
+  const selected = applyTrainingScenarioRuntimeEvent(current, {
     source: 'Monitor 02 Line Map',
     trainId: '342',
     type: 'TRAIN_SELECTED',
-  }).next)
+  }).next
   const routeSet = applyTrainingScenarioRuntimeEvent(selected, {
     routeLabel: 'Route R608_803',
     source: 'Monitor 02 Line Map',
@@ -799,17 +778,7 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
   const rejectedAck = applyTrainingScenarioWorkflowAction(current, 'ACKNOWLEDGE_DOOR_FAULT')
   const injected = applyTrainingScenarioWorkflowAction(current, 'INJECT_DOOR_FAULT')
   const acknowledged = applyTrainingScenarioWorkflowAction(injected.next, 'ACKNOWLEDGE_DOOR_FAULT')
-  const sopSteps = applyTrainingScenarioRuntimeEvent(applyTrainingScenarioRuntimeEvent(
-    withCalls(acknowledged.next, ['cc-alert-incident', 'wc-alert-fault', 'driver-investigate']),
-    { source: 'Monitor 02 Line Map', trainId: '317', type: 'TRAIN_HOLD_APPLIED' },
-  ).next, {
-    commandLabel: 'Cycle Door',
-    source: 'Monitor 02 Line Map',
-    summaryStatus: 'CYCLE DOOR REQUESTED',
-    trainId: '317',
-    type: 'DOOR_COMMAND_CONFIRMED',
-  }).next
-  const procedure = applyTrainingScenarioWorkflowAction(sopSteps, 'APPLY_DOOR_FAULT_PROCEDURE')
+  const procedure = applyTrainingScenarioWorkflowAction(acknowledged.next, 'APPLY_DOOR_FAULT_PROCEDURE')
   const recovery = applyTrainingScenarioWorkflowAction(procedure.next, 'AUTHORISE_DOOR_FAULT_RECOVERY')
   const complete = applyTrainingScenarioWorkflowAction(recovery.next, 'COMPLETE_DOOR_FAULT_REVIEW')
   const train317 = complete.next.trains.find((train) => train.id === '317')
@@ -920,7 +889,7 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
   assert.equal(score.taskResults.find((task) => task.id === 'review-launch-outcome')?.complete, false)
   assert.deepEqual(
     getTrainingScenarioCompletionBlockers(current).map((task) => task.id),
-    ['select-launch-train', 'coordinate-launch-with-dtc', 'establish-launch-driver-radio', 'set-launch-route', 'dispatch-launch-train'],
+    ['select-launch-train', 'set-launch-route', 'dispatch-launch-train'],
   )
 }
 
@@ -1162,20 +1131,4 @@ function withLiveTimetableTrain(session: OccSessionState, trainId: string): OccS
   assert.equal(launch.activeScenario.targetTrainId, undefined)
   assert.equal(launch.selectedTrainId, reset.selectedTrainId)
   assert.equal(launch.scenarioTasks.selectTrain, false)
-}
-
-function withCalls(session: ReturnType<typeof createInitialSession>, messageIds: readonly string[]) {
-  return messageIds.reduce((current, messageId) => applyCommsRequest(current, { messageId }), session)
-}
-
-// The scheduled withdrawal SOP steps outside the line map: calls, and doors & PSDs closed for train clear.
-function withWithdrawalSopSteps(session: OccSessionState) {
-  const closed = completeTrainingScenarioDefinitionTask(
-    withCalls(session, ['coc-withdrawal-pa', 'dtc-withdrawal-return', 'driver-train-clear-received']),
-    'close-doors-scheduled-withdrawal',
-    'IOS Scenario Runtime',
-  )
-
-  assert.equal(closed.allowed, true, closed.next.scenarioNotice.text)
-  return closed.next
 }

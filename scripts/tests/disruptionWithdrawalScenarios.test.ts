@@ -116,18 +116,20 @@ trainingScenarioDefinitions
   }
 }
 
-// Scheduled withdrawal (section 7.1): the SOP calls and train clear are critical steps.
+// Scheduled withdrawal keeps the trainer's own steps (July version).
 {
   const definition = findTrainingScenarioDefinition('TRAIN_WITHDRAWAL')
-  const critical = definition.tasks.filter((task) => task.critical)
 
-  assert.deepEqual(critical.flatMap((task) => task.commsMessageIds ?? []), ['coc-withdrawal-pa', 'dtc-withdrawal-return', 'driver-train-clear-received'])
-  assert.ok(critical.some((task) => task.id === 'close-doors-scheduled-withdrawal'))
-
-  // Train Clear comes before the route is set.
-  const ids = definition.tasks.map((task) => task.id)
-
-  assert.ok(ids.indexOf('train-clear-scheduled-withdrawal') < ids.indexOf('set-withdrawal-route'))
+  assert.deepEqual(definition.tasks.map((task) => task.label), [
+    'Select train to withdraw',
+    'Set route to last station hold path',
+    'Declare SKG / SKGS destination in Arrival Time',
+    'Apply Departure Time to move to S608 hold',
+    'Declare NED / RT2D depot destination in Arrival Time',
+    'Apply Departure Time to move to RT2 depot',
+    'Verify train reaches depot endpoint',
+    'Review final withdrawal state',
+  ])
 }
 
 // Unscheduled withdrawal: the train is placed and held at the chosen platform.

@@ -79,11 +79,9 @@ exercises side by side to save time.
 | G1 | Trainer loads **Train Loop & Shuttle Service → Dual train loop with shuttle** in Exercise 1 | Trainee sees the loops, shuttle, bridging buses and intermediate terminals; console shows "line-wide" and no train is held | |
 | G2 | Trainee 1 makes the calls from the Calls tab: **Broadcast to all Stations & Trains**, Station Staff (FRP or HGN), CoC disruption PA, shuttle PA and disruption notice | Each call ticks its checklist step; trainer reviews and completes: PASS | |
 | G3 | Trainer loads **Unscheduled Train Withdrawal** in Exercise 2 | Trainee sees "CC has decided to withdraw Train … at …"; that train is held at that platform on Monitor 02 | |
-| G4 | Trainee 2 selects the train and calls the driver, station staff, CoC and DTC; trainer ticks **Close all train doors & PSDs**; trainee logs Train Clear, sets a route and moves the train off | Checklist complete; trainer completes: PASS | |
-| G5 | Trainer loads **Train Withdrawal** in either exercise | Checklist includes the CoC PA, DTC alert, doors & PSDs closed and Train Clear before the route | |
-| G6 | Trainee withdraws the train to the RT2 depot without the CoC / DTC / Train Clear calls; trainer clicks **Complete** | Refused: "Cannot complete yet. Open: …" lists those steps | |
-| G7 | Trainee makes the missing calls, trainer ticks doors & PSDs, then completes | PASS | |
-| G8 | Trainer loads **Train Launch** in either exercise and the trainee launches a train from the depot | Train enters SKG mainline service; trainer completes: PASS | |
+| G4 | Trainee 2 selects the train and calls the driver, station staff, CoC and DTC; trainer ticks **Close all train doors & PSDs**; trainee logs Train Clear and sets a route | Checklist complete; trainer completes: PASS | |
+| G5 | Trainer loads **Train Withdrawal** in either exercise; the trainee withdraws the train to the RT2 depot (Arrival / Departure Time steps) | Checklist complete; trainer completes: PASS | |
+| G6 | Trainer loads **Train Launch** in either exercise and the trainee launches a train from the depot | Train enters SKG mainline service; trainer completes: PASS | |
 
 ## H. Training aids and OCC behaviour
 

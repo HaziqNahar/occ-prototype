@@ -693,32 +693,26 @@ test.describe('OCC monitor regressions', () => {
 
     await alarms.getByRole('button', { name: 'Unselect alarms' }).click()
     await alarmsCoach.locator('.training-coach-head').click()
-    await expect(alarmsCoach).toContainText('Acknowledge door failure alarm')
+    await expect(alarmsCoach).toContainText('Acknowledge door fault alarm')
     await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
     await expect.poll(() => outlines(alarms, incidentRow)).toBe(true)
     await incidentRow.click()
     await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
     await expect.poll(() => outlines(alarms, alarms.getByRole('button', { name: 'Ack. selection' }))).toBe(true)
 
-    // Acknowledged: the next step is a call, and Show me outlines the Calls tab.
+    // Acknowledged: the next step, Apply door fault procedure, is on the Line Map.
     await incidentRow.click()
     await alarms.getByRole('button', { name: 'Ack. selection' }).click()
-    await expect(alarmsCoach).toContainText('Alert CC and WC')
-    await alarmsCoach.getByRole('button', { name: 'Show me' }).click()
-    await expect.poll(async () => {
-      const [ring, tab] = [await alarms.getByTestId('coach-highlight').boundingBox(), await alarms.locator('#line-map-calls-tab').boundingBox()]
-
-      return Boolean(ring && tab && Math.abs(ring.x + 4 - tab.x) < 2 && Math.abs(ring.y + 4 - tab.y) < 2)
-    }).toBe(true)
+    await expect(alarmsCoach).toContainText('Next step is on Monitor 02')
 
     // Aids used are counted for the report and History, and the score is not reduced.
-    await expect.poll(async () => (await getSession(page)).assessmentMetrics.aidsUsed).toEqual({ locate: 1, showMe: 4 })
+    await expect.poll(async () => (await getSession(page)).assessmentMetrics.aidsUsed).toEqual({ locate: 1, showMe: 3 })
 
     const report = await context.newPage()
 
     await report.goto(`/report?session=${encodeURIComponent((await getSession(page)).sessionMeta.code)}`)
     // The scorecard: hints on the summary line, the refusal under To discuss.
-    await expect(report.locator('.report-discuss')).toContainText('Show me 4 · Locate 1')
+    await expect(report.locator('.report-discuss')).toContainText('Show me 3 · Locate 1')
     await expect(report.locator('.report-discuss')).toContainText('Refused: Select Train')
     // Signed off by the signed-in trainer; the timeline names people, not system sources.
     await expect(report.locator('.report-signoff')).toContainText('Test Trainer')
@@ -729,7 +723,7 @@ test.describe('OCC monitor regressions', () => {
     await report.goto('/history')
     await report.getByRole('button', { name: /Train Door Fault/ }).first().click()
     await expect(report.getByText('E2E aids check')).toBeVisible()
-    await expect(report.locator('.history-detail .report-discuss')).toContainText('Show me 4 · Locate 1')
+    await expect(report.locator('.history-detail .report-discuss')).toContainText('Show me 3 · Locate 1')
     await report.close()
 
     // The trainer's switch hides it everywhere.
