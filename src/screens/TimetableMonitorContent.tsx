@@ -5,8 +5,7 @@ import ScadaDomSurface from '../components/ScadaDomSurface'
 import ScadaFooter from '../components/ScadaFooter'
 import TimetableRegulationGraph from '../components/TimetableRegulationGraph'
 import { isTimetableTripAction } from '../session-commands/monitorCommands'
-import { formatTimetableClockTime, getTimetableClockNow } from '../timetableClockState'
-import { getTrainDelaySeconds } from '../trainDelay'
+import { formatTimetableClockTime } from '../timetableClockState'
 import { getActiveTimetableView, getTimetableStationOptions, getTimetableViewRows } from '../timetableViewState'
 import type { MonitorScreenProps } from './monitorScreenTypes'
 
@@ -177,14 +176,7 @@ export default function TimetableMonitorContent({
       className="scada-dom-root--timetable"
       title={`${actionNote || `Loaded time table ${loadedTimeTableName}`} | ${selectedRow ? `TRN ${selectedRow.train} ${direction}` : 'TRN --'}`}
     >
-      <TimetableRegulationGraph
-        delays={new Map(session.trains.map((train) => [
-          train.id,
-          { run: train.service === 'SB' ? 'SB' : 'NB', seconds: getTrainDelaySeconds(train) },
-        ]))}
-        now={getTimetableClockNow(session.timetableClock)}
-        rows={session.timetableRows}
-      />
+      <TimetableRegulationGraph rows={session.timetableRows} />
       <div className="timetable-dom-title-strip">Traffic current time table</div>
       <section className="timetable-dom-panel">
         <div className="timetable-dom-filters">

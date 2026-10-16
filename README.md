@@ -60,7 +60,7 @@ npm.cmd run reset:password -- <username> <new password>
 | `/session/join` | Trainee | Join with your exercise's code from the console, then open the monitors. Shows exercise status but never names the incident. |
 | `/screen/alarms` | Trainee | Monitor 01: alarm summary and acknowledgement, Calls panel. |
 | `/screen/line-map` | Trainee | Monitor 02: SCADA line map, train commands (route, dispatch, HII hold), train inspector, Calls panel. |
-| `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and train regulation graph. |
+| `/screen/timetable` | Trainee | Monitor 03: traffic current timetable and the train regulation graph (static display). |
 | `/report` | Trainer | Post-session report: result and score, **To discuss** (refusals, missed or slow steps, time over target, hints used), steps and all actions as two tabs, trainer notes and sign-off. |
 | `/admin` | Admin trainer | **People**: add trainers and trainees, reset passwords, switch accounts off, make admins. |
 | `/history` | Trainer (trainee: own runs) | **Run history**: every archived run in one table to sort and filter (trainee, result, search). A run opens in a side panel: result, To discuss, steps, trainer notes and, from the action log, each action with who did it and when. **Export CSV** saves the run list or one run; **Print / PDF** prints the open run. |
@@ -144,8 +144,8 @@ them without extra work. Design and status:
   While a run is in progress, routine alarms (train holds, emergency brakes,
   routes abandoned and similar, for SKG-PGC) arrive every 1.5-3 minutes, as in
   a real shift; they are not scored (`src/backgroundAlarms.ts`).
-- A train runs late for as long as it is held, which shows on the Timetable's
-  regulation graphs; PH lights on the platform where a held train stands.
+- PH lights on the platform where a held train stands. The Timetable's
+  regulation graphs are a static display (every train on time).
 - Steps are scored from live actions: alarm acknowledgement, train selection,
   holds, door commands, routes, dispatch, and calls logged from the Calls panel
   (`src/comms/commsCatalog.ts`). Critical steps are marked with ★.
