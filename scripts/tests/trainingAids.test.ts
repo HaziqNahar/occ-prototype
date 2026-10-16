@@ -91,7 +91,8 @@ function loadDoorFault(trainingMode: TrainingMode) {
   // at the train's station (it acts only on the train there).
   const doorFaultTasks = trainingScenarioDefinitions.find((item) => item.id === 'door-fault')!.tasks
   const routeHint = getStepHint(session, doorFaultTasks.find((task) => task.mappedTaskId === 'setRoute')!)
-  const dispatchHint = getStepHint(session, doorFaultTasks.find((task) => task.mappedTaskId === 'dispatchTrain')!)
+  const ehsTasks = trainingScenarioDefinitions.find((item) => item.id === 'door-fault-ehs')!.tasks
+  const dispatchHint = getStepHint(session, ehsTasks.find((task) => task.mappedTaskId === 'dispatchTrain')!)
 
   assert.match(routeHint.how[0], /^Right-click the signal ahead of Train 345 → Define Route/)
   assert.deepEqual(routeHint.target, { kind: 'train', trainId: '345' })

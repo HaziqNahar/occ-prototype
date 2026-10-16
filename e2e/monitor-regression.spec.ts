@@ -502,7 +502,7 @@ test.describe('OCC monitor regressions', () => {
 
     await expect(status.getByText('Dual train loop with shuttle', { exact: true })).toBeVisible()
     await expect(status).toContainText('line-wide')
-    await expect(page.getByText(/CC has decided on: loops PGC – HGN and HBF – FRP; shuttle HGN – SER/).first()).toBeVisible()
+    await expect(page.getByText(/Service disruption: loops PGC – HGN and HBF – FRP; shuttle HGN – SER/).first()).toBeVisible()
 
     // Line-wide: no scenario train, nothing held.
     expect((await getSession(page)).activeScenario.targetTrainId).toBeUndefined()
@@ -588,11 +588,11 @@ test.describe('OCC monitor regressions', () => {
     // Done steps fold into a count; the trainer step no longer waits on the trainer.
     await expect(doorsStep).toHaveCount(0)
     await expect(page.getByRole('button', { name: /6 steps done/ })).toBeVisible()
-    await expect(status).toContainText('6 / 10')
+    await expect(status).toContainText('6 / 9')
 
     // Completing before the train is selected, routed and moved is refused.
     await status.getByRole('button', { name: 'Complete' }).click()
-    await expect(page.getByText(/Cannot complete yet\. Open: Select affected train, Route the train to the designated destination, Move the train off the platform\./).first()).toBeVisible()
+    await expect(page.getByText(/Cannot complete yet\. Open: Select affected train, Route the train to the designated destination\./).first()).toBeVisible()
     await expect(status.getByText('RUNNING', { exact: true })).toBeVisible()
     expect(errors).toEqual([])
   })
@@ -792,12 +792,14 @@ test.describe('OCC monitor regressions', () => {
     await expect(timetableCoach).not.toContainText('Select train to launch')
     await timetable.close()
 
-    // PSD fault: once the train is held and the calls are made, DISPATCH on the fault station's panel.
+    // PSD failed to close: once the train is held and the calls are made, IDT from the fault station's panel.
     await page.getByRole('button', { name: 'New run' }).click()
     await page.getByRole('radio', { name: /PSD Fault/ }).click()
+    await page.getByRole('button', { name: 'Incident', exact: true }).click()
+    await page.getByRole('option', { name: 'Single PSD failed to close' }).click()
     await page.getByRole('button', { name: 'Restart with this scenario' }).click()
     await page.getByRole('alertdialog', { name: 'Start a new run?' }).getByRole('button', { name: 'Start new run' }).click()
-    await expect.poll(async () => (await getSession(page)).activeScenario.id).toBe('psd-fault-obstructed')
+    await expect.poll(async () => (await getSession(page)).activeScenario.id).toBe('psd-fault-fail-close')
 
     const session = await getSession(page)
     const trainId = session.activeScenario.targetTrainId as string
@@ -813,7 +815,7 @@ test.describe('OCC monitor regressions', () => {
     await send({ rowKeys: [`${incident.timestamp}|${incident.asset}|${incident.description}`], type: 'ACK_ALARMS' })
     await send({ detail: '', trainId, type: 'TRAIN_HOLD' })
 
-    for (const messageId of ['station-investigate-psd', 'wc-alert-fault', 'cc-alert-incident', 'driver-standby-console']) {
+    for (const messageId of ['station-investigate-psd', 'wc-alert-fault', 'cc-alert-incident', 'driver-standby-console', 'station-isolate-psd-open']) {
       await send({ request: { messageId, station, trainId }, type: 'LOG_CALL' })
     }
 
@@ -822,7 +824,7 @@ test.describe('OCC monitor regressions', () => {
     const panelX = Math.round(platformData.find((platform) => platform.code === station)!.x)
 
     await lineMap.goto('/screen/line-map')
-    await expect(lineMapCoach).toContainText('Next: Release')
+    await expect(lineMapCoach).toContainText('Next: Issue IDT')
     await lineMapCoach.locator('.training-coach-head').click()
     await expect(lineMapCoach).toContainText(`DISPATCH on the ${station} station panel`)
     await lineMapCoach.getByRole('button', { name: 'Show me' }).click()

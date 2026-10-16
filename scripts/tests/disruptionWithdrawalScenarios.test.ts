@@ -92,7 +92,7 @@ trainingScenarioDefinitions
     assert.equal(session.activeScenario.targetTrainId, undefined, incident)
     assert.equal(getActiveTrainingScenarioTargetTrainId(session), '')
     assert.equal(session.trains.find((train) => train.id === location.trainId)?.status, before.trains.find((train) => train.id === location.trainId)?.status)
-    assert.match(session.scenarioNotice.text, /CC has decided on: loop/)
+    assert.match(session.scenarioNotice.text, /Service disruption: loop/)
     assert.equal(session.alarmSummaryRows.some((row) => row.scenarioAlarm), false, 'no fault alarm')
 
     // Shuttle patterns also need the shuttle PA.

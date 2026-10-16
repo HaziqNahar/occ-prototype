@@ -27,8 +27,9 @@ function callTask(
   return { commsMessageIds, critical: options.critical, id, label, monitor: 'Calls', weight: options.weight ?? 10 }
 }
 
-function holdTrainTask(id: string, label = 'Apply platform hold on the train'): TrainingScenarioTaskDefinition {
-  return { completesOnHold: true, critical: true, id, label, monitor: 'Line Map', runtimeOnly: true, weight: 10 }
+// critical: false where the SOP holds the train only "if required" / "when applicable".
+function holdTrainTask(id: string, label = 'Apply platform hold on the train', critical = true): TrainingScenarioTaskDefinition {
+  return { completesOnHold: true, critical, id, label, monitor: 'Line Map', runtimeOnly: true, weight: 10 }
 }
 
 function releaseTrainTask(id: string, label: string, critical = false): TrainingScenarioTaskDefinition {
@@ -54,7 +55,7 @@ function serviceDisruptionDefinition(pattern: DisruptionPattern): TrainingScenar
   const service = [pattern.loops, pattern.shuttle].filter(Boolean).join('; ')
 
   return {
-    armNotice: `Service disruption. CC has decided on: ${service}. Free regular & bridging bus ${pattern.buses}. Intermediate terminal ${pattern.terminals}. Implement as per SOP.`,
+    armNotice: `Service disruption: ${service}. Free regular & bridging bus ${pattern.buses}. Intermediate terminal ${pattern.terminals}. Implement as per SOP.`,
     defaultTargetTrainId: FAULT_TRAIN_ID,
     duration: '06:00',
     id: pattern.id,
@@ -252,7 +253,7 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
       acknowledgeFaultTask('acknowledge-door-fault', 'Acknowledge door failure alarm'),
       callTask('alert-cc-wc-door-fault', 'Alert CC and WC', ['cc-alert-incident', 'wc-alert-fault'], { critical: true }),
       callTask('driver-investigate-door-fault', 'Instruct driver to investigate', ['driver-investigate']),
-      holdTrainTask('hold-door-fault-train'),
+      holdTrainTask('hold-door-fault-train', undefined, false),
       {
         doorCommandLabels: ['Cycle Door'],
         id: 'cycle-faulted-door',
@@ -278,7 +279,6 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
         monitor: 'Line Map',
         weight: 10,
       },
-      releaseTrainTask('authorise-door-fault-movement', 'Authorise train movement'),
       reviewFaultTask('review-door-fault-outcome'),
     ],
   },
@@ -330,9 +330,8 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
       acknowledgeFaultTask('acknowledge-detrainment-alarm', 'Acknowledge detrainment door cover alarm'),
       callTask('alert-cc-wc-detrainment', 'Alert CC and WC', ['cc-alert-incident', 'wc-alert-fault'], { critical: true }),
       callTask('driver-investigate-detrainment', 'Instruct driver to investigate', ['driver-investigate'], { critical: true }),
-      holdTrainTask('hold-detrainment-train', 'Apply platform hold at the next platform'),
+      holdTrainTask('hold-detrainment-train', 'Apply platform hold at the next platform', false),
       callTask('driver-standby-osc', 'Instruct driver to standby until OSC is on board', ['driver-standby-osc']),
-      releaseTrainTask('release-detrainment-train', 'Release the train when safe'),
       reviewFaultTask('review-detrainment-outcome'),
     ],
   },
@@ -350,17 +349,16 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     id: 'psd-fault-obstructed',
     incident: 'PSD obstructed',
     kind: 'PSD_FAULT',
-    objective: `A platform screen door at {station} {bound} reports obstructed. Hold the train, send station staff to clear it, report the fault and release the train.`,
+    objective: `A platform screen door at {station} {bound} reports obstructed. Hold the train, send station staff to clear it and report the fault.`,
     target: `{station} {bound} platform, PSD 07`,
     title: 'PSD Obstructed',
     tasks: [
       selectFaultTrainTask('select-psd-obstructed-train'),
       acknowledgeFaultTask('acknowledge-psd-obstructed', 'Acknowledge PSD obstructed alarm'),
-      holdTrainTask('hold-psd-obstructed-train'),
+      holdTrainTask('hold-psd-obstructed-train', undefined, false),
       callTask('station-investigate-psd-obstructed', 'Send station staff to the affected PSD', ['station-investigate-psd'], { critical: true }),
       callTask('report-wc-cc-psd-obstructed', 'Report fault to WC and inform CC', ['wc-alert-fault', 'cc-alert-incident']),
       callTask('driver-standby-psd-obstructed', 'Driver to standby at leading cab, console open', ['driver-standby-console']),
-      releaseTrainTask('release-psd-obstructed-train', 'Release the train once the obstruction is cleared'),
       reviewFaultTask('review-psd-obstructed-outcome'),
     ],
   },
@@ -384,12 +382,11 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     tasks: [
       selectFaultTrainTask('select-psd-fail-open-train'),
       acknowledgeFaultTask('acknowledge-psd-fail-open', 'Acknowledge PSD failed to open alarm'),
-      holdTrainTask('hold-psd-fail-open-train'),
+      holdTrainTask('hold-psd-fail-open-train', undefined, false),
       callTask('station-investigate-psd-fail-open', 'Send station staff to the affected PSD', ['station-investigate-psd'], { critical: true }),
       callTask('report-wc-cc-psd-fail-open', 'Report fault to WC and inform CC', ['wc-alert-fault', 'cc-alert-incident']),
       callTask('driver-standby-psd-fail-open', 'Driver to standby at leading cab, console open', ['driver-standby-console']),
       callTask('isolate-psd-closed', 'Authorise isolation of the PSD in closed position', ['station-isolate-psd-closed'], { critical: true }),
-      releaseTrainTask('release-psd-fail-open-train', 'Release the train'),
       reviewFaultTask('review-psd-fail-open-outcome'),
     ],
   },
@@ -413,7 +410,7 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     tasks: [
       selectFaultTrainTask('select-psd-fail-close-train'),
       acknowledgeFaultTask('acknowledge-psd-fail-close', 'Acknowledge PSD failed to close alarm'),
-      holdTrainTask('hold-psd-fail-close-train'),
+      holdTrainTask('hold-psd-fail-close-train', undefined, false),
       callTask('station-investigate-psd-fail-close', 'Send station staff to the affected PSD', ['station-investigate-psd'], { critical: true }),
       callTask('report-wc-cc-psd-fail-close', 'Report fault to WC and inform CC', ['wc-alert-fault', 'cc-alert-incident']),
       callTask('driver-standby-psd-fail-close', 'Driver to standby at leading cab, console open', ['driver-standby-console']),
@@ -442,8 +439,6 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     tasks: [
       selectFaultTrainTask('select-psd-override-train'),
       acknowledgeFaultTask('acknowledge-psd-override', 'Acknowledge PSD summary light alarm'),
-      holdTrainTask('hold-psd-override-train'),
-      callTask('report-wc-cc-psd-override', 'Report fault to WC and inform CC', ['wc-alert-fault', 'cc-alert-incident']),
       callTask('authorise-psd-override', 'Authorise PSD Override Switch to bypass', ['station-psd-override'], { critical: true }),
       releaseTrainTask('release-psd-override-train', 'Issue IDT once the PSD summary light is on', true),
       reviewFaultTask('review-psd-override-outcome'),
@@ -469,13 +464,12 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
     tasks: [
       selectFaultTrainTask('select-psd-manual-train'),
       acknowledgeFaultTask('acknowledge-psd-manual', 'Acknowledge RM / PSD alarm'),
-      holdTrainTask('hold-psd-manual-train'),
+      holdTrainTask('hold-psd-manual-train', undefined, false),
       callTask('alert-cc-wc-psd-manual', 'Alert CC and WC', ['cc-alert-incident', 'wc-alert-fault']),
       callTask('driver-manual-doors-psd', 'Driver to leading cab for manual PSD/train door operation', ['driver-manual-doors'], { critical: true }),
       callTask('station-manual-psd', 'Authorise station staff to operate PSD manually', ['station-manual-psd'], { critical: true }),
       callTask('station-standby-psd-manual', 'Station staff to standby at the platform', ['station-standby-platform'], { weight: 5 }),
       callTask('authorise-rm-psd-manual', 'Authorise RM driving', ['driver-authorise-rm'], { critical: true }),
-      releaseTrainTask('release-psd-manual-train', 'Release the train'),
       reviewFaultTask('review-psd-manual-outcome'),
     ],
   },
@@ -504,7 +498,6 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
       callTask('station-manual-psd-multiple', 'Station staff to HW/TW unit for manual PSD operation', ['station-manual-psd'], { critical: true }),
       callTask('isolate-first-psd', 'Authorise isolation of the first faulty PSD (closed)', ['station-isolate-psd-closed'], { critical: true }),
       callTask('authorise-rmf-doors', 'Authorise train doors in RMF with read-back', ['driver-rmf-doors'], { critical: true }),
-      releaseTrainTask('release-psd-multiple-train', 'Release the train'),
       reviewFaultTask('review-psd-multiple-outcome'),
     ],
   },
@@ -583,7 +576,6 @@ export const trainingScenarioDefinitions: readonly TrainingScenarioDefinition[] 
         monitor: 'Line Map',
         weight: 10,
       },
-      releaseTrainTask('release-unscheduled-withdrawal', 'Move the train off the platform'),
       reviewFaultTask('review-unscheduled-withdrawal'),
     ],
   },

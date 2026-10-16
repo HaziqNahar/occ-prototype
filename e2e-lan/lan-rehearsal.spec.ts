@@ -222,7 +222,7 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   // The console follows both exercises live; the trainer completes each.
   for (const [index, exercise] of exercises.entries()) {
     await show(index)
-    await expect(exercise.locator('.trainer-console-checklist .trainer-console-panel-head span')).toHaveText(/^7 of 8$/)
+    await expect(exercise.locator('.trainer-console-checklist .trainer-console-panel-head span')).toHaveText(/^6 of 7$/)
     await exercise.getByRole('button', { name: 'Complete', exact: true }).click()
     await expect(exercise.getByRole('region', { name: 'Scenario status' }).getByText('COMPLETE', { exact: true })).toBeVisible()
   }
