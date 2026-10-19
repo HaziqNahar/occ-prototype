@@ -31,7 +31,7 @@ Date: ____________  Host address: ____________  Tester: ____________
 
 | # | Step | Expected | OK? |
 | --- | --- | --- | --- |
-| C1 | Trainer signs in (or sets up the first trainer) | Trainer Console | |
+| C1 | Trainer signs in (or sets up the first trainer); on a new host, **Create session** | Trainer Console with a session code | |
 | C2 | People: **Add person** twice, for two test trainees | Both listed; a short message at the bottom right confirms each | |
 | C3 | Trainee PC 1 signs in as trainee 1, PC 2 as trainee 2 | Trainee page, "Hello, <name>" | |
 | C4 | On a trainee PC open `http://<host>:8787/ios/modules` | "Not available" (console is for trainers) | |

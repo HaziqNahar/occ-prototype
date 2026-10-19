@@ -61,6 +61,8 @@ function readToken(request: IncomingMessage, url: URL) {
   return header?.startsWith('Bearer ') ? header.slice(7).trim() : url.searchParams.get('token')
 }
 
+const NO_SESSION_MESSAGE = 'No session yet. The trainer creates one on the Trainer Console.'
+
 // HTTP API for the OCC training sessions. Browsers send commands; the server
 // applies them and streams the result. Everything but health and sign-in needs
 // a signed-in account. See docs/production-plan.md, phases 2 and 4.
@@ -69,9 +71,19 @@ export function createRoutes(
   store: SessionStore = new SessionStore(db),
   auth: AuthService = new AuthService(db),
 ) {
-  // The exercise a screen shows when it names none: a trainee's own, otherwise Exercise 1.
-  function followed(user: PublicUser | null) {
-    return store.find(store.followedSessionId(user?.id ?? null)) ?? store.current()
+  // The exercise a screen shows when it names none: a trainee's own, otherwise
+  // Exercise 1; null before the trainer has created a session.
+  function followed(user: PublicUser | null): ManagedSession | null {
+    return store.find(store.followedSessionId(user?.id ?? null)) ?? store.current() ?? null
+  }
+
+  // Until the trainer creates the first session there is nothing to act on.
+  function requireSession(managed: ManagedSession | null): ManagedSession {
+    if (!managed) {
+      throw new RequestError(NO_SESSION_MESSAGE, 404)
+    }
+
+    return managed
   }
 
   // Requests name their exercise (session id or code), or get the followed one.
@@ -114,7 +126,7 @@ export function createRoutes(
 
     // A window still showing a session that was reset gets its current one instead.
     if (!managed) {
-      sendSnapshot(response, followed(user), 409, { error: 'stale_session', message: 'That session has ended. Showing the current session.' })
+      sendSnapshot(response, requireSession(followed(user)), 409, { error: 'stale_session', message: 'That session has ended. Showing the current session.' })
       return
     }
 
@@ -499,19 +511,21 @@ export function createRoutes(
 
           sendJson(response, 200, {
             clients: store.realtime.clientCount,
-            hasSession: true,
-            joinedScreens: Object.keys(current.session.sessionMeta.screens ?? {}).length,
+            hasSession: Boolean(current),
+            joinedScreens: current ? Object.keys(current.session.sessionMeta.screens ?? {}).length : 0,
             service: 'sbs-occ-session-backend',
-            sessionCode: current.session.sessionMeta.code,
-            sessionId: current.id,
+            sessionCode: current?.session.sessionMeta.code ?? null,
+            sessionId: current?.id ?? null,
             status: 'ok',
-            updatedAt: current.session.updatedAt,
+            updatedAt: current?.session.updatedAt ?? null,
           })
           return
         }
         case 'GET /api/session':
           if (!managed) {
-            sendJson(response, 404, { error: 'unknown_session', message: 'No session with that id or code.' })
+            sendJson(response, 404, store.hasSession()
+              ? { error: 'unknown_session', message: 'No session with that id or code.' }
+              : { error: 'no_session', message: NO_SESSION_MESSAGE })
             return
           }
 
@@ -527,7 +541,7 @@ export function createRoutes(
           })
           return
         case 'GET /api/session/transport-status':
-          sendJson(response, 200, buildTransportStatus(managed ?? followed(user)))
+          sendJson(response, 200, buildTransportStatus(requireSession(managed ?? followed(user))))
           return
         case 'GET /api/session/events': {
           const subscribed = sessionParam ? managed : null
@@ -553,13 +567,13 @@ export function createRoutes(
           await handleCommand(request, response, user!)
           return
         case 'POST /api/session/screens':
-          await handleScreenJoin(request, response, managed ?? followed(user))
+          await handleScreenJoin(request, response, requireSession(managed ?? followed(user)))
           return
         case 'POST /api/session/simulation':
-          await handleSimulationClaim(request, response, managed ?? followed(user))
+          await handleSimulationClaim(request, response, requireSession(managed ?? followed(user)))
           return
         case 'POST /api/session/monitor-launches':
-          await handleMonitorLaunch(request, response, managed ?? followed(user))
+          await handleMonitorLaunch(request, response, requireSession(managed ?? followed(user)))
           return
         case 'POST /api/session/runtime':
         case 'DELETE /api/session/runtime':

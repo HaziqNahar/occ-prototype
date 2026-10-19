@@ -57,7 +57,7 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
     expect(created.status()).toBe(201)
   }
 
-  // Trainer PC: sign in, open Exercise 2.
+  // Trainer PC: sign in, create the session, open Exercise 2.
   const trainerPc = await browser.newContext()
 
   watchErrors(trainerPc, errors)
@@ -66,6 +66,9 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
 
   await signIn(consolePage, TRAINER.username)
   await expect(consolePage).toHaveURL(/\/ios\/modules$/)
+  // A new host has no session: the trainer creates it.
+  await expect(consolePage.getByText('No session yet')).toBeVisible()
+  await consolePage.getByRole('button', { name: 'Create session' }).click()
   await consolePage.getByRole('button', { name: 'Add Exercise 2' }).click()
 
   const exercises = [1, 2].map((number) => consolePage.getByRole('region', { name: `Exercise ${number}` }))

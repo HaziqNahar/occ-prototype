@@ -33,7 +33,8 @@ async function getAvailablePort() {
 
 export type TestBackend = Awaited<ReturnType<typeof startBackend>>
 
-export async function startBackend(dataDir: string, env: Record<string, string> = {}) {
+// createSession: false starts with no session, as a new host does.
+export async function startBackend(dataDir: string, env: Record<string, string> = {}, { createSession = true } = {}) {
   const port = await getAvailablePort()
   const baseUrl = `http://127.0.0.1:${port}`
   const backend: ChildProcess = spawn(process.execPath, [path.resolve('server/server.mjs')], {
@@ -139,6 +140,11 @@ export async function startBackend(dataDir: string, env: Record<string, string> 
     try {
       if ((await fetch(`${baseUrl}/api/health`)).ok) {
         await signInTestAccounts()
+
+        // The trainer creates the session, as on the Trainer Console (none exists before).
+        if (createSession && !((await (await fetch(`${baseUrl}/api/health`)).json()) as { hasSession: boolean }).hasSession) {
+          await post('/api/sessions', {})
+        }
 
         return { backend, baseUrl, command, getJson, openEvents, post, snapshot, stderr: () => stderr, tokens }
       }

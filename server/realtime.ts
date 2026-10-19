@@ -11,7 +11,8 @@ import type { SessionMonitorLaunch, SessionTransportEvent } from '../src/types'
 
 type SseClient = {
   // The exercise this stream is showing now.
-  currentSessionId: string
+  // Null until there is a session to show (none is created until the trainer makes one).
+  currentSessionId: string | null
   // Named exercise, or null to follow the user.
   sessionId: string | null
   response: ServerResponse
@@ -38,11 +39,11 @@ function writeSse(response: ServerResponse, payload: unknown) {
 
 export class RealtimeHub {
   private readonly clients = new Set<SseClient>()
-  private readonly resolveFollowed: (userId: string | null) => string
+  private readonly resolveFollowed: (userId: string | null) => string | null
   private readonly snapshotFor: (sessionId: string) => SessionSnapshotMessage | null
 
   constructor(
-    resolveFollowed: (userId: string | null) => string,
+    resolveFollowed: (userId: string | null) => string | null,
     snapshotFor: (sessionId: string) => SessionSnapshotMessage | null,
   ) {
     this.resolveFollowed = resolveFollowed
@@ -76,7 +77,7 @@ export class RealtimeHub {
     this.clients.forEach((client) => {
       const target = client.sessionId ?? this.resolveFollowed(client.userId)
 
-      if (target === client.currentSessionId) {
+      if (target === null || target === client.currentSessionId) {
         return
       }
 
@@ -107,7 +108,7 @@ export class RealtimeHub {
     userId: string | null
   }) {
     const currentSessionId = options.subscribedSessionId ?? this.resolveFollowed(options.userId)
-    const snapshot = this.snapshotFor(currentSessionId)
+    const snapshot = currentSessionId === null ? null : this.snapshotFor(currentSessionId)
 
     setCorsHeaders(response)
     response.writeHead(200, {

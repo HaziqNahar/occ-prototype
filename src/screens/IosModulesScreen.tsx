@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PublicUser } from '../accounts'
 import { AuthRequestError } from '../authClient'
 import AppShell from '../components/AppShell'
+import EmptyState from '../components/EmptyState'
 import { exerciseApi } from '../exerciseClient'
 import type { ExerciseSummary, TraineeAccount } from '../exerciseClient'
 import type { SessionActor } from '../session-commands/types'
@@ -117,6 +118,17 @@ function IosModulesScreen({ getActor, onNavigate, onSignOut, onSignedOut, token,
         <section className="trainer-console-panel trainer-console-empty trainer-console-status-panel" role="status">
           <strong>{loadError ? 'Training server not available' : 'Loading exercises…'}</strong>
           {loadError && <span>{loadError} Retrying every few seconds.</span>}
+        </section>
+      )}
+
+      {user && exercises?.length === 0 && (
+        <section className="trainer-console-panel">
+          <EmptyState
+            action={<button type="button" className="is-primary" onClick={() => run(exerciseApi.add)}>Create session</button>}
+            icon="session"
+            text="Create the training session to get a code for trainees to join. It stays open, also after the server restarts."
+            title="No session yet"
+          />
         </section>
       )}
 

@@ -67,16 +67,19 @@ export class SessionStore {
   private readonly sessions = new Map<string, ManagedSession>()
   private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly nextBackgroundAlarmAt = new Map<string, number>()
-  private currentId: string
+  // Exercise 1; null until the trainer creates the first session.
+  private currentId: string | null = null
 
   constructor(db: OccDatabase) {
     this.db = db
 
+    // The saved session comes back after a restart. With none saved, there is
+    // no session until a trainer creates one on the Trainer Console.
     const stored = db.loadCurrentSession()
-    const managed = this.add(stored ? withoutSimulationOwner(restoreSession(stored)) : createInitialSession(), 1)
-    const second = db.loadSession(db.getSecondSessionId())
+    const managed = stored ? this.add(withoutSimulationOwner(restoreSession(stored)), 1) : null
+    const second = managed ? db.loadSession(db.getSecondSessionId()) : null
 
-    this.currentId = managed.id
+    this.currentId = managed?.id ?? null
     this.realtime = new RealtimeHub(
       (userId) => this.followedSessionId(userId),
       (sessionId) => {
@@ -85,15 +88,17 @@ export class SessionStore {
         return found ? this.snapshot(found) : null
       },
     )
-    db.setCurrentSession(managed.session)
+    if (managed) {
+      db.setCurrentSession(managed.session)
+    }
 
     if (second) {
       db.setSecondSession(this.add(withoutSimulationOwner(restoreSession(second)), 2).session)
     }
+  }
 
-    if (!stored) {
-      db.logAction({ detail: managed.session.sessionMeta.code, kind: 'session.created', sessionId: managed.id })
-    }
+  hasSession() {
+    return this.currentId !== null
   }
 
   // Routine alarms arrive during a running exercise (src/backgroundAlarms.ts);
@@ -123,8 +128,9 @@ export class SessionStore {
     return userId ? this.exercises().find((managed) => managed.session.trainees.some((trainee) => trainee.email === userId)) : undefined
   }
 
-  // What a screen shows when it does not name an exercise: a trainee's own, otherwise Exercise 1.
-  followedSessionId(userId: string | null) {
+  // What a screen shows when it does not name an exercise: a trainee's own,
+  // otherwise Exercise 1 (null before the first session is created).
+  followedSessionId(userId: string | null): string | null {
     return this.sessionForTrainee(userId)?.id ?? this.currentId
   }
 
@@ -135,9 +141,14 @@ export class SessionStore {
     return own ? own.id === managed.id : managed.id === this.currentId
   }
 
+  // The trainer creates the session (Exercise 1), then optionally Exercise 2.
   addExercise(actor: SessionActor) {
     if (this.sessions.size >= MAX_EXERCISES) {
       return null
+    }
+
+    if (this.currentId === null) {
+      return this.createFirst(actor)
     }
 
     const managed = this.add(createInitialSession(), 2)
@@ -162,7 +173,7 @@ export class SessionStore {
     this.sessions.delete(managed.id)
     this.db.setSecondSession(null)
     this.db.logAction({ actor, detail: 'Exercise 2 closed', kind: 'session.cleared', sessionId: managed.id })
-    this.realtime.moveClients(managed.id, this.currentId)
+    this.realtime.moveClients(managed.id, this.currentId!)
 
     return null
   }
@@ -190,8 +201,21 @@ export class SessionStore {
     }))
   }
 
-  current() {
-    return this.sessions.get(this.currentId) as ManagedSession
+  // Exercise 1, or undefined before the trainer has created a session.
+  current(): ManagedSession | undefined {
+    return this.currentId === null ? undefined : this.sessions.get(this.currentId)
+  }
+
+  // The first session: Exercise 1, which screens follow from now on.
+  private createFirst(actor: SessionActor | string) {
+    const managed = this.add(createInitialSession(), 1)
+
+    this.currentId = managed.id
+    this.db.setCurrentSession(managed.session)
+    this.db.logAction({ actor, detail: managed.session.sessionMeta.code, kind: 'session.created', sessionId: managed.id })
+    this.realtime.sync()
+
+    return managed
   }
 
   // By session id, or by the code trainees type.
@@ -399,9 +423,13 @@ export class SessionStore {
     }, { sourceId: launch?.sourceId }, 'later')
   }
 
-  // Starts a fresh session in place of the current one.
+  // Starts a fresh session in place of the current one (or the first one).
   clearCurrent(sourceId: string) {
     const previous = this.current()
+
+    if (!previous) {
+      return this.createFirst(sourceId)
+    }
 
     this.db.logAction({ actor: sourceId, kind: 'session.cleared', sessionId: previous.id })
 

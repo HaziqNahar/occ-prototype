@@ -36,6 +36,13 @@ async function ensureAccounts(request: APIRequestContext) {
     headers: { authorization: `Bearer ${trainerToken}` },
   })
 
+  // A new host has no session until the trainer creates one.
+  const listed = await (await request.get('/api/sessions', { headers: { authorization: `Bearer ${trainerToken}` } })).json() as { sessions: unknown[] }
+
+  if (listed.sessions.length === 0) {
+    await request.post('/api/sessions', { data: {}, headers: { authorization: `Bearer ${trainerToken}` } })
+  }
+
   return trainerToken
 }
 
