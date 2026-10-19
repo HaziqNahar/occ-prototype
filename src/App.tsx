@@ -128,6 +128,8 @@ import TrainingCoach from './components/TrainingCoach'
 import { useCommandFeedback } from './components/useCommandFeedback'
 import type { TrainingAid } from './trainingAids'
 import { exerciseApi } from './exerciseClient'
+import { getMonitorWindow } from './occMonitors'
+import { getSessionId } from './sessionCode'
 import { useAuth } from './useAuth'
 import type {
   AppRoute,
@@ -471,19 +473,18 @@ function LineMapScreen({
 
   // Monitor 02 is the operator's main control screen, so it can launch the
   // peer monitor layout.
+  const exerciseNumber = session.sessionMeta.exercise ?? 1
+  const sessionId = getSessionId(session)
   const openPeerMonitorWindows = useCallback((targets: MonitorLaunchRequest['targets']) => {
-    const monitorConfig: Record<MonitorLaunchRequest['targets'][number], { left: number; name: string; top: number }> = {
-      '/screen/alarms': { left: 0, name: 'occ-monitor-1-alarms', top: 0 },
-      '/screen/timetable': { left: 180, name: 'occ-monitor-3-timetable', top: 90 },
-    }
     const blockedTargets: string[] = []
 
+    // A Line Map opened for one exercise (?session=) opens that exercise's windows.
+    const code = new URLSearchParams(window.location.search).get('session')
+    const exercise = code ? { code, number: exerciseNumber } : undefined
+
     targets.forEach((target) => {
-      const config = monitorConfig[target]
-      const openedWindow = window.open(
-        target,
-        config.name,
-      )
+      const config = getMonitorWindow(target, exercise)
+      const openedWindow = window.open(config.url, config.name)
 
       if (!openedWindow) {
         blockedTargets.push(target)
@@ -499,7 +500,7 @@ function LineMapScreen({
     }
 
     setMonitorLaunchStatus('Alarms + Timetable opened')
-  }, [])
+  }, [exerciseNumber])
 
   const launchPeerMonitors = useCallback(() => {
     const launchId = requestMonitorPeerLaunch()
@@ -516,9 +517,13 @@ function LineMapScreen({
       return
     }
 
+    if (request.sessionId && request.sessionId !== sessionId) {
+      return
+    }
+
     handledLaunchIdsRef.current.add(request.launchId)
     openPeerMonitorWindows(request.targets)
-  }), [openPeerMonitorWindows, subscribeMonitorLaunch])
+  }), [openPeerMonitorWindows, sessionId, subscribeMonitorLaunch])
 
   useEffect(() => {
     if (requestedLaunchRef.current) {

@@ -198,7 +198,7 @@ export function createRoutes(
       sourceId: launchRequest.sourceId,
       transport: 'backend',
     })
-    store.realtime.broadcastMonitorLaunch(launchRequest)
+    store.realtime.broadcastMonitorLaunch(managed.id, launchRequest)
     sendJson(response, 202, { ok: true, request: launchRequest })
   }
 

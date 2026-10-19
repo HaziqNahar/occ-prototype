@@ -1,4 +1,4 @@
-import { buildOccApiUrl, getOccBackendBaseUrl, requestOccMonitorLaunch } from './backendClient'
+import { buildOccApiUrl, getOccBackendBaseUrl } from './backendClient'
 import type {
   SessionCommandRequest,
   SessionCommandResponse,
@@ -302,18 +302,19 @@ export function createSessionClient({ onMonitorLaunchRequest, onSignedOut, onSna
     },
     // Monitor 02 asks for Monitor 01 and 03 over every available path; the
     // receiver de-duplicates by launchId.
-    requestMonitorPeerLaunch: () => {
+    requestMonitorPeerLaunch: (sessionId?: string) => {
       const message: MonitorLaunchPayload = {
         launchId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         originRoute: '/screen/line-map',
         requestedAt: Date.now(),
+        sessionId,
         sourceId,
         targets: ['/screen/alarms', '/screen/timetable'],
         type: 'monitor-launch:request',
       }
 
       if (backendBaseUrl !== null) {
-        void requestOccMonitorLaunch(message).catch(() => {
+        void postJson('/api/session/monitor-launches', message).catch(() => {
           // Worker and BroadcastChannel still carry the launch on this PC.
         })
       }

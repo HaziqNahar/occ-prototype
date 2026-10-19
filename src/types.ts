@@ -204,6 +204,8 @@ export type SessionScreenJoin = {
 // view should bring up Monitor 01 and Monitor 03 through the available bus.
 export type SessionMonitorLaunch = {
   launchId: string
+  // The exercise whose Line Map asked; other exercises' screens ignore it.
+  sessionId?: string
   originRoute: '/screen/line-map'
   requestedAt: number
   sourceId: string

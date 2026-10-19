@@ -89,10 +89,15 @@ export class RealtimeHub {
     })
   }
 
-  broadcastMonitorLaunch(launchRequest: SessionMonitorLaunch) {
-    const payload = { ...launchRequest, transport: 'backend', type: 'monitor-launch:request' }
+  // Only to the screens of the exercise whose Line Map asked.
+  broadcastMonitorLaunch(sessionId: string, launchRequest: SessionMonitorLaunch) {
+    const payload = { ...launchRequest, sessionId, transport: 'backend', type: 'monitor-launch:request' }
 
-    this.clients.forEach((client) => writeSse(client.response, payload))
+    this.clients.forEach((client) => {
+      if (client.currentSessionId === sessionId) {
+        writeSse(client.response, payload)
+      }
+    })
   }
 
   open(request: IncomingMessage, response: ServerResponse, options: {

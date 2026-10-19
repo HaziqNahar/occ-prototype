@@ -272,7 +272,7 @@ export function useOccSession(
   ), [])
 
   const requestMonitorPeerLaunch = useCallback(() => (
-    clientRef.current?.requestMonitorPeerLaunch() ?? ''
+    clientRef.current?.requestMonitorPeerLaunch(serverRef.current.sessionId ?? undefined) ?? ''
   ), [])
 
   const registerScreen = useCallback((screen: ScreenRegistration) => {
