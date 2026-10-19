@@ -9598,17 +9598,28 @@
   border-radius: 10px;
 }
 
-.app-shell-main button.trainee-leave {
+/* Leave session: a quiet outlined button, red only in tone. */
+.app-shell .app-shell-main button.trainee-leave {
   justify-self: start;
-  border: 0;
-  padding: 0;
-  color: #9fb3ca;
-  background: none;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: #fca5a5;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.app-shell-main button.trainee-leave:hover {
-  color: #f87171;
-  background: none;
+.app-shell .app-shell-main button.trainee-leave:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.app-shell .app-shell-main button.trainee-leave:focus-visible {
+  outline: 2px solid rgba(248, 113, 113, 0.6);
+  outline-offset: 2px;
 }
 
 .app-shell-main .trainee-join button,
