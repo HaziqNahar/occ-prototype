@@ -10788,3 +10788,73 @@
 .app-shell .trainer-console-figures dd {
   white-space: nowrap;
 }
+
+/* Bigger targets for small controls; chart points by shape as well as colour. */
+.app-shell .app-shell-main .tc-copy {
+  min-height: 28px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+.app-shell .app-shell-main .side-panel-close,
+.side-panel .side-panel-close,
+.app-shell .app-shell-main .toast button {
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+}
+
+.app-shell .app-shell-main .side-panel-close:hover,
+.side-panel .side-panel-close:hover,
+.app-shell .app-shell-main .toast button:hover {
+  color: #f8fafc;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.score-trend-point {
+  cursor: pointer;
+}
+
+.score-trend-hit {
+  fill: transparent;
+}
+
+.score-trend-point:hover .score-trend-dot {
+  stroke: #f8fafc;
+}
+
+.score-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  margin: 8px 0 0;
+  color: #9fb3ca;
+  font-size: 12px;
+}
+
+.score-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.score-trend-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+}
+
+.score-trend-legend i.is-pass {
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.score-trend-legend i.is-review {
+  background: #f59e0b;
+  transform: rotate(45deg) scale(0.85);
+}
+
+.score-trend-legend span:last-child {
+  margin-left: auto;
+}

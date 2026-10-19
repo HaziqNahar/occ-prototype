@@ -40,27 +40,36 @@ function ScoreTrend({ onOpen, runs }: { onOpen: (runId: string) => void; runs: R
   const y = (score: number) => pad.top + ((100 - score) * (height - pad.top - pad.bottom)) / 100
 
   return (
-    <svg className="score-trend" role="img" aria-label={`Scores of the last ${points.length} completed runs`} viewBox={`0 0 ${width} ${height}`}>
-      {[0, 50, 100].map((score) => (
-        <g key={score}>
-          <line className="score-trend-grid" x1={pad.left} x2={width - pad.right} y1={y(score)} y2={y(score)} />
-          <text className="score-trend-axis" x={pad.left - 8} y={y(score) + 4} textAnchor="end">{score}</text>
-        </g>
-      ))}
-      <polyline className="score-trend-line" points={points.map((run, index) => `${x(index)},${y(run.score)}`).join(' ')} />
-      {points.map((run, index) => (
-        <circle
-          className={`score-trend-dot ${run.result === 'PASS' ? 'is-pass' : 'is-review'}`}
-          cx={x(index)}
-          cy={y(run.score)}
-          key={run.id}
-          onClick={() => onOpen(run.id)}
-          r={5}
-        >
-          <title>{`${run.scenarioTitle} · ${formatRunTime(getRunTime(run))} · ${run.score}%`}</title>
-        </circle>
-      ))}
-    </svg>
+    <>
+      <svg className="score-trend" role="img" aria-label={`Scores of the last ${points.length} completed runs`} viewBox={`0 0 ${width} ${height}`}>
+        {[0, 50, 100].map((score) => (
+          <g key={score}>
+            <line className="score-trend-grid" x1={pad.left} x2={width - pad.right} y1={y(score)} y2={y(score)} />
+            <text className="score-trend-axis" x={pad.left - 8} y={y(score) + 4} textAnchor="end">{score}</text>
+          </g>
+        ))}
+        <polyline className="score-trend-line" points={points.map((run, index) => `${x(index)},${y(run.score)}`).join(' ')} />
+        {points.map((run, index) => {
+          const [cx, cy] = [x(index), y(run.score)]
+          const passed = run.result === 'PASS'
+  
+          return (
+            <g className="score-trend-point" key={run.id} onClick={() => onOpen(run.id)}>
+              <title>{`${run.scenarioTitle} · ${passed ? 'Pass' : 'Needs review'} · ${run.score}% · ${formatRunTime(getRunTime(run))}`}</title>
+              <circle className="score-trend-hit" cx={cx} cy={cy} r={14} />
+              {passed
+                ? <circle className="score-trend-dot is-pass" cx={cx} cy={cy} r={6} />
+                : <path className="score-trend-dot is-review" d={`M ${cx} ${cy - 8} L ${cx + 8} ${cy} L ${cx} ${cy + 8} L ${cx - 8} ${cy} Z`} />}
+            </g>
+          )
+        })}
+      </svg>
+      <p className="score-trend-legend">
+        <span><i className="is-pass" aria-hidden="true" /> Passed</span>
+        <span><i className="is-review" aria-hidden="true" /> Needs review</span>
+        <span>Click a point to open the run.</span>
+      </p>
+    </>
   )
 }
 
