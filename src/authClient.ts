@@ -39,6 +39,14 @@ export function getAuthHeaders(token = readAuthToken()): Record<string, string> 
   return token ? { authorization: `Bearer ${token}` } : {}
 }
 
+// Called when the server rejects this browser's sign-in (useAuth sends the page
+// back to the sign-in form).
+let signInRejected: (() => void) | null = null
+
+export function onSignInRejected(handler: (() => void) | null) {
+  signInRejected = handler
+}
+
 // A signed-in request to the training server; throws AuthRequestError with the server's message.
 export async function apiRequest<T>(path: string, options: { body?: unknown; method?: string; token?: string | null } = {}) {
   const baseUrl = getOccBackendBaseUrl()
@@ -58,6 +66,12 @@ export async function apiRequest<T>(path: string, options: { body?: unknown; met
   const payload = await response.json().catch(() => ({})) as T & { message?: string }
 
   if (!response.ok) {
+    // Only for requests made with the stored sign-in: a wrong password at
+    // sign-in, or the sign-in check itself, answer 401 too.
+    if (response.status === 401 && options.token === undefined && readAuthToken()) {
+      signInRejected?.()
+    }
+
     throw new AuthRequestError(payload.message ?? `Request failed (${response.status}).`, response.status)
   }
 

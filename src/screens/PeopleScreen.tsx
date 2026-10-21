@@ -14,12 +14,14 @@ import type { AppRoute } from '../types'
 type PeopleScreenProps = {
   onNavigate: (route: AppRoute) => void
   onSignOut?: () => void
+  // Ends this browser's sign-in with a message (after changing your own password).
+  onSignedOut?: (message: string) => void
   user: PublicUser
 }
 
 // Admin trainers add trainers and trainees, reset passwords and switch
 // accounts off. Accounts are never deleted, so past runs keep their names.
-function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
+function PeopleScreen({ onNavigate, onSignedOut, onSignOut, user }: PeopleScreenProps) {
   const [users, setUsers] = useState<PublicUser[] | null>(null)
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
@@ -28,11 +30,13 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
   const [panel, setPanel] = useState<{ kind: 'add' } | { kind: 'reset'; person: PublicUser } | null>(null)
   const [panelError, setPanelError] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const openPanel = (next: typeof panel) => {
     setPanel(next)
     setPanelError('')
     setNewPassword('')
+    setConfirmPassword('')
   }
   const closePanel = useCallback(() => setPanel(null), [])
   const clearNote = useCallback(() => setNote(''), [])
@@ -84,6 +88,7 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
     event.preventDefault()
 
     const problem = getPasswordProblem(newPassword)
+      ?? (newPassword === confirmPassword ? null : 'The two passwords do not match.')
 
     if (problem) {
       setPanelError(problem)
@@ -92,6 +97,12 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
 
     void authApi.updateUser(person.id, { password: newPassword })
       .then(() => {
+        // A password change signs the account out everywhere, this browser too.
+        if (person.id === user.id) {
+          onSignedOut?.('Your password was changed. Sign in with the new password.')
+          return
+        }
+
         setNote(`Password for ${person.name} changed. They are signed out everywhere.`)
         setError('')
         setPanel(null)
@@ -170,8 +181,13 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
               <p className="side-panel-lead">{panel.person.name} · {panel.person.id}</p>
               <label className="side-panel-field">
                 <span>New password</span>
-                <input autoComplete="new-password" autoFocus onChange={(event) => setNewPassword(event.target.value)} value={newPassword} />
-                <small>At least {PASSWORD_MIN_LENGTH} characters. They are signed out everywhere.</small>
+                <input autoComplete="new-password" autoFocus onChange={(event) => setNewPassword(event.target.value)} type="password" value={newPassword} />
+                <small>At least {PASSWORD_MIN_LENGTH} characters.</small>
+              </label>
+              <label className="side-panel-field">
+                <span>Confirm new password</span>
+                <input autoComplete="new-password" onChange={(event) => setConfirmPassword(event.target.value)} type="password" value={confirmPassword} />
+                <small>{panel.person.id === user.id ? 'You will be signed out and sign in again with the new password.' : 'They are signed out everywhere.'}</small>
               </label>
               {panelError && <p className="side-panel-error" role="alert">{panelError}</p>}
               <footer>

@@ -604,6 +604,38 @@ test.describe('OCC monitor regressions', () => {
     expect(errors).toEqual([])
   })
 
+  test('changing your own password asks to confirm it, then signs you out', async ({ browser, request }) => {
+    // Its own admin account, so the other tests' trainer password stays as it is.
+    const admin = { name: 'Password Admin', username: `pw.admin.${Date.now()}` }
+
+    await request.post('/api/users', { data: { ...admin, admin: true, password: PASSWORD, role: 'trainer' }, headers: trainerHeaders() })
+
+    const context = await browser.newContext()
+
+    await signInBrowser(context, await signInToken(request, admin.username))
+
+    const page = await context.newPage()
+    const panel = page.getByRole('dialog', { name: 'Reset password' })
+
+    await page.goto('/admin')
+    await page.getByRole('row', { name: new RegExp(admin.username) }).getByRole('button', { name: 'Reset password' }).click()
+    await panel.getByRole('textbox', { name: /^New password/ }).fill('new-password-1')
+    await panel.getByRole('textbox', { name: /^Confirm new password/ }).fill('new-password-2')
+    await panel.getByRole('button', { name: 'Set password' }).click()
+    await expect(panel.getByRole('alert')).toHaveText('The two passwords do not match.')
+
+    await panel.getByRole('textbox', { name: /^Confirm new password/ }).fill('new-password-1')
+    await panel.getByRole('button', { name: 'Set password' }).click()
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByText('Your password was changed. Sign in with the new password.')).toBeVisible()
+
+    await page.getByLabel('Username').fill(admin.username)
+    await page.getByLabel('Password').fill('new-password-1')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible()
+    await context.close()
+  })
+
   test('without signing in, every page asks for a sign-in', async ({ browser }) => {
     const context = await browser.newContext()
     const page = await context.newPage()

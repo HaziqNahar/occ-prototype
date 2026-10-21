@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { PublicUser } from './accounts'
-import { AUTH_TOKEN_KEY, authApi, AuthRequestError, readAuthToken, writeAuthToken } from './authClient'
+import { AUTH_TOKEN_KEY, authApi, AuthRequestError, onSignInRejected, readAuthToken, writeAuthToken } from './authClient'
 import { getOccBackendBaseUrl } from './backendClient'
 
 // Who is signed in to this browser. Every window follows the same sign-in:
@@ -92,10 +92,16 @@ export function useAuth() {
   }, [])
 
   // The server no longer accepts this sign-in (expired, password reset, account switched off).
-  const handleSignedOut = useCallback(() => {
+  const handleSignedOut = useCallback((message = 'Your sign-in has ended. Please sign in again.') => {
     writeAuthToken(null)
-    setState({ message: 'You have been signed out. Sign in again.', status: 'signed-out' })
+    setState({ message, status: 'signed-out' })
   }, [])
+
+  useEffect(() => {
+    onSignInRejected(() => handleSignedOut())
+
+    return () => onSignInRejected(null)
+  }, [handleSignedOut])
 
   return { handleSignedOut, reload, setup, signIn, signOut, state }
 }
