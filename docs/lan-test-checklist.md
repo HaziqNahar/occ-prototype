@@ -56,7 +56,7 @@ Date: ____________  Host address: ____________  Tester: ____________
 | E3 | Trains keep moving smoothly on both Line Maps for 5 minutes | No jumps, no freezing | |
 | E4 | Unplug trainee PC 2's network cable for 30 s, plug it back | Its monitors catch up within a minute without reloading | |
 | E4a | During a run: trainer looks at **Remove** and **Move to Exercise …**; trainee looks for **Leave session** | Remove and Move are greyed out; the trainee page has no Leave session and says the trainer must end the run first | |
-| E5 | Trainee releases the train; trainer clicks **Complete** in each exercise | Both show COMPLETE; trainee pages show "Exercise complete" | |
+| E5 | Trainee finishes the steps; trainer clicks **Complete** in each exercise | Both show COMPLETE; trainee pages show "Exercise complete" | |
 
 ## F. Afterwards
 
