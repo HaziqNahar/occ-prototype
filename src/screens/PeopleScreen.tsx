@@ -7,10 +7,9 @@ import SidePanel from '../components/SidePanel'
 import { SkeletonRows } from '../components/Skeleton'
 import Toast from '../components/Toast'
 import type { PublicUser, UserRole } from '../accounts'
-import { apiRequest, authApi } from '../authClient'
+import { authApi } from '../authClient'
 import type { AppRoute } from '../types'
 
-type BackupFile = { bytes: number; createdAt: string; name: string }
 
 type PeopleScreenProps = {
   onNavigate: (route: AppRoute) => void
@@ -25,7 +24,6 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [form, setForm] = useState({ admin: false, name: '', password: '', role: 'trainee' as UserRole, username: '' })
-  const [backups, setBackups] = useState<BackupFile[]>([])
   // The side panel: adding a person, or a new password for one.
   const [panel, setPanel] = useState<{ kind: 'add' } | { kind: 'reset'; person: PublicUser } | null>(null)
   const [panelError, setPanelError] = useState('')
@@ -46,14 +44,6 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
   }, [])
 
   useEffect(refresh, [refresh])
-
-  useEffect(() => {
-    void apiRequest<{ backups: BackupFile[] }>('/api/admin/backups').then((result) => setBackups(result.backups)).catch(() => undefined)
-  }, [])
-
-  const backUpNow = () => void run(async () => {
-    setBackups((await apiRequest<{ backups: BackupFile[] }>('/api/admin/backups', { body: {} })).backups)
-  }, 'Backup made.')
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setError('')
@@ -108,8 +98,6 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
       })
       .catch((resetError: Error) => setPanelError(resetError.message))
   }
-
-  const latestBackup = backups[0]
 
   return (
     <AppShell
@@ -254,20 +242,6 @@ function PeopleScreen({ onNavigate, onSignOut, user }: PeopleScreenProps) {
             title="Only you so far"
           />
         )}
-      </section>
-
-      <section
-        className="trainer-console-panel people-backups"
-        aria-label="Data backups"
-        title="The server copies its data every day to server\data\backups on the host PC. Copy that folder to a USB drive now and then."
-      >
-        <strong>Backups</strong>
-        <span data-testid="latest-backup">
-          {latestBackup
-            ? `Latest: ${new Date(latestBackup.createdAt).toLocaleString()} (${Math.max(1, Math.round(latestBackup.bytes / 1024))} KB) · daily on the host`
-            : 'No backup yet · daily on the host'}
-        </span>
-        <button type="button" onClick={backUpNow}>Back up now</button>
       </section>
     </AppShell>
   )

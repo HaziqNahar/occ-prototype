@@ -66,7 +66,7 @@ Date: ____________  Host address: ____________  Tester: ____________
 | F2 | **History** | Both runs, each with the right trainee and every action | |
 | F2a | History: click a run (it opens in a side panel), **Export CSV**, then **Print / PDF** | CSV opens in Excel with the checklist and actions; the print preview is black on white | |
 | F3 | **Progress** for each trainee | One run each | |
-| F4 | People → **Back up now** | "Latest: <now>" | |
+| F4 | On the host, in a Command Prompt in the project folder: `npm.cmd run backup` | "Backup written: …" with a new file in `server\data\backups` | |
 | F5 | Close the server window, wait, start it again, reload the console | Both exercises and the history are still there | |
 
 ## G. The other scenarios

@@ -260,12 +260,6 @@ test('one trainer and two trainees run separate exercises on the LAN build', asy
   await trainees[1].lobby.getByRole('button', { name: 'My progress' }).click()
   await expect(trainees[1].lobby.getByRole('region', { name: 'Totals' }).locator('dd').first()).toHaveText('1')
 
-  // The admin makes a backup from the People page.
-  await consolePage.goto('/admin')
-  await consolePage.getByRole('button', { name: 'Back up now' }).click()
-  await expect(consolePage.getByText('Backup made.')).toBeVisible()
-  await expect(consolePage.getByTestId('latest-backup')).toContainText('Latest:')
-
   await Promise.all([trainerPc.close(), ...trainees.map((trainee) => trainee.pc.close())])
   expect(errors).toEqual([])
 })

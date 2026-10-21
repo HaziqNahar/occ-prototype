@@ -113,7 +113,7 @@ first.
 
 - The server copies its database **every day** into `server\data\backups` and
   keeps the newest 14 copies.
-- Make one now: People page → **Back up now**, or on the host
+- Make one now on the host:
   `npm.cmd run backup`.
 - Copy the `server\data\backups` folder to a USB drive or network share
   regularly; the copies on the host do not survive a disk failure.
@@ -139,7 +139,7 @@ This also switches the account back on and signs it out everywhere.
 
 ## 9. Updating the simulator
 
-1. `npm.cmd run backup` (or **Back up now**).
+1. `npm.cmd run backup`.
 2. Close the server window.
 3. Replace the project files with the new version. Keep `server\data`.
 4. `npm.cmd ci` and `npm.cmd run host:build`.

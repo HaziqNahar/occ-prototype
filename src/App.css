@@ -9008,27 +9008,6 @@
   color: #f87171;
 }
 
-.people-backups {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.people-backups span {
-  flex: 1;
-  color: #cbd5e1;
-}
-
-.people-backups button {
-  border: 1px solid var(--control-line-strong);
-  border-radius: 8px;
-  padding: 7px 14px;
-  color: var(--ink);
-  background: var(--control-button);
-  font-weight: 800;
-}
-
 .progress-grid {
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
 }
